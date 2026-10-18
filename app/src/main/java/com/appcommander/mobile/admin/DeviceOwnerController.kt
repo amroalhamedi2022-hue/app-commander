@@ -3,6 +3,7 @@ package com.appcommander.mobile.admin
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import com.appcommander.mobile.privilege.CriticalPackageGuard
 import com.appcommander.mobile.privilege.CommandResult
 
 class DeviceOwnerController(context: Context) {
@@ -14,6 +15,7 @@ class DeviceOwnerController(context: Context) {
 
     fun setSuspended(packageName: String, suspended: Boolean): CommandResult = runCatching {
         check(isOwner()) { "App Commander is not Device Owner" }
+        if (suspended) CriticalPackageGuard.reason(appContext, packageName)?.let { return CommandResult(false, it) }
         val failed = dpm.setPackagesSuspended(admin, arrayOf(packageName), suspended)
         if (failed.isEmpty()) CommandResult(true, if (suspended) "Suspended" else "Unsuspended")
         else CommandResult(false, "System refused: ${failed.joinToString()}")
@@ -21,6 +23,7 @@ class DeviceOwnerController(context: Context) {
 
     fun setHidden(packageName: String, hidden: Boolean): CommandResult = runCatching {
         check(isOwner()) { "App Commander is not Device Owner" }
+        if (hidden) CriticalPackageGuard.reason(appContext, packageName)?.let { return CommandResult(false, it) }
         val ok = dpm.setApplicationHidden(admin, packageName, hidden)
         CommandResult(ok, if (ok) (if (hidden) "Hidden" else "Visible") else "System refused")
     }.getOrElse { CommandResult(false, it.message ?: "Device Owner command failed") }

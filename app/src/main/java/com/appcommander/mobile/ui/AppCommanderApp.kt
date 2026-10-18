@@ -80,6 +80,7 @@ import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.CommandResult
+import com.appcommander.mobile.privilege.CriticalPackageGuard
 import com.appcommander.mobile.privilege.ShizukuController
 import com.appcommander.mobile.ui.components.GlassBox
 import com.appcommander.mobile.ui.components.LiquidBackground
@@ -530,6 +531,8 @@ private fun AppDetailSheet(
     var commandMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     var commandBusy by remember(entry.packageName) { mutableStateOf(false) }
     var currentEnabled by remember(entry.packageName) { mutableStateOf(entry.enabled) }
+    val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
+    val protected = protectionReason != null
     fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
         scope.launch {
             commandBusy = true
@@ -576,18 +579,22 @@ private fun AppDetailSheet(
             if (capabilities.shizukuGranted) {
                 item {
                     Text("تحكم متقدم عبر Shizuku", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                    if (protected) {
+                        Spacer(Modifier.height(5.dp))
+                        Text("محمي: $protectionReason", fontSize = 11.sp, color = MaterialTheme.colorScheme.tertiary)
+                    }
                     Spacer(Modifier.height(6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = !commandBusy, onClick = { runCommand { ShizukuController.forceStop(entry.packageName) } }) {
+                        Button(enabled = !commandBusy && !protected, onClick = { runCommand { ShizukuController.forceStop(entry.packageName) } }) {
                             Text("Force stop")
                         }
-                        OutlinedButton(enabled = !commandBusy, onClick = {
+                        OutlinedButton(enabled = !commandBusy && (!protected || !currentEnabled), onClick = {
                             runCommand(onSuccess = { currentEnabled = !currentEnabled }) {
                                 if (currentEnabled) ShizukuController.freeze(entry.packageName)
                                 else ShizukuController.unfreeze(entry.packageName)
                             }
                         }) { Text(if (currentEnabled) "تجميد" else "إلغاء التجميد") }
-                        OutlinedButton(enabled = !commandBusy, onClick = { runCommand { ShizukuController.blockBackground(entry.packageName) } }) {
+                        OutlinedButton(enabled = !commandBusy && !protected, onClick = { runCommand { ShizukuController.blockBackground(entry.packageName) } }) {
                             Text("منع الخلفية")
                         }
                         OutlinedButton(enabled = !commandBusy, onClick = { runCommand { ShizukuController.allowBackground(entry.packageName) } }) {
@@ -605,9 +612,9 @@ private fun AppDetailSheet(
                     Text("تحكم Device Owner", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
                     Spacer(Modifier.height(6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, true) } }) { Text("تعليق") }
+                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, true) } }) { Text("تعليق") }
                         OutlinedButton(onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, false) } }) { Text("إلغاء التعليق") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, true) } }) { Text("إخفاء") }
+                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, true) } }) { Text("إخفاء") }
                         OutlinedButton(onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, false) } }) { Text("إظهار") }
                     }
                 }
@@ -636,7 +643,7 @@ private fun AppDetailSheet(
                             exported = component.exported,
                             enabled = component.enabled,
                             onClick = { repository.launchActivity(entry.packageName, component.name) },
-                            onToggle = if (capabilities.shizukuGranted) ({
+                            onToggle = if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
                                 runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
                             }) else null,
                         )
@@ -644,7 +651,7 @@ private fun AppDetailSheet(
                     "services" -> items(details!!.services) { component ->
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
-                            if (capabilities.shizukuGranted) ({
+                            if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
                                 runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
                             }) else null,
                         )
@@ -652,13 +659,13 @@ private fun AppDetailSheet(
                     "receivers" -> items(details!!.receivers) { component ->
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
-                            if (capabilities.shizukuGranted) ({
+                            if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
                                 runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
                             }) else null,
                         )
                     }
                     else -> items(details!!.permissions) { permission ->
-                        PermissionRow(permission, capabilities.shizukuGranted) {
+                        PermissionRow(permission, capabilities.shizukuGranted && (!protected || !permission.granted)) {
                             runCommand {
                                 ShizukuController.setPermission(entry.packageName, permission.name, !permission.granted)
                             }

@@ -17,6 +17,7 @@ object ShizukuController {
     const val REQUEST_CODE = 9411
 
     private var args: Shizuku.UserServiceArgs? = null
+    @Volatile private var appContext: Context? = null
     @Volatile private var remote: ICommandService? = null
     @Volatile private var binding = false
     private var pending = CompletableDeferred<ICommandService>()
@@ -37,6 +38,7 @@ object ShizukuController {
     }
 
     fun initialize(context: Context) {
+        appContext = context.applicationContext
         if (args != null) return
         args = Shizuku.UserServiceArgs(ComponentName(context.packageName, CommandUserService::class.java.name))
             .daemon(false)
@@ -55,40 +57,46 @@ object ShizukuController {
         if (isRunning() && !hasPermission()) Shizuku.requestPermission(REQUEST_CODE)
     }
 
-    suspend fun forceStop(packageName: String) = exec("am force-stop --user 0 ${safe(packageName)}")
-    suspend fun freeze(packageName: String) = exec("pm disable-user --user 0 ${safe(packageName)}")
-    suspend fun unfreeze(packageName: String) = exec("pm enable --user 0 ${safe(packageName)}")
-    suspend fun suspend(packageName: String) = exec("pm suspend --user 0 ${safe(packageName)}")
-    suspend fun unsuspend(packageName: String) = exec("pm unsuspend --user 0 ${safe(packageName)}")
+    suspend fun forceStop(packageName: String) = destructive(packageName) {
+        exec(PrivilegedOperation.FORCE_STOP, packageName)
+    }
+    suspend fun freeze(packageName: String) = destructive(packageName) {
+        exec(PrivilegedOperation.DISABLE_PACKAGE, packageName)
+    }
+    suspend fun unfreeze(packageName: String) = exec(PrivilegedOperation.ENABLE_PACKAGE, packageName)
+    suspend fun suspend(packageName: String) = destructive(packageName) {
+        exec(PrivilegedOperation.SUSPEND_PACKAGE, packageName)
+    }
+    suspend fun unsuspend(packageName: String) = exec(PrivilegedOperation.UNSUSPEND_PACKAGE, packageName)
 
     suspend fun blockBackground(packageName: String): CommandResult {
-        val pkg = safe(packageName)
-        val first = exec("cmd appops set --user 0 $pkg RUN_IN_BACKGROUND ignore")
-        val second = exec("cmd appops set --user 0 $pkg RUN_ANY_IN_BACKGROUND ignore")
-        return combine(first, second, "Background blocked")
+        return destructive(packageName) {
+            val first = exec(PrivilegedOperation.BLOCK_BACKGROUND, packageName)
+            val second = exec(PrivilegedOperation.BLOCK_ANY_BACKGROUND, packageName)
+            combine(first, second, "Background blocked")
+        }
     }
 
     suspend fun allowBackground(packageName: String): CommandResult {
-        val pkg = safe(packageName)
-        val first = exec("cmd appops set --user 0 $pkg RUN_IN_BACKGROUND allow")
-        val second = exec("cmd appops set --user 0 $pkg RUN_ANY_IN_BACKGROUND allow")
+        val first = exec(PrivilegedOperation.ALLOW_BACKGROUND, packageName)
+        val second = exec(PrivilegedOperation.ALLOW_ANY_BACKGROUND, packageName)
         return combine(first, second, "Background allowed")
     }
 
     suspend fun setPermission(packageName: String, permission: String, grant: Boolean): CommandResult {
-        val verb = if (grant) "grant" else "revoke"
-        return exec("pm $verb --user 0 ${safe(packageName)} ${safe(permission)}")
+        return if (grant) exec(PrivilegedOperation.GRANT_PERMISSION, packageName, permission)
+        else destructive(packageName) { exec(PrivilegedOperation.REVOKE_PERMISSION, packageName, permission) }
     }
 
     suspend fun setComponent(packageName: String, componentName: String, enabled: Boolean): CommandResult {
-        val verb = if (enabled) "enable --user 0" else "disable-user --user 0"
-        return exec("pm $verb ${safe(packageName)}/${safe(componentName)}")
+        return if (enabled) exec(PrivilegedOperation.ENABLE_COMPONENT, packageName, componentName)
+        else destructive(packageName) { exec(PrivilegedOperation.DISABLE_COMPONENT, packageName, componentName) }
     }
 
-    private suspend fun exec(command: String): CommandResult = withContext(Dispatchers.IO) {
+    private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult = withContext(Dispatchers.IO) {
         if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
         runCatching {
-            val reply = obtainService().execute(command)
+            val reply = obtainService().execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
             val firstLine = reply.lineSequence().firstOrNull().orEmpty()
             val success = firstLine == "exit=0"
             CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
@@ -96,6 +104,12 @@ object ShizukuController {
             remote = null
             CommandResult(false, it.message ?: "Command failed")
         }
+    }
+
+    private suspend fun destructive(packageName: String, block: suspend () -> CommandResult): CommandResult {
+        val context = appContext ?: return CommandResult(false, "App Commander is not initialized")
+        val reason = CriticalPackageGuard.reason(context, safe(packageName))
+        return if (reason != null) CommandResult(false, reason) else block()
     }
 
     private suspend fun obtainService(): ICommandService {
