@@ -5,11 +5,9 @@ import androidx.annotation.Keep
 import kotlin.concurrent.thread
 
 @Keep
-class CommandUserService : ICommandService.Stub() {
-    constructor()
-
+class CommandUserService() : ICommandService.Stub() {
     @Keep
-    constructor(context: Context)
+    constructor(context: Context) : this()
 
     override fun destroy() {
         System.exit(0)
