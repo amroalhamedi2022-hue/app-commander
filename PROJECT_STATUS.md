@@ -1,6 +1,6 @@
 # App Commander — Current Status
 
-Version: 0.1.0 debug
+Version: 0.1.1 safe debug
 
 Date: 2026-10-18
 
@@ -15,14 +15,17 @@ Date: 2026-10-18
 - Shizuku permission flow and official UserService command engine.
 - Shizuku commands for Force stop, freeze/unfreeze, background AppOps, runtime permissions, and component enable/disable.
 - Device Owner receiver and suspend/hide controller.
+- Critical-system-package guard without restricting controls for ordinary user or system apps.
+- Typed Shizuku operation gateway; arbitrary shell command strings are not accepted.
+- Recovery operations remain available for protected packages.
 - GitHub Actions build workflow and Gradle wrapper.
 
 ## Validation completed here
 
 - GitHub Actions successfully compiled the project with Android SDK 36 and JDK 17.
 - The generated debug APK was uploaded as a workflow artifact and downloaded for verification.
-- APK archive integrity passed with no errors (30,361,757 bytes).
-- APK SHA-256: `1af1783e183885c751c41ab0804d06233d8c22bb2192d647c4b0e40bce4c6205`.
+- APK archive integrity passed with no errors.
+- v0.1.1 safe APK SHA-256: `daa319bf1886a018923f98f08aa37648e5af71ac352e44fe3f30182b92164716`.
 - XML parsing passed for the manifest and every resource file.
 - Source structure, bracket balance, Git status, and whitespace checks passed.
 - No Internet permission exists in the manifest.
