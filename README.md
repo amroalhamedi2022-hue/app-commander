@@ -28,13 +28,15 @@
 
 ## البناء
 
-المتطلبات: JDK 17، Android SDK 37، وGradle 9.6. افتح المجلد في Android Studio أو شغّل:
+المتطلبات: JDK 17، Android SDK 36، وGradle 9.6. افتح المجلد في Android Studio أو شغّل:
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 
 الملف الناتج يكون في `app/build/outputs/apk/debug/app-debug.apk`.
+
+تم بناء النسخة `0.1.0-debug` بنجاح عبر GitHub Actions. حد أندرويد الأدنى هو API 28 والهدف API 36.
 
 ## المرحلة التالية
 
