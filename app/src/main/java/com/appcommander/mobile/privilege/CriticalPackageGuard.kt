@@ -2,7 +2,6 @@ package com.appcommander.mobile.privilege
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.Settings
 
 /**
@@ -45,10 +44,6 @@ object CriticalPackageGuard {
         }.getOrNull()
         if (packageName == inputPackage) return "لوحة المفاتيح الافتراضية محمية"
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val permissionController = runCatching { pm.permissionControllerPackageName }.getOrNull()
-            if (packageName == permissionController) return "مدير أذونات النظام محمي"
-        }
         return null
     }
 }
