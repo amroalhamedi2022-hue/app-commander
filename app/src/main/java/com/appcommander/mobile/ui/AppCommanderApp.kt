@@ -453,6 +453,23 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                             }
                         }
                         Spacer(Modifier.height(8.dp))
+                        Text("مؤشرات مراجعة الأذونات", fontWeight = FontWeight.Bold)
+                        val signals = com.appcommander.mobile.data.ApkInspectionSignals.evaluate(
+                            apk.targetSdk, apk.permissions, apk.signerSha256,
+                        )
+                        if (signals.isEmpty()) {
+                            Text("لا توجد مؤشرات من القائمة المحدودة؛ هذا لا يعني أن الملف آمن.")
+                        } else {
+                            signals.forEach { finding ->
+                                Text("• ${finding.description}", fontSize = 12.sp)
+                            }
+                        }
+                        Text(
+                            com.appcommander.mobile.data.ApkInspectionSignals.DISCLAIMER,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
                         Button(onClick = {
                             selectedUri?.let { uri ->
                                 val install = Intent(Intent.ACTION_VIEW, uri)
