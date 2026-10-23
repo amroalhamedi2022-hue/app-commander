@@ -68,7 +68,7 @@ class ApkArchivePreflightTest {
             arrayOf("assets/icon/child" to byteArrayOf(5), "assets/icon" to byteArrayOf(4)),
         )
         collisions.forEachIndexed { index, entries ->
-            val apk = zip("collision-$" + "{index}.apk", manifest, *entries)
+            val apk = zip("collision-${index}.apk", manifest, *entries)
             assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
         }
     }
