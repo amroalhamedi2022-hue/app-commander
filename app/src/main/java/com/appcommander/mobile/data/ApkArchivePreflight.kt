@@ -21,6 +21,12 @@ internal object ApkArchivePreflight {
 
     data class Summary(val entries: Int, val declaredUncompressedBytes: Long)
 
+    /** Reject invisible direction overrides and controls that can disguise ZIP paths in UI. */
+    private fun unsafeDisplayCodePoint(code: Int): Boolean =
+        code < 32 || code in 0x7f..0x9f || code == 0x00ad || code == 0x061c ||
+            code in 0x200b..0x200f || code in 0x202a..0x202e ||
+            code in 0x2060..0x2069 || code == 0xfeff
+
     @Throws(IOException::class)
     fun check(file: File): Summary {
         if (!file.isFile || file.length() == 0L) throw IOException("APK archive is empty")
@@ -43,7 +49,7 @@ internal object ApkArchivePreflight {
                 val path = if (entry.isDirectory) name.dropLast(1) else name
                 if (name.length > MAX_ENTRY_NAME_LENGTH ||
                     path.isEmpty() || name.startsWith('/') || name.contains('\\') ||
-                    name.any { it.code < 32 || it.code == 127 } ||
+                    name.any { unsafeDisplayCodePoint(it.code) } ||
                     path.split('/').any { it.isEmpty() || it == "." || it == ".." }
                 ) throw IOException("APK has an unsafe ZIP entry path")
                 if (!names.add(name)) throw IOException("APK has duplicate ZIP entry names")
