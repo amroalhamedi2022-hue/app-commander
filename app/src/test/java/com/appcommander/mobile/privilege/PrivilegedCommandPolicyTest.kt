@@ -46,6 +46,11 @@ class PrivilegedCommandPolicyTest {
         }
     }
 
+    @Test fun destructiveClassificationMatchesRecoveryExceptions() {
+        for (op in dangerous) assertTrue(PrivilegedCommandPolicy.isDestructive(op))
+        for (op in recovery) assertFalse(PrivilegedCommandPolicy.isDestructive(op))
+    }
+
     @Test fun runtimeApplicationIdIsProtectedEvenWhenDifferentFromDefault() {
         assertFalse(PrivilegedCommandPolicy.allows(
             PrivilegedOperation.DISABLE_PACKAGE, "com.example.flavor", "com.example.flavor"))
