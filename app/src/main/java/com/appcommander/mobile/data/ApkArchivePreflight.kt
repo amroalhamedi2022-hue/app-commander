@@ -26,6 +26,10 @@ internal object ApkArchivePreflight {
         if (!file.isFile || file.length() == 0L) throw IOException("APK archive is empty")
         ZipFile(file).use { zip ->
             val names = HashSet<String>()
+            val filePaths = HashSet<String>()
+            // Includes explicit directories and implicit parents of entries.
+            // A ZIP file must never masquerade as another entry's directory.
+            val directoryPaths = HashSet<String>()
             val entries = zip.entries()
             var count = 0
             var expandedBytes = 0L
@@ -43,6 +47,22 @@ internal object ApkArchivePreflight {
                     path.split('/').any { it.isEmpty() || it == "." || it == ".." }
                 ) throw IOException("APK has an unsafe ZIP entry path")
                 if (!names.add(name)) throw IOException("APK has duplicate ZIP entry names")
+                val segments = path.split('/')
+                var parent = ""
+                for (i in 0 until segments.lastIndex) {
+                    parent = if (i == 0) segments[i] else "$" + "{parent}/$" + "{segments[i]}"
+                    if (parent in filePaths) {
+                        throw IOException("APK ZIP entry is nested under a file")
+                    }
+                    directoryPaths.add(parent)
+                }
+                if (entry.isDirectory) {
+                    if (path in filePaths) throw IOException("APK ZIP file/directory collision")
+                    directoryPaths.add(path)
+                } else {
+                    if (path in directoryPaths) throw IOException("APK ZIP file/directory collision")
+                    filePaths.add(path)
+                }
                 val size = entry.size
                 if (size < 0L || size > MAX_DECLARED_UNCOMPRESSED_BYTES - expandedBytes) {
                     throw IOException("APK ZIP metadata exceeds inspection limits")
