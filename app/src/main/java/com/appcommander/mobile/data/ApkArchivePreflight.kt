@@ -2,6 +2,7 @@ package com.appcommander.mobile.data
 
 import java.io.File
 import java.io.IOException
+import java.util.zip.CRC32
 import java.util.zip.ZipFile
 
 /**
@@ -55,6 +56,31 @@ internal object ApkArchivePreflight {
                 }
             }
             if (!manifestFound) throw IOException("APK is missing a nonempty AndroidManifest.xml")
+            // Unlike merely trusting the central directory, read ONLY the
+            // bounded manifest and verify its actual byte count and CRC. This
+            // catches truncated/corrupt manifest payloads without extracting
+            // APK entries or inflating untrusted DEX/resources. CRC is NOT a
+            // signature or an authenticity check.
+            val manifest = zip.getEntry("AndroidManifest.xml")
+                ?: throw IOException("APK manifest entry disappeared")
+            val crc = CRC32()
+            val buffer = ByteArray(16 * 1024)
+            var readBytes = 0L
+            zip.getInputStream(manifest).use { input ->
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    if (n == 0) throw IOException("APK manifest stream stalled")
+                    readBytes += n
+                    if (readBytes > MAX_MANIFEST_BYTES) {
+                        throw IOException("APK manifest exceeds inspection limits")
+                    }
+                    crc.update(buffer, 0, n)
+                }
+            }
+            if (readBytes != manifest.size || crc.value != manifest.crc) {
+                throw IOException("APK manifest payload does not match ZIP metadata")
+            }
             return Summary(count, expandedBytes)
         }
     }
