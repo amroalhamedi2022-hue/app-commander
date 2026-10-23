@@ -68,6 +68,23 @@ class ApkArchivePreflightTest {
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
 
+    @Test fun rejectsManifestCrcMismatchWithoutInflatingOtherEntries() {
+        val apk = zip("bad-manifest-crc.apk",
+            "AndroidManifest.xml" to byteArrayOf(3, 0, 8, 0, 12, 34, 56),
+            "classes.dex" to ByteArray(128),
+        )
+        val bytes = apk.readBytes()
+        // Central directory header 0x02014b50, CRC32 at offset 16.
+        // Alter ONLY the advertised CRC, leaving compressed payload intact.
+        val signature = byteArrayOf(0x50, 0x4b, 0x01, 0x02)
+        val index = (0..bytes.size - 20).firstOrNull { offset ->
+            signature.indices.all { bytes[offset + it] == signature[it] }
+        } ?: error("ZIP central directory not found")
+        bytes[index + 16] = (bytes[index + 16].toInt() xor 1).toByte()
+        apk.writeBytes(bytes)
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
     @Test fun rejectsInvalidOrEmptyZipBeforeAndroidParser() {
         val invalid = temp.newFile("invalid.apk").apply { writeText("not a ZIP archive") }
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(invalid) }
