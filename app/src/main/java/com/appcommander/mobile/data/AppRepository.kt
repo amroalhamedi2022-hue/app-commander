@@ -19,7 +19,6 @@ import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.ComponentEntry
 import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.ShizukuController
-import java.io.File
 import java.security.MessageDigest
 
 class AppRepository(private val context: Context) {
@@ -165,10 +164,10 @@ class AppRepository(private val context: Context) {
         // The URI belongs to an untrusted provider. Use a unique cache file,
         // enforce a streaming size cap, and delete it on EVERY exit path.
         return ApkCacheCopy.withTemporaryApk(context.cacheDir) { cached ->
-            context.contentResolver.openInputStream(uri).use { input ->
+            val copied = context.contentResolver.openInputStream(uri).use { input ->
                 requireNotNull(input) { "تعذّر فتح الملف" }
                 cached.outputStream().use { output ->
-                    ApkCacheCopy.copy(input, output)
+                    ApkCacheCopy.copyWithSha256(input, output)
                 }
             }
             val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
@@ -193,8 +192,8 @@ class AppRepository(private val context: Context) {
                 activities = pkg.activities?.size ?: 0,
                 services = pkg.services?.size ?: 0,
                 receivers = pkg.receivers?.size ?: 0,
-                sizeBytes = cached.length(),
-                fileSha256 = sha256(cached),
+                sizeBytes = copied.sizeBytes,
+                fileSha256 = copied.sha256,
                 signerSha256 = runCatching {
                     pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
                 }.getOrDefault(emptyList()),
@@ -222,16 +221,4 @@ class AppRepository(private val context: Context) {
         .digest(bytes)
         .joinToString("") { "%02x".format(it) }
 
-    private fun sha256(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().buffered().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count <= 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
 }
