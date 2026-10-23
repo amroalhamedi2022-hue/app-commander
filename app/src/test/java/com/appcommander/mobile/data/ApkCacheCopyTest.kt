@@ -88,4 +88,50 @@ class ApkCacheCopyTest {
             ApkCacheCopy.copy(broken, ByteArrayOutputStream())
         }
     }
+    @Test fun hashesExactCopiedBytesInSamePass() {
+        val bytes = "abc".toByteArray(Charsets.UTF_8)
+        val output = ByteArrayOutputStream()
+        val result = ApkCacheCopy.copyWithSha256(ByteArrayInputStream(bytes), output)
+        assertEquals(3L, result.sizeBytes)
+        assertArrayEquals(bytes, output.toByteArray())
+        assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", result.sha256)
+    }
+
+    @Test fun hashesBinaryAcrossBufferBoundariesAndTransientEmptyReads() {
+        val bytes = ByteArray(131_079) { ((it * 17) % 256).toByte() }
+        val input = object : InputStream() {
+            private var offset = 0
+            private var first = true
+            override fun read(): Int = if (offset < bytes.size) bytes[offset++].toInt() and 0xff else -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (first) { first = false; return 0 }
+                if (offset == bytes.size) return -1
+                val count = minOf(len, 4093, bytes.size - offset)
+                System.arraycopy(bytes, offset, b, off, count)
+                offset += count
+                return count
+            }
+        }
+        val output = ByteArrayOutputStream()
+        val result = ApkCacheCopy.copyWithSha256(input, output)
+        val expected = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+        assertEquals(bytes.size.toLong(), result.sizeBytes)
+        assertArrayEquals(bytes, output.toByteArray())
+        assertEquals(expected, result.sha256)
+    }
+
+    @Test fun copyWithSha256DoesNotReturnDigestForOversizedOrFailedWrites() {
+        assertThrows(IOException::class.java) {
+            ApkCacheCopy.copyWithSha256(ByteArrayInputStream(byteArrayOf(1, 2, 3, 4)), ByteArrayOutputStream(), 3)
+        }
+        val broken = object : java.io.OutputStream() {
+            override fun write(b: Int) { throw IOException("cache full") }
+            override fun write(b: ByteArray, off: Int, len: Int) { throw IOException("cache full") }
+        }
+        assertThrows(IOException::class.java) {
+            ApkCacheCopy.copyWithSha256(ByteArrayInputStream(byteArrayOf(1, 2, 3)), broken)
+        }
+    }
+
 }
