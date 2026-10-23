@@ -1,7 +1,6 @@
 package com.appcommander.mobile.privilege
 
 import android.content.Context
-import android.content.Intent
 import android.provider.Settings
 
 /**
@@ -14,20 +13,18 @@ object CriticalPackageGuard {
         if (PrivilegedCommandPolicy.isProtected(packageName, context.packageName)) return "هذا مكوّن نظام حساس ومحمي من الأوامر الخطرة"
 
         val pm = context.packageManager
-        val homePackage = runCatching {
-            pm.resolveActivity(
-                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME),
-                0,
-            )?.activityInfo?.packageName
+        // resolveActivity() can return Android's resolver instead of a real
+        // default launcher. Query all HOME candidates and protect every one.
+        val homePackages = runCatching {
+            val candidates = mutableListOf<android.content.pm.ResolveInfo>()
+            val preferred = pm.getHomeActivities(candidates)
+            (candidates.mapNotNull { it.activityInfo?.packageName } +
+                listOfNotNull(preferred?.packageName)).toSet()
         }.getOrNull()
-        if (packageName == homePackage) return "اللانشر الافتراضي محمي حتى تبقى واجهة الجهاز قابلة للاستخدام"
-
         val inputPackage = runCatching {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
-                ?.substringBefore('/')
+                ?.substringBefore('/')?.takeIf { it.isNotBlank() }
         }.getOrNull()
-        if (packageName == inputPackage) return "لوحة المفاتيح الافتراضية محمية"
-
-        return null
+        return CriticalTargetSafety.reason(packageName, homePackages, inputPackage)
     }
 }
