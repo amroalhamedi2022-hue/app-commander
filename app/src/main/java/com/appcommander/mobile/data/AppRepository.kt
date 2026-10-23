@@ -164,8 +164,7 @@ class AppRepository(private val context: Context) {
         val displayName = queryDisplayName(uri) ?: "selected.apk"
         // The URI belongs to an untrusted provider. Use a unique cache file,
         // enforce a streaming size cap, and delete it on EVERY exit path.
-        val cached = File.createTempFile("inspect-", ".apk", context.cacheDir)
-        try {
+        return ApkCacheCopy.withTemporaryApk(context.cacheDir) { cached ->
             context.contentResolver.openInputStream(uri).use { input ->
                 requireNotNull(input) { "تعذّر فتح الملف" }
                 cached.outputStream().use { output ->
@@ -182,7 +181,7 @@ class AppRepository(private val context: Context) {
             pkg.applicationInfo?.publicSourceDir = cached.absolutePath
             val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
             val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
-            return ApkInspection(
+            ApkInspection(
                 fileName = displayName,
                 label = label,
                 packageName = pkg.packageName,
@@ -200,8 +199,6 @@ class AppRepository(private val context: Context) {
                     pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
                 }.getOrDefault(emptyList()),
             )
-        } finally {
-            cached.delete()
         }
     }
 
