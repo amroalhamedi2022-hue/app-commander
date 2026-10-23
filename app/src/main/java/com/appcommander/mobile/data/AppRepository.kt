@@ -160,7 +160,9 @@ class AppRepository(private val context: Context) {
     }
 
     fun inspectApk(uri: Uri): ApkInspection {
-        val displayName = queryDisplayName(uri) ?: "selected.apk"
+        // SAF metadata is optional and untrusted: provider failures or spoofed
+        // labels must not prevent inspecting otherwise readable APK bytes.
+        val displayName = ApkDisplayName.safe(runCatching { queryDisplayName(uri) }.getOrNull())
         // The URI belongs to an untrusted provider. Use a unique cache file,
         // enforce a streaming size cap, and delete it on EVERY exit path.
         return ApkCacheCopy.withTemporaryApk(context.cacheDir) { cached ->
