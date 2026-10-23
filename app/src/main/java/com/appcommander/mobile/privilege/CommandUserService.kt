@@ -20,7 +20,7 @@ class CommandUserService() : ICommandService.Stub() {
 
     override fun execute(operation: Int, packageName: String, argument: String): String {
         val invalid = PrivilegedRequestValidator.error(operation, packageName, argument)
-        if (invalid != null) return "exit=1\\n".replace("\\n", "\n") + invalid
+        if (invalid != null) return "exit=1\n" + invalid
         val pkg = packageName
         val arg = argument.takeIf { it.isNotEmpty() }
         // Defense in depth: enforce critical-package safety in the privileged
