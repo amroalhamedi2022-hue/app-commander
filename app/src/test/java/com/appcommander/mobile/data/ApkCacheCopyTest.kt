@@ -4,6 +4,8 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.Files
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -51,6 +53,29 @@ class ApkCacheCopyTest {
         }
         assertThrows(IOException::class.java) {
             ApkCacheCopy.copy(stalled, ByteArrayOutputStream())
+        }
+    }
+
+    @Test fun removesCachedApkOnSuccessAndParserFailure() {
+        val directory = Files.createTempDirectory("apk-inspection-test").toFile()
+        try {
+            lateinit var cached: java.io.File
+            assertEquals(7, ApkCacheCopy.withTemporaryApk(directory) { file ->
+                cached = file
+                file.writeText("example")
+                7
+            })
+            assertFalse(cached.exists())
+            assertThrows(IllegalStateException::class.java) {
+                ApkCacheCopy.withTemporaryApk(directory) { file ->
+                    cached = file
+                    file.writeText("partial")
+                    throw IllegalStateException("invalid APK")
+                }
+            }
+            assertFalse(cached.exists())
+        } finally {
+            directory.deleteRecursively()
         }
     }
 
