@@ -115,4 +115,31 @@ class ApkArchivePreflightTest {
         val empty = temp.newFile("empty.apk")
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(empty) }
     }
+    @Test fun rejectsInvisibleUnicodeSpoofingControlsInEntryPaths() {
+        val unsafe = listOf(
+            "assets/icon\\u202Egnp", // bidirectional override
+            "assets/hidden\\u200Bname", // zero-width space
+            "assets/soft\\u00ADhyphen",
+            "assets/isolate\\u2066name",
+            "assets/arabic\\u061Cmark",
+            "assets/feff\\uFEFFname",
+            "assets/c1\\u0085name",
+        )
+        unsafe.forEachIndexed { index, path ->
+            val apk = zip("unicode-spoof-$index.apk",
+                "AndroidManifest.xml" to byteArrayOf(1),
+                path to byteArrayOf(2),
+            )
+            assertThrows(path, IOException::class.java) { ApkArchivePreflight.check(apk) }
+        }
+    }
+
+    @Test fun acceptsVisibleNonLatinZipPaths() {
+        val apk = zip("unicode-valid.apk",
+            "AndroidManifest.xml" to byteArrayOf(1),
+            "assets/صور/أيقونة.png" to byteArrayOf(2, 3),
+        )
+        assertEquals(2, ApkArchivePreflight.check(apk).entries)
+    }
+
 }
