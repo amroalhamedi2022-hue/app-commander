@@ -19,14 +19,19 @@ class CommandUserService() : ICommandService.Stub() {
     }
 
     override fun execute(operation: Int, packageName: String, argument: String): String {
-        val pkg = safe(packageName)
-        val arg = argument.takeIf { it.isNotBlank() }?.let(::safe)
+        val invalid = PrivilegedRequestValidator.error(operation, packageName, argument)
+        if (invalid != null) return "exit=1\\n".replace("\\n", "\n") + invalid
+        val pkg = packageName
+        val arg = argument.takeIf { it.isNotEmpty() }
         // Defense in depth: enforce critical-package safety in the privileged
         // process too, not only in the ordinary app-side ShizukuController.
         val dynamicReason = if (PrivilegedCommandPolicy.isDestructive(operation)) {
             // A user-installed default launcher or keyboard may not be in the
             // static critical-package list. Re-check from the elevated process.
+            // Fail closed if the elevated process cannot inspect the active
+            // launcher and input method. Static allowlists alone are not enough.
             serviceContext?.let { CriticalPackageGuard.reason(it, pkg) }
+                ?: if (serviceContext == null) "Cannot verify critical packages" else null
         } else null
         if (!PrivilegedCommandPolicy.allows(operation, pkg, appPackageName) || dynamicReason != null) {
             return "exit=1\n" + (dynamicReason ?: "Protected critical Android package: destructive operation denied")
@@ -52,8 +57,4 @@ class CommandUserService() : ICommandService.Stub() {
         return PrivilegedProcessRunner.collect(Runtime.getRuntime().exec(command))
     }
 
-    private fun safe(value: String): String {
-        require(value.matches(Regex("[A-Za-z0-9_.$]+"))) { "Unsafe command argument" }
-        return value
-    }
 }
