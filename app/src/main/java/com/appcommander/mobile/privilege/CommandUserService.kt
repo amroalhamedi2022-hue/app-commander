@@ -6,9 +6,13 @@ import androidx.annotation.Keep
 @Keep
 class CommandUserService() : ICommandService.Stub() {
     @Keep
-    constructor(context: Context) : this() { appPackageName = context.packageName }
+    constructor(context: Context) : this() {
+        appPackageName = context.packageName
+        serviceContext = context.applicationContext
+    }
 
     private var appPackageName = "com.appcommander.mobile"
+    private var serviceContext: Context? = null
 
     override fun destroy() {
         System.exit(0)
@@ -19,8 +23,13 @@ class CommandUserService() : ICommandService.Stub() {
         val arg = argument.takeIf { it.isNotBlank() }?.let(::safe)
         // Defense in depth: enforce critical-package safety in the privileged
         // process too, not only in the ordinary app-side ShizukuController.
-        if (!PrivilegedCommandPolicy.allows(operation, pkg, appPackageName)) {
-            return "exit=1\nProtected critical Android package: destructive operation denied"
+        val dynamicReason = if (PrivilegedCommandPolicy.isDestructive(operation)) {
+            // A user-installed default launcher or keyboard may not be in the
+            // static critical-package list. Re-check from the elevated process.
+            serviceContext?.let { CriticalPackageGuard.reason(it, pkg) }
+        } else null
+        if (!PrivilegedCommandPolicy.allows(operation, pkg, appPackageName) || dynamicReason != null) {
+            return "exit=1\n" + (dynamicReason ?: "Protected critical Android package: destructive operation denied")
         }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
