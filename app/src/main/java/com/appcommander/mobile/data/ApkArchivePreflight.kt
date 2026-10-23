@@ -50,7 +50,7 @@ internal object ApkArchivePreflight {
                 val segments = path.split('/')
                 var parent = ""
                 for (i in 0 until segments.lastIndex) {
-                    parent = if (i == 0) segments[i] else "$" + "{parent}/$" + "{segments[i]}"
+                    parent = if (i == 0) segments[i] else "${parent}/${segments[i]}"
                     if (parent in filePaths) {
                         throw IOException("APK ZIP entry is nested under a file")
                     }
