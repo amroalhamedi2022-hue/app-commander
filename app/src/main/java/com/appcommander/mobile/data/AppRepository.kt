@@ -162,39 +162,47 @@ class AppRepository(private val context: Context) {
 
     fun inspectApk(uri: Uri): ApkInspection {
         val displayName = queryDisplayName(uri) ?: "selected.apk"
-        val cached = File(context.cacheDir, "inspect-${System.currentTimeMillis()}.apk")
-        context.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "تعذّر فتح الملف" }
-            cached.outputStream().use { input.copyTo(it) }
+        // The URI belongs to an untrusted provider. Use a unique cache file,
+        // enforce a streaming size cap, and delete it on EVERY exit path.
+        val cached = File.createTempFile("inspect-", ".apk", context.cacheDir)
+        try {
+            context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "تعذّر فتح الملف" }
+                cached.outputStream().use { output ->
+                    ApkCacheCopy.copy(input, output)
+                }
+            }
+            val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
+                PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
+                PackageManager.GET_SIGNING_CERTIFICATES
+            @Suppress("DEPRECATION")
+            val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
+            val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
+            pkg.applicationInfo?.sourceDir = cached.absolutePath
+            pkg.applicationInfo?.publicSourceDir = cached.absolutePath
+            val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
+            val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
+            return ApkInspection(
+                fileName = displayName,
+                label = label,
+                packageName = pkg.packageName,
+                versionName = pkg.versionName.orEmpty().ifBlank { "—" },
+                versionCode = pkg.longVersionCode,
+                minSdk = minSdk,
+                targetSdk = pkg.applicationInfo?.targetSdkVersion ?: 0,
+                permissions = pkg.requestedPermissions?.sorted().orEmpty(),
+                activities = pkg.activities?.size ?: 0,
+                services = pkg.services?.size ?: 0,
+                receivers = pkg.receivers?.size ?: 0,
+                sizeBytes = cached.length(),
+                fileSha256 = sha256(cached),
+                signerSha256 = runCatching {
+                    pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
+                }.getOrDefault(emptyList()),
+            )
+        } finally {
+            cached.delete()
         }
-        val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
-            PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
-            PackageManager.GET_SIGNING_CERTIFICATES
-        @Suppress("DEPRECATION")
-        val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
-        val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
-        pkg.applicationInfo?.sourceDir = cached.absolutePath
-        pkg.applicationInfo?.publicSourceDir = cached.absolutePath
-        val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
-        val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
-        return ApkInspection(
-            fileName = displayName,
-            label = label,
-            packageName = pkg.packageName,
-            versionName = pkg.versionName.orEmpty().ifBlank { "—" },
-            versionCode = pkg.longVersionCode,
-            minSdk = minSdk,
-            targetSdk = pkg.applicationInfo?.targetSdkVersion ?: 0,
-            permissions = pkg.requestedPermissions?.sorted().orEmpty(),
-            activities = pkg.activities?.size ?: 0,
-            services = pkg.services?.size ?: 0,
-            receivers = pkg.receivers?.size ?: 0,
-            sizeBytes = cached.length(),
-            fileSha256 = sha256(cached),
-            signerSha256 = runCatching {
-                pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
-            }.getOrDefault(emptyList()),
-        ).also { cached.delete() }
     }
 
     private fun queryDisplayName(uri: Uri): String? {
