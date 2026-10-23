@@ -9,25 +9,9 @@ import android.provider.Settings
  * Non-critical system packages keep the same controls as user applications.
  */
 object CriticalPackageGuard {
-    private val fixedPackages = setOf(
-        "android",
-        "com.android.systemui",
-        "com.android.settings",
-        "com.android.permissioncontroller",
-        "com.google.android.permissioncontroller",
-        "com.android.packageinstaller",
-        "com.google.android.packageinstaller",
-        "com.miui.packageinstaller",
-        "com.miui.securitycenter",
-        "com.lbe.security.miui",
-        "com.miui.powerkeeper",
-        "com.miui.home",
-        "moe.shizuku.privileged.api",
-    )
-
     fun reason(context: Context, packageName: String): String? {
         if (packageName == context.packageName) return "App Commander محمي حتى لا يعطّل نفسه"
-        if (packageName in fixedPackages) return "هذا مكوّن نظام حساس ومحمي من الأوامر الخطرة"
+        if (PrivilegedCommandPolicy.isProtected(packageName, context.packageName)) return "هذا مكوّن نظام حساس ومحمي من الأوامر الخطرة"
 
         val pm = context.packageManager
         val homePackage = runCatching {
