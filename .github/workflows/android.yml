@@ -27,3 +27,7 @@ jobs:
       - name: Run JVM tests and Android static lint without APK packaging
         # Neither task assembles or signs an APK; packaging remains prohibited.
         run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
+      - name: Print Android lint diagnostics on failure
+        if: failure()
+        run: |
+          find app/build -name 'lint-results-debug.txt' -type f -print -exec cat {} \\; || true
