@@ -1,6 +1,7 @@
 package com.appcommander.mobile.privilege
 
 import android.content.Context
+import android.content.Intent
 import android.provider.Settings
 
 /**
@@ -16,10 +17,11 @@ object CriticalPackageGuard {
         // resolveActivity() can return Android's resolver instead of a real
         // default launcher. Query all HOME candidates and protect every one.
         val homePackages = runCatching {
-            val candidates = mutableListOf<android.content.pm.ResolveInfo>()
-            val preferred = pm.getHomeActivities(candidates)
-            (candidates.mapNotNull { it.activityInfo?.packageName } +
-                listOfNotNull(preferred?.packageName)).toSet()
+            @Suppress("DEPRECATION")
+            val candidates = pm.queryIntentActivities(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0,
+            )
+            candidates.mapNotNull { it.activityInfo?.packageName }.toSet()
         }.getOrNull()
         val inputPackage = runCatching {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
