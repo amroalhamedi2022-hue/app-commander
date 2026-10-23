@@ -1,5 +1,6 @@
 package com.appcommander.mobile.data
 
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -8,6 +9,16 @@ import java.io.OutputStream
 internal object ApkCacheCopy {
     const val MAX_APK_BYTES = 512L * 1024 * 1024
     private const val MAX_EMPTY_READS = 8
+
+    /** Always remove a temporary APK, even if the provider or parser throws. */
+    fun <T> withTemporaryApk(cacheDir: File, inspect: (File) -> T): T {
+        val cached = File.createTempFile("inspect-", ".apk", cacheDir)
+        try {
+            return inspect(cached)
+        } finally {
+            cached.delete()
+        }
+    }
 
     fun copy(input: InputStream, output: OutputStream, maxBytes: Long = MAX_APK_BYTES): Long {
         require(maxBytes > 0) { "APK copy limit must be positive" }
