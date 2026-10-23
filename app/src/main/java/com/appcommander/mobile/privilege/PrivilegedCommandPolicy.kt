@@ -37,6 +37,8 @@ internal object PrivilegedCommandPolicy {
         PrivilegedOperation.DISABLE_COMPONENT,
     )
 
+    fun isDestructive(operation: Int): Boolean = operation in destructiveOperations
+
     fun isProtected(packageName: String, ownPackageName: String = "com.appcommander.mobile"): Boolean =
         packageName == ownPackageName || packageName in essentialPackages
 
