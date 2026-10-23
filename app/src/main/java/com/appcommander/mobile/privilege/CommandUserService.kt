@@ -7,7 +7,9 @@ import kotlin.concurrent.thread
 @Keep
 class CommandUserService() : ICommandService.Stub() {
     @Keep
-    constructor(context: Context) : this()
+    constructor(context: Context) : this() { appPackageName = context.packageName }
+
+    private var appPackageName = "com.appcommander.mobile"
 
     override fun destroy() {
         System.exit(0)
@@ -16,6 +18,11 @@ class CommandUserService() : ICommandService.Stub() {
     override fun execute(operation: Int, packageName: String, argument: String): String {
         val pkg = safe(packageName)
         val arg = argument.takeIf { it.isNotBlank() }?.let(::safe)
+        // Defense in depth: enforce critical-package safety in the privileged
+        // process too, not only in the ordinary app-side ShizukuController.
+        if (!PrivilegedCommandPolicy.allows(operation, pkg, appPackageName)) {
+            return "exit=1\nProtected critical Android package: destructive operation denied"
+        }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
             PrivilegedOperation.DISABLE_PACKAGE -> arrayOf("pm", "disable-user", "--user", "0", pkg)
