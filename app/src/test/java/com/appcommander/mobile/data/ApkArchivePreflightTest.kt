@@ -59,6 +59,30 @@ class ApkArchivePreflightTest {
         }
     }
 
+    @Test fun rejectsFileDirectoryCollisionsInEitherEntryOrder() {
+        val manifest = "AndroidManifest.xml" to byteArrayOf(1, 2, 3)
+        val collisions = listOf(
+            arrayOf("assets/icon" to byteArrayOf(4), "assets/icon/" to byteArrayOf()),
+            arrayOf("assets/icon/" to byteArrayOf(), "assets/icon" to byteArrayOf(4)),
+            arrayOf("assets/icon" to byteArrayOf(4), "assets/icon/child" to byteArrayOf(5)),
+            arrayOf("assets/icon/child" to byteArrayOf(5), "assets/icon" to byteArrayOf(4)),
+        )
+        collisions.forEachIndexed { index, entries ->
+            val apk = zip("collision-$" + "{index}.apk", manifest, *entries)
+            assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        }
+    }
+
+    @Test fun acceptsOrdinaryNestedDirectoriesAndFiles() {
+        val apk = zip("nested.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "assets/" to byteArrayOf(),
+            "assets/icons/" to byteArrayOf(),
+            "assets/icons/icon.png" to byteArrayOf(4, 5),
+        )
+        assertEquals(4, ApkArchivePreflight.check(apk).entries)
+    }
+
     @Test fun rejectsOversizedDeclaredManifestWithoutInflatingIt() {
         // A highly compressible archive still advertises its expanded size
         // in the central directory; the preflight must not extract the bytes.
