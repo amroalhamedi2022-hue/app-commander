@@ -1,4 +1,4 @@
-name: Android build
+name: App Commander source checks (no APK)
 
 on:
   push:
@@ -6,8 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build:
+  source-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,17 +18,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install Android SDK
+      - name: Install Android SDK for JVM tests (not packaging)
         run: |
           SDKMANAGER="$(find /usr/local/lib/android/sdk/cmdline-tools -path '*/bin/sdkmanager' | sort -V | tail -1)"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+          "$SDKMANAGER" "platforms;android-36"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Run JVM unit tests
+      - name: Run JVM unit tests without APK assembly
         run: ./gradlew :app:testDebugUnitTest --stacktrace
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-      - uses: actions/upload-artifact@v4
-        with:
-          name: AppCommander-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
