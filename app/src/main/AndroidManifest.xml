@@ -15,9 +15,9 @@
 
     <application
         android:allowBackup="true"
-        android:icon="@drawable/ic_app_commander"
+        android:icon="@drawable/ic_brand_launcher"
         android:label="App Commander"
-        android:roundIcon="@drawable/ic_app_commander"
+        android:roundIcon="@drawable/ic_brand_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCommander">
         <activity
