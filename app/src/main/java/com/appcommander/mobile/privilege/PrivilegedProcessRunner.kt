@@ -57,9 +57,11 @@ internal object PrivilegedProcessRunner {
                         val count = it.read(buffer)
                         if (count < 0) break
                         if (count == 0) continue
-                        val room = MAX_CAPTURE_BYTES - capture.size()
-                        if (room > 0) capture.write(buffer, 0, minOf(room, count))
-                        if (count > room) truncated = true
+                        synchronized(this) {
+                            val room = MAX_CAPTURE_BYTES - capture.size()
+                            if (room > 0) capture.write(buffer, 0, minOf(room, count))
+                            if (count > room) truncated = true
+                        }
                         // Continue draining even after the cap: avoids child
                         // blocking on a full stdout/stderr pipe.
                     }
@@ -69,7 +71,7 @@ internal object PrivilegedProcessRunner {
             }
         }
 
-        fun snapshot(): String = buildString {
+        @Synchronized fun snapshot(): String = buildString {
             append(capture.toString(Charsets.UTF_8.name()).trimEnd())
             if (truncated) append("\n[output truncated at 16 KiB]")
         }
