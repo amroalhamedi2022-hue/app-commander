@@ -2,7 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- Core local app-manager inventory requires enumerating all installed
+         packages; the Shizuku-only <queries> entry cannot provide this view.
+         Store distribution policies must be reviewed separately. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
     <!-- Usage access is user-granted through Settings/AppOps, not a system signature grant. -->
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
