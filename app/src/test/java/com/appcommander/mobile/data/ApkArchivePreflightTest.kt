@@ -30,9 +30,10 @@ class ApkArchivePreflightTest {
             "AndroidManifest.xml" to byteArrayOf(3, 0, 8, 0),
             "classes.dex" to ByteArray(19) { it.toByte() },
             "assets/data.bin" to ByteArray(7),
+            "assets/empty/" to byteArrayOf(),
         )
         val result = ApkArchivePreflight.check(apk)
-        assertEquals(3, result.entries)
+        assertEquals(4, result.entries)
         assertEquals(30L, result.declaredUncompressedBytes)
     }
 
@@ -44,13 +45,27 @@ class ApkArchivePreflightTest {
     }
 
     @Test fun rejectsUnsafeArchivePathsWithoutExtractingAnything() {
-        for ((index, path) in listOf("../escape", "/absolute", "assets/../bad", "a\\b", "bad\nname").withIndex()) {
+        val unsafePaths = listOf(
+            "../escape", "/absolute", "assets/../bad", "assets/./bad",
+            "assets//bad", "assets//", "a\\b", "bad\nname",
+            "a".repeat(ApkArchivePreflight.MAX_ENTRY_NAME_LENGTH + 1),
+        )
+        for ((index, path) in unsafePaths.withIndex()) {
             val apk = zip("unsafe-$index.apk",
                 "AndroidManifest.xml" to byteArrayOf(1),
                 path to byteArrayOf(2),
             )
             assertThrows(path, IOException::class.java) { ApkArchivePreflight.check(apk) }
         }
+    }
+
+    @Test fun rejectsOversizedDeclaredManifestWithoutInflatingIt() {
+        // A highly compressible archive still advertises its expanded size
+        // in the central directory; the preflight must not extract the bytes.
+        val apk = zip("oversized-manifest.apk",
+            "AndroidManifest.xml" to ByteArray((ApkArchivePreflight.MAX_MANIFEST_BYTES + 1).toInt()),
+        )
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
 
     @Test fun rejectsInvalidOrEmptyZipBeforeAndroidParser() {
