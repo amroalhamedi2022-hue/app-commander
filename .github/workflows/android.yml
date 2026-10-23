@@ -24,5 +24,6 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Run JVM unit tests without APK assembly
-        run: ./gradlew :app:testDebugUnitTest --stacktrace
+      - name: Run JVM tests and Android static lint without APK packaging
+        # Neither task assembles or signs an APK; packaging remains prohibited.
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
