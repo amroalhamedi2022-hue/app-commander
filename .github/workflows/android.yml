@@ -30,4 +30,4 @@ jobs:
       - name: Print Android lint diagnostics on failure
         if: failure()
         run: |
-          find app/build -name 'lint-results-debug.txt' -type f -print -exec cat {} \\; || true
+          find app/build -name 'lint-results-debug.txt' -type f -print -exec cat {} \; || true
