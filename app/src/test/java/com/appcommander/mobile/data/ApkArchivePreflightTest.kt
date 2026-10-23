@@ -117,13 +117,13 @@ class ApkArchivePreflightTest {
     }
     @Test fun rejectsInvisibleUnicodeSpoofingControlsInEntryPaths() {
         val unsafe = listOf(
-            "assets/icon\\u202Egnp", // bidirectional override
-            "assets/hidden\\u200Bname", // zero-width space
-            "assets/soft\\u00ADhyphen",
-            "assets/isolate\\u2066name",
-            "assets/arabic\\u061Cmark",
-            "assets/feff\\uFEFFname",
-            "assets/c1\\u0085name",
+            "assets/icon\u202Egnp", // bidirectional override
+            "assets/hidden\u200Bname", // zero-width space
+            "assets/soft\u00ADhyphen",
+            "assets/isolate\u2066name",
+            "assets/arabic\u061Cmark",
+            "assets/feff\uFEFFname",
+            "assets/c1\u0085name",
         )
         unsafe.forEachIndexed { index, path ->
             val apk = zip("unicode-spoof-$index.apk",
