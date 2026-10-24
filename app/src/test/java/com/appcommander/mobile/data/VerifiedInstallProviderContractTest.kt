@@ -25,7 +25,7 @@ class VerifiedInstallProviderContractTest {
         assertEquals("androidx.core.content.FileProvider", provider.getAttributeNS(ns, "name"))
         assertEquals("false", provider.getAttributeNS(ns, "exported"))
         assertEquals("true", provider.getAttributeNS(ns, "grantUriPermissions"))
-        assertEquals("${applicationId}.verifiedapks", provider.getAttributeNS(ns, "authorities"))
+        assertEquals("$" + "{applicationId}.verifiedapks", provider.getAttributeNS(ns, "authorities"))
 
         val pathDoc = factory.newDocumentBuilder().parse(paths)
         val root = pathDoc.documentElement
