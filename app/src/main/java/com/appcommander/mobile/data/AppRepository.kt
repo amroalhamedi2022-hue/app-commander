@@ -244,6 +244,14 @@ class AppRepository(private val context: Context) {
         }
     }
 
+    /** Read a user-selected exported ZIP via SAF; no extraction or installation. */
+    @Throws(IOException::class)
+    internal fun verifyInstalledApkBundle(uri: Uri): InstalledApkBundleVerifier.Result {
+        val input = context.contentResolver.openInputStream(uri)
+            ?: throw IOException("Cannot open APK bundle")
+        return InstalledApkBundleVerifier.verify(input)
+    }
+
     fun inspectApk(uri: Uri): ApkInspection {
         // SAF metadata is optional and untrusted: provider failures or spoofed
         // labels must not prevent inspecting otherwise readable APK bytes.

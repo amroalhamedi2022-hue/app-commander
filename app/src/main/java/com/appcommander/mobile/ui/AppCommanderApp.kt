@@ -399,6 +399,8 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var verifiedBundle by remember { mutableStateOf<com.appcommander.mobile.data.InstalledApkBundleVerifier.Result?>(null) }
+    var bundleError by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null && !busy) scope.launch {
             // Never show an old inspection alongside a newly selected URI:
@@ -413,6 +415,24 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
             result = inspected
             selectedUri = if (inspected != null) uri else null
             busy = false
+        }
+    }
+    val verifyBundlePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null && !busy) scope.launch {
+            busy = true
+            verifiedBundle = null
+            bundleError = null
+            try {
+                verifiedBundle = withContext(Dispatchers.IO) {
+                    repository.verifyInstalledApkBundle(uri)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                bundleError = "الحزمة غير مطابقة أو تعذرت قراءتها. لا تثبت ملفاتها قبل مراجعتها."
+            } finally {
+                busy = false
+            }
         }
     }
     LazyColumn(
@@ -430,6 +450,26 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                     Button(onClick = { picker.launch("application/vnd.android.package-archive") }, enabled = !busy) {
                         Text(if (busy) "جاري الفحص…" else "اختيار ملف APK")
                     }
+                }
+            }
+        }
+        item {
+            GlassBox(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("فحص حزمة APK المصدّرة", fontWeight = FontWeight.Bold)
+                    Text("تحقق من ملفات Base/Split وبصمات SHA-256 داخل ZIP دون استخراج أو تثبيت. هذا ليس فحص توقيع أو برمجيات خبيثة.", fontSize = 12.sp)
+                    Button(
+                        onClick = { verifyBundlePicker.launch("application/zip") },
+                        enabled = !busy,
+                    ) { Text("اختيار ZIP للتحقق") }
+                    verifiedBundle?.let { verified ->
+                        Text("تطابقت بصمات ${verified.entries.size} ملفات APK — ${formatBytes(verified.totalApkBytes)}")
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Text(verified.packageName, fontSize = 12.sp)
+                        }
+                        Text("تم التحقق من مدخلات ZIP، وليس من التوقيع الرقمي أو فهرس ZIP المركزي.", fontSize = 11.sp)
+                    }
+                    bundleError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
