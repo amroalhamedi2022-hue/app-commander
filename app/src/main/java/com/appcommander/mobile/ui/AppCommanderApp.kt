@@ -605,6 +605,33 @@ private fun AppDetailSheet(
             }
         }
     }
+    // Separate SAF document: a complete base + split APK archive, not a
+    // reinstallable one-click backup and never a copy of application data.
+    val bundlePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { destination ->
+        if (destination == null) {
+            exportBusy = false
+        } else {
+            scope.launch {
+                try {
+                    val bundle = withContext(Dispatchers.IO) {
+                        repository.exportInstalledApkBundle(entry.packageName, destination)
+                    }
+                    exportMessage = "تم تصدير ${bundle.entries.size} ملفات APK في ZIP " +
+                        "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) مع SHA-256 لكل ملف داخل manifest.json. " +
+                        "لا يشمل بيانات التطبيق، ولا يثبت سلامة التوقيع."
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    exportMessage = "تعذّر تصدير حزمة APKs. حاولنا حذف ملف ZIP الجزئي؛ " +
+                        "قد يحتاج الحذف اليدوي إذا رفض مزوّد SAF."
+                } finally {
+                    exportBusy = false
+                }
+            }
+        }
+    }
     fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
         if (commandBusy) return
         scope.launch {
@@ -660,13 +687,22 @@ private fun AppDetailSheet(
                             exportPicker.launch("${entry.packageName}-base.apk")
                         },
                     ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base APK") }
+                    OutlinedButton(
+                        enabled = !exportBusy,
+                        onClick = {
+                            exportBusy = true
+                            exportMessage = null
+                            bundlePicker.launch("${entry.packageName}-apks.zip")
+                        },
+                    ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base + Splits (ZIP)") }
                 }
                 exportMessage?.let { message ->
                     Spacer(Modifier.height(6.dp))
                     Text(message, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Text(
-                    "التصدير يحفظ APK الأساسي فقط عبر SAF، ولا يشمل ملفات Split APK أو بيانات التطبيق.",
+                    "تصدير Base APK يحفظ الملف الأساسي فقط. تصدير ZIP يشمل Base وجميع Splits المثبتة، " +
+                        "لكنه لا يشمل بيانات التطبيق ولا يثبّت الملفات تلقائيًا.",
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
