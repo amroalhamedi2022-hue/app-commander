@@ -20,8 +20,12 @@ internal object ApkInstallIntegrity {
     fun matches(input: InputStream, expectedSize: Long, expectedSha256: String): Boolean {
         if (expectedSize !in 1..ApkCacheCopy.MAX_APK_BYTES ||
             !sha256Pattern.matches(expectedSha256)) return false
-        val actual = ApkCacheCopy.copyWithSha256(input, discard)
-        return actual.sizeBytes == expectedSize &&
-            actual.sha256.equals(expectedSha256, ignoreCase = true)
+        // An empty, stalled or failing provider is an integrity mismatch,
+        // not a recoverable reason to open the installer.
+        return runCatching {
+            val actual = ApkCacheCopy.copyWithSha256(input, discard)
+            actual.sizeBytes == expectedSize &&
+                actual.sha256.equals(expectedSha256, ignoreCase = true)
+        }.getOrDefault(false)
     }
 }
