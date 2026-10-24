@@ -90,7 +90,7 @@ class PrivilegedProcessRunnerTest {
         try {
             val result = PrivilegedProcessRunner.runAllowed { process }
             assertTrue(process.destroyed)
-            assertTrue(result.startsWith("exit=1\\n"))
+            assertTrue(result.startsWith("exit=1\n"))
             assertTrue(result.contains("interrupted"))
             assertFalse(result.contains("private interruption detail"))
             assertTrue(Thread.currentThread().isInterrupted)
