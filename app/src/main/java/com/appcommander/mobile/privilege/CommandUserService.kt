@@ -1,6 +1,7 @@
 package com.appcommander.mobile.privilege
 
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.annotation.Keep
 
 @Keep
@@ -35,6 +36,31 @@ class CommandUserService() : ICommandService.Stub() {
         } else null
         if (!PrivilegedCommandPolicy.allows(operation, pkg, appPackageName) || dynamicReason != null) {
             return "exit=1\n" + (dynamicReason ?: "Protected critical Android package: destructive operation denied")
+        }
+        // pm accepts a package/class pair even if the class name lives in
+        // a library namespace. Validate against the actual manifest inventory
+        // instead of guessing ownership from the Java namespace. Never run a
+        // privileged component command if PackageManager cannot verify it.
+        if (operation == PrivilegedOperation.ENABLE_COMPONENT ||
+            operation == PrivilegedOperation.DISABLE_COMPONENT) {
+            val declared = serviceContext?.let { context ->
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    val info = context.packageManager.getPackageInfo(
+                        pkg, PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
+                            PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS or
+                            PackageManager.MATCH_DISABLED_COMPONENTS,
+                    )
+                    val names = buildSet {
+                        info.activities?.forEach { add(it.name) }
+                        info.services?.forEach { add(it.name) }
+                        info.receivers?.forEach { add(it.name) }
+                        info.providers?.forEach { add(it.name) }
+                    }
+                    DeclaredComponentSafety.isDeclared(pkg, requireNotNull(arg), names)
+                }.getOrDefault(false)
+            } ?: false
+            if (!declared) return "exit=1\\nComponent not declared by target package"
         }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
