@@ -206,6 +206,44 @@ class AppRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Export all installed APK components (base + splits) as a single SAF ZIP.
+     * Unlike Base APK export this preserves the split set, but NOT app data,
+     * installer session metadata, signatures verification or a restore action.
+     * All paths come from PackageManager; archive entry names are generated.
+     */
+    @Throws(IOException::class)
+    internal fun exportInstalledApkBundle(
+        packageName: String, destination: Uri,
+    ): InstalledApkBundleExport.Result {
+        return InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = {
+                if (DocumentsContract.isDocumentUri(context, destination)) {
+                    DocumentsContract.deleteDocument(context.contentResolver, destination)
+                }
+            },
+        ) {
+            @Suppress("DEPRECATION")
+            val info = pm.getApplicationInfo(packageName, 0)
+            val paths = listOf(info.sourceDir) + info.splitSourceDirs.orEmpty().toList()
+            val sources = paths.mapIndexed { index, path ->
+                val file = File(path)
+                val bytes = file.length()
+                if (!file.isFile || bytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
+                    throw IOException("Installed APK component cannot be exported")
+                }
+                val name = if (index == 0) "base.apk" else
+                    "split_${index.toString().padStart(3, '0')}.apk"
+                InstalledApkBundleExport.Source(name, bytes) { file.inputStream() }
+            }
+            val output = context.contentResolver.openOutputStream(destination, "wt")
+                ?: throw IOException("Cannot open selected SAF destination")
+            output.use { sink ->
+                InstalledApkBundleExport.write(packageName, sources, sink)
+            }
+        }
+    }
+
     fun inspectApk(uri: Uri): ApkInspection {
         // SAF metadata is optional and untrusted: provider failures or spoofed
         // labels must not prevent inspecting otherwise readable APK bytes.
