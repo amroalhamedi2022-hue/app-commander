@@ -50,7 +50,13 @@ internal object PrivilegedProcessRunner {
             }
             outThread.join(1500)
             errThread.join(1500)
-            val exitCode = if (completed) process.exitValue() else 124
+            // A stalled pipe means the output was not completely observed.
+            // Do not report a privileged command as successful on partial I/O.
+            val exitCode = when {
+                !completed -> 124
+                stdout.isStalled() || stderr.isStalled() -> 1
+                else -> process.exitValue()
+            }
             return buildString {
                 append("exit=").append(exitCode).append('\n')
                 if (!completed) append("Privileged command timed out and was terminated").append('\n')
@@ -98,6 +104,8 @@ internal object PrivilegedProcessRunner {
                 // A timed-out process may close pipes while being killed.
             }
         }
+
+        @Synchronized fun isStalled(): Boolean = stalled
 
         @Synchronized fun snapshot(): String = buildString {
             append(capture.toString(Charsets.UTF_8.name()).trimEnd())
