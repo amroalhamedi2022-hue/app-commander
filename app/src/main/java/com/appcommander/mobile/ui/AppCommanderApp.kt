@@ -399,13 +399,18 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) scope.launch {
-            selectedUri = uri
+        if (uri != null && !busy) scope.launch {
+            // Never show an old inspection alongside a newly selected URI:
+            // that would let the install button launch an UNINSPECTED APK.
             busy = true
+            selectedUri = null
+            result = null
             error = null
-            result = runCatching { withContext(Dispatchers.IO) { repository.inspectApk(uri) } }
-                .onFailure { error = it.message ?: "تعذّر فحص الملف" }
-                .getOrNull()
+            val inspected = runCatching {
+                withContext(Dispatchers.IO) { repository.inspectApk(uri) }
+            }.onFailure { error = it.message ?: "تعذّر فحص الملف" }.getOrNull()
+            result = inspected
+            selectedUri = if (inspected != null) uri else null
             busy = false
         }
     }
