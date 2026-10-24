@@ -1,7 +1,6 @@
 package com.appcommander.mobile.data
 
 import java.io.ByteArrayInputStream
-import java.io.IOException
 import java.io.InputStream
 import java.security.MessageDigest
 import org.junit.Assert.*
@@ -38,15 +37,11 @@ class ApkInstallIntegrityTest {
             override fun read(): Int = throw IOException("provider error")
             override fun read(b: ByteArray, off: Int, len: Int): Int = throw IOException("provider error")
         }
-        assertThrows(IOException::class.java) {
-            ApkInstallIntegrity.matches(broken, 1, hash(byteArrayOf(1)))
-        }
+        assertFalse(ApkInstallIntegrity.matches(broken, 1, hash(byteArrayOf(1))))
         val stalled = object : InputStream() {
             override fun read(): Int = 0
             override fun read(b: ByteArray, off: Int, len: Int): Int = 0
         }
-        assertThrows(IOException::class.java) {
-            ApkInstallIntegrity.matches(stalled, 1, hash(byteArrayOf(1)))
-        }
+        assertFalse(ApkInstallIntegrity.matches(stalled, 1, hash(byteArrayOf(1))))
     }
 }
