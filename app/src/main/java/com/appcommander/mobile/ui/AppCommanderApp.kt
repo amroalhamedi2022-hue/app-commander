@@ -125,7 +125,7 @@ private fun AppCommanderRoot(palette: LiquidPalette, onCyclePalette: () -> Unit)
     val scope = rememberCoroutineScope()
     var currentTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     var apps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
-    var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false, false)) }
+    var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false)) }
     var loading by remember { mutableStateOf(true) }
     var selected by remember { mutableStateOf<AppEntry?>(null) }
 
