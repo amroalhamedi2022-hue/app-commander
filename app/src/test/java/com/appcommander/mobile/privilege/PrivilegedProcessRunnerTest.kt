@@ -41,7 +41,7 @@ class PrivilegedProcessRunnerTest {
             override fun read(b: ByteArray, off: Int, len: Int): Int = 0
         }
         val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = brokenPipe))
-        assertTrue(result.startsWith("exit=0"))
+        assertTrue("A stalled privileged stream must fail closed", result.startsWith("exit=1"))
         assertTrue(result.contains("[output stream stalled]"))
     }
 
