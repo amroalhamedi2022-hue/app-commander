@@ -21,6 +21,7 @@ data class ComponentEntry(
 data class PermissionEntry(
     val name: String,
     val granted: Boolean,
+    val runtimeMutable: Boolean = false,
 )
 
 data class AppDetails(
