@@ -73,3 +73,9 @@ Updated: 2026-10-23
 - **Regression:** `ApkArchivePreflightTest` covers file→directory, directory→file, file→child, child→file and valid nested ZIP entries.
 - **PASS:** exact source/test commit `4d88feac6ad211dfc5a90f19fc2f56554879e394` in [free CI run 40035746296](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40035746296): JVM tests and Android static lint completed successfully. No APK packaging task ran and no artifact was published.
 - **NOT TESTED:** Android SAF provider/device behavior, actual APK signature, HyperOS Shizuku privileged operations, full Liquid UI, real-device double recheck. PR #1 remains draft/unmerged.
+
+## 2026-10-24 — Expanded offline APK permission review (source-only)
+- **Production changed: YES.** `ApkInspectionSignals.kt` now explains additional exact-match sensitive manifest permissions (camera, precise/background location, SMS sending, call log, phone numbers, calendar, contacts and media) and flags combined SMS read+send and precise+background location declarations. These are review prompts only; manifest requests do not prove a permission was granted or exercised.
+- **Regression:** two new `ApkInspectionSignalsTest.kt` tests verify exact-match combinations, duplicate elimination, and no claim of granted permissions.
+- **PASS:** exact source/test SHA `8d6e69edf18ff4501b3720d93c3ad4695f6ee9d8` — `:app:testDebugUnitTest :app:lintDebug` [CI 40046980231](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40046980231). No APK assembled/uploaded; 0 CI artifacts.
+- **NOT TESTED:** real SAF import, package signature authenticity, HyperOS Shizuku/privileged commands, Liquid UI on Xiaomi Pad 5, installation and independent device double recheck. PR #1 draft; no main write/merge.
