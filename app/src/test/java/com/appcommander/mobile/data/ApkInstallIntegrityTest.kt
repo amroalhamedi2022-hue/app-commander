@@ -1,6 +1,7 @@
 package com.appcommander.mobile.data
 
 import java.io.ByteArrayInputStream
+import java.io.IOException
 import java.io.InputStream
 import java.security.MessageDigest
 import org.junit.Assert.*
