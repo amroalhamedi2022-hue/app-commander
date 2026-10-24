@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Avoid spending free CI minutes on superseded source-only PR commits.
+concurrency:
+  group: app-commander-source-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   source-checks:
     runs-on: ubuntu-latest
