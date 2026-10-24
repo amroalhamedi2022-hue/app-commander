@@ -666,7 +666,7 @@ private fun AppDetailSheet(
                         )
                     }
                     else -> items(details!!.permissions) { permission ->
-                        PermissionRow(permission, capabilities.shizukuGranted && (!protected || !permission.granted)) {
+                        PermissionRow(permission, capabilities.shizukuGranted && permission.runtimeMutable && (!protected || !permission.granted)) {
                             runCommand {
                                 ShizukuController.setPermission(entry.packageName, permission.name, !permission.granted)
                             }
@@ -725,6 +725,9 @@ private fun PermissionRow(permission: PermissionEntry, canControl: Boolean, onTo
             }
         }
         TinyTag(if (permission.granted) "ممنوح" else "غير ممنوح", if (permission.granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!permission.runtimeMutable) {
+            TinyTag("إعدادات النظام")
+        }
         if (canControl) {
             TextButton(onClick = onToggle) { Text(if (permission.granted) "سحب" else "منح", fontSize = 11.sp) }
         }
