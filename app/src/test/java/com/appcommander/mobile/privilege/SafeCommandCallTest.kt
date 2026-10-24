@@ -29,7 +29,7 @@ class SafeCommandCallTest {
         assertEquals("Command failed", result.output)
     }
 
-    @Test fun cancellationPropagatesInsteadOfBeingConvertedToFailure() = runBlocking {
+    @Test fun cancellationPropagatesInsteadOfBeingConvertedToFailure() = runBlocking<Unit> {
         assertThrows(CancellationException::class.java) {
             runBlocking {
                 SafeCommandCall.execute {
