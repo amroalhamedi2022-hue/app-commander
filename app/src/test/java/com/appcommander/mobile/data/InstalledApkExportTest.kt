@@ -59,4 +59,38 @@ class InstalledApkExportTest {
         }
         assertEquals(0, output.size())
     }
+
+    @Test fun successfulExportNeverDeletesNewDocument() {
+        var deletes = 0
+        val result = InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = { deletes++ },
+            write = { "saved" },
+        )
+        assertEquals("saved", result)
+        assertEquals(0, deletes)
+    }
+
+    @Test fun failedExportAttemptsCleanupAndPreservesOriginalError() {
+        var deletes = 0
+        val original = IOException("source truncated")
+        val thrown = assertThrows(IOException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { deletes++ },
+                write = { throw original },
+            )
+        }
+        assertSame(original, thrown)
+        assertEquals(1, deletes)
+    }
+
+    @Test fun cleanupFailureCannotHideOriginalExportFailure() {
+        val original = IOException("provider write failed")
+        val thrown = assertThrows(IOException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { throw SecurityException("provider denied deletion") },
+                write = { throw original },
+            )
+        }
+        assertSame(original, thrown)
+    }
 }
