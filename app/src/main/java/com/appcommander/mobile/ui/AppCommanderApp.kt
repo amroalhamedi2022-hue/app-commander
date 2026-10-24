@@ -473,8 +473,8 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         )
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            "قبل التثبيت نعيد فحص بصمة الملف من مصدر SAF. " +
-                                "قد يغيّر مزوّد الملفات المحتوى بعد الفحص؛ التحقق النهائي مسؤولية أندرويد.",
+                            "قبل التثبيت ننشئ نسخة خاصة متحققًا من SHA-256 لها. " +
+                                "المثبّت يقرأ النسخة الثابتة بدل رابط SAF القابل للتغيير. أندرويد يتحقق من التوقيع.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -485,16 +485,16 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                                 if (uri != null) {
                                     busy = true
                                     scope.launch {
-                                        val unchanged = withContext(Dispatchers.IO) {
-                                            repository.matchesInspectedApk(uri, apk)
+                                        val verifiedUri = withContext(Dispatchers.IO) {
+                                            repository.prepareVerifiedInstall(uri, apk)
                                         }
-                                        if (!unchanged) {
-                                            error = "تغيّر الملف أو تعذّر إعادة قراءته؛ اختره وافحصه من جديد."
+                                        if (verifiedUri == null) {
+                                            error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."
                                             result = null
                                             selectedUri = null
                                         } else {
-                                            val install = Intent(Intent.ACTION_VIEW, uri)
-                                                .setDataAndType(uri, "application/vnd.android.package-archive")
+                                            val install = Intent(Intent.ACTION_VIEW)
+                                                .setDataAndType(verifiedUri, "application/vnd.android.package-archive")
                                                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                             runCatching { context.startActivity(install) }
                                                 .onFailure { error = "تعذّر فتح مثبّت أندرويد: " +
