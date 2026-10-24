@@ -591,7 +591,7 @@ private fun AppDetailSheet(
                         repository.exportInstalledBaseApk(entry.packageName, destination)
                     }
                     exportMessage = if (exported.hasSplits) {
-                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
+                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}. تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
                     } else {
                         "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
                     }
