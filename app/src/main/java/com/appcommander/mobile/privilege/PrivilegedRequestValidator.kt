@@ -32,6 +32,13 @@ internal object PrivilegedRequestValidator {
             return if (argument.contains('.') && packagePattern.matches(argument)) null
                 else "Invalid permission name"
         }
-        return if (classPattern.matches(argument)) null else "Invalid component class name"
+        // ComponentName must belong to the requested package. Reject a
+        // syntactically valid fully qualified class from another package,
+        // rather than passing a misleading cross-package target to pm.
+        if (!classPattern.matches(argument) ||
+            !(argument.startsWith(".") || argument.startsWith("$packageName."))) {
+            return "Component class must belong to target package"
+        }
+        return null
     }
 }
