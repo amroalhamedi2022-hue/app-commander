@@ -467,7 +467,7 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             Text(verified.packageName, fontSize = 12.sp)
                         }
-                        Text("تم التحقق من مدخلات ZIP، وليس من التوقيع الرقمي أو فهرس ZIP المركزي.", fontSize = 11.sp)
+                        Text("تم التحقق من ملفات ZIP وفهرسها المركزي؛ لا يشمل ذلك صحة توقيع APK أو مصدره.", fontSize = 11.sp)
                     }
                     bundleError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
