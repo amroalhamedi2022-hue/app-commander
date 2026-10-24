@@ -176,7 +176,7 @@ class AppRepository(private val context: Context) {
      * partial file if an I/O error occurs.
      */
     @Throws(IOException::class)
-    fun exportInstalledBaseApk(packageName: String, destination: Uri): InstalledApkExport.Result {
+    internal fun exportInstalledBaseApk(packageName: String, destination: Uri): InstalledApkExport.Result {
         @Suppress("DEPRECATION")
         val info = pm.getApplicationInfo(packageName, 0)
         val source = File(info.sourceDir)
