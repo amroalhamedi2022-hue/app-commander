@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <!-- Core local app-manager inventory requires enumerating all installed
+         packages; the Shizuku-only <queries> entry cannot provide this view.
+         Store distribution policies must be reviewed separately. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+    <!-- Usage access is user-granted through Settings/AppOps, not a system signature grant. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -20,6 +27,17 @@
         android:roundIcon="@drawable/ic_brand_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCommander">
+        <!-- Read-only, app-private snapshot for Android's system installer.
+             No SAF provider can mutate the bytes after verification. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.verifiedapks"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/verified_apk_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true">
@@ -28,19 +46,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <receiver
-            android:name=".admin.AppCommanderDeviceAdminReceiver"
-            android:description="@string/device_admin_description"
-            android:exported="true"
-            android:label="App Commander"
-            android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data
-                android:name="android.app.device_admin"
-                android:resource="@xml/device_admin" />
-            <intent-filter>
-                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-            </intent-filter>
-        </receiver>
     </application>
 
 </manifest>

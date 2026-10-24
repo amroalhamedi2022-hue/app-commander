@@ -20,20 +20,27 @@ object ShizukuController {
     @Volatile private var appContext: Context? = null
     @Volatile private var remote: ICommandService? = null
     @Volatile private var binding = false
-    private var pending = CompletableDeferred<ICommandService>()
+    @Volatile private var pending = CompletableDeferred<ICommandService>()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val connected = ICommandService.Stub.asInterface(service)
-            remote = connected
-            binding = false
-            if (!pending.isCompleted) pending.complete(connected)
+            synchronized(ShizukuController) {
+                remote = connected
+                binding = false
+                if (!pending.isCompleted) pending.complete(connected)
+            }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            remote = null
-            binding = false
-            pending = CompletableDeferred()
+            synchronized(ShizukuController) {
+                remote = null
+                binding = false
+                if (!pending.isCompleted) {
+                    pending.completeExceptionally(IllegalStateException("Shizuku service disconnected"))
+                }
+                pending = CompletableDeferred()
+            }
         }
     }
 
@@ -95,14 +102,19 @@ object ShizukuController {
 
     private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult = withContext(Dispatchers.IO) {
         if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
-        runCatching {
+        try {
             val reply = obtainService().execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
             val firstLine = reply.lineSequence().firstOrNull().orEmpty()
             val success = firstLine == "exit=0"
             CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
-        }.getOrElse {
+        } catch (cancelled: java.util.concurrent.CancellationException) {
+            // runCatching swallows coroutine cancellation and can leave
+            // stale privileged work running after its UI scope is gone.
             remote = null
-            CommandResult(false, it.message ?: "Command failed")
+            throw cancelled
+        } catch (_: Exception) {
+            remote = null
+            CommandResult(false, "Command failed")
         }
     }
 
@@ -115,14 +127,35 @@ object ShizukuController {
     private suspend fun obtainService(): ICommandService {
         remote?.let { if (it.asBinder().pingBinder()) return it }
         val serviceArgs = requireNotNull(args) { "ShizukuController.initialize must be called first" }
+        val waiter: CompletableDeferred<ICommandService>
         synchronized(this) {
             if (!binding) {
                 binding = true
                 pending = CompletableDeferred()
-                Shizuku.bindUserService(serviceArgs, connection)
+                try {
+                    Shizuku.bindUserService(serviceArgs, connection)
+                } catch (failure: Exception) {
+                    binding = false
+                    pending.completeExceptionally(failure)
+                }
             }
+            // Capture this attempt. Awaiting the mutable global pending could
+            // otherwise wait on a different bind after a disconnect/retry.
+            waiter = pending
         }
-        return withTimeout(8_000) { pending.await() }
+        try {
+            return withTimeout(8_000) { waiter.await() }
+        } catch (failure: Exception) {
+            synchronized(this) {
+                // A failed/timeout attempt must not leave binding=true forever.
+                // Do not reset a newer attempt or a binder that connected late.
+                if (pending === waiter && remote == null) {
+                    binding = false
+                    pending = CompletableDeferred()
+                }
+            }
+            throw failure
+        }
     }
 
     private fun combine(first: CommandResult, second: CommandResult, successText: String): CommandResult {

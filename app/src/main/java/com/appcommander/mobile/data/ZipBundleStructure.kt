@@ -1,0 +1,136 @@
+package com.appcommander.mobile.data
+
+import java.io.IOException
+import java.io.InputStream
+
+/**
+ * Bounded, seek-free verification of the central directory for App Commander
+ * bundles. ZipInputStream validates local entries but never validates the ZIP
+ * central directory. This checker compares both inventories without writing a
+ * potentially 2 GiB SAF document to private storage.
+ *
+ * Deliberately accepts only ordinary single-disk ZIP32 archives produced by
+ * our exporter (no ZIP64, comments, encryption, or prepended executable data).
+ * It does not authenticate an APK signer or validate the archive's provenance.
+ */
+internal object ZipBundleStructure {
+    private const val TAIL_BYTES = 128 * 1024
+    private const val MAX_RAW_BYTES = InstalledApkBundleExport.MAX_TOTAL_BYTES + 1024 * 1024L
+
+    data class LocalEntry(val name: String, val size: Long, val compressedSize: Long, val crc: Long)
+
+    /** Captures only the final 128 KiB, including any bytes read ahead by ZipInputStream. */
+    class TrackingStream(private val source: InputStream) : InputStream() {
+        private val tail = ByteArray(TAIL_BYTES)
+        private var next = 0
+        private var filled = 0
+        var bytesRead: Long = 0
+            private set
+
+        override fun read(): Int {
+            val value = source.read()
+            if (value >= 0) append(value)
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val count = source.read(buffer, offset, length)
+            if (count > 0) {
+                if (bytesRead > MAX_RAW_BYTES - count) throw IOException("APK bundle ZIP exceeds safe raw size")
+                for (index in offset until offset + count) appendByte(buffer[index])
+                bytesRead += count
+            }
+            return count
+        }
+
+        private fun append(value: Int) {
+            if (bytesRead >= MAX_RAW_BYTES) throw IOException("APK bundle ZIP exceeds safe raw size")
+            appendByte(value.toByte())
+            bytesRead++
+        }
+
+        private fun appendByte(value: Byte) {
+            tail[next] = value
+            next = (next + 1) % tail.size
+            if (filled < tail.size) filled++
+        }
+
+        /** ZipInputStream stops at the central directory; consume the rest to validate it. */
+        fun drain() {
+            val buffer = ByteArray(8192)
+            var stalled = 0
+            while (true) {
+                val count = read(buffer)
+                if (count < 0) return
+                if (count == 0 && ++stalled >= 8) throw IOException("APK bundle stream stalled")
+                if (count > 0) stalled = 0
+            }
+        }
+
+        fun finalBytes(): ByteArray = ByteArray(filled) { index ->
+            tail[(next - filled + index + tail.size) % tail.size]
+        }
+
+        override fun close() = source.close()
+    }
+
+    @Throws(IOException::class)
+    fun validate(rawTail: ByteArray, rawSize: Long, local: List<LocalEntry>) {
+        // Our exporter writes no ZIP comment. The EOCD must be the final 22 bytes.
+        if (rawTail.size < 22 || rawSize < 22) throw IOException("Missing ZIP central directory")
+        val end = rawTail.size - 22
+        if (u32(rawTail, end) != 0x06054b50L ||
+            u16(rawTail, end + 4) != 0 || u16(rawTail, end + 6) != 0 ||
+            u16(rawTail, end + 20) != 0
+        ) throw IOException("Invalid ZIP end record")
+        val onDisk = u16(rawTail, end + 8)
+        val entries = u16(rawTail, end + 10)
+        if (onDisk != local.size || entries != local.size || entries == 0 ||
+            entries > InstalledApkBundleExport.MAX_APK_COUNT + 1
+        ) throw IOException("ZIP central directory entry count mismatch")
+        val centralSize = u32(rawTail, end + 12)
+        val centralOffset = u32(rawTail, end + 16)
+        val centralEnd = rawSize - 22
+        if (centralOffset >= centralEnd || centralSize != centralEnd - centralOffset ||
+            centralSize > rawTail.size - 22
+        ) throw IOException("ZIP central directory bounds mismatch")
+        var cursor = end - centralSize.toInt()
+        var previousLocalOffset = -1L
+        for (expected in local) {
+            if (cursor > end - 46 || u32(rawTail, cursor) != 0x02014b50L) {
+                throw IOException("Invalid ZIP central directory entry")
+            }
+            val flags = u16(rawTail, cursor + 8)
+            val method = u16(rawTail, cursor + 10)
+            val crc = u32(rawTail, cursor + 16)
+            val compressed = u32(rawTail, cursor + 20)
+            val size = u32(rawTail, cursor + 24)
+            val nameLength = u16(rawTail, cursor + 28)
+            val extraLength = u16(rawTail, cursor + 30)
+            val commentLength = u16(rawTail, cursor + 32)
+            val startDisk = u16(rawTail, cursor + 34)
+            val localOffset = u32(rawTail, cursor + 42)
+            val nextCursor = cursor.toLong() + 46 + nameLength + extraLength + commentLength
+            if (nextCursor > end || flags and 1 != 0 || method != 8 || startDisk != 0 ||
+                localOffset <= previousLocalOffset || (previousLocalOffset < 0 && localOffset != 0L) ||
+                localOffset >= centralOffset || nameLength !in 1..64 ||
+                size == 0xffffffffL || compressed == 0xffffffffL
+            ) throw IOException("Unsupported ZIP central directory metadata")
+            val name = String(rawTail, cursor + 46, nameLength, Charsets.UTF_8)
+            if (name != expected.name || size != expected.size ||
+                compressed != expected.compressedSize || crc != expected.crc
+            ) throw IOException("ZIP central directory differs from local entries")
+            previousLocalOffset = localOffset
+            cursor = nextCursor.toInt()
+        }
+        if (cursor != end) throw IOException("Unexpected ZIP central directory bytes")
+    }
+
+    private fun u16(bytes: ByteArray, offset: Int): Int {
+        if (offset < 0 || offset > bytes.size - 2) throw IOException("Truncated ZIP structure")
+        return (bytes[offset].toInt() and 255) or ((bytes[offset + 1].toInt() and 255) shl 8)
+    }
+
+    private fun u32(bytes: ByteArray, offset: Int): Long =
+        (u16(bytes, offset).toLong() or (u16(bytes, offset + 2).toLong() shl 16)) and 0xffffffffL
+}

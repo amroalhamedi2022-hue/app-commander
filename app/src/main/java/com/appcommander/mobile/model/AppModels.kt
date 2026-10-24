@@ -21,6 +21,7 @@ data class ComponentEntry(
 data class PermissionEntry(
     val name: String,
     val granted: Boolean,
+    val runtimeMutable: Boolean = false,
 )
 
 data class AppDetails(
@@ -54,7 +55,4 @@ data class CapabilityState(
     val shizukuInstalled: Boolean,
     val shizukuRunning: Boolean,
     val shizukuGranted: Boolean,
-    val deviceOwner: Boolean,
-    val rootChecked: Boolean = false,
-    val rootAvailable: Boolean = false,
 )

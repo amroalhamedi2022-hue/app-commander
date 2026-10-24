@@ -1,4 +1,4 @@
-name: Android build
+name: App Commander source checks (no APK)
 
 on:
   push:
@@ -6,8 +6,16 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+# Avoid spending free CI minutes on superseded source-only PR commits.
+concurrency:
+  group: app-commander-source-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  source-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,15 +23,16 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install Android SDK
+      - name: Install Android SDK for JVM tests (not packaging)
         run: |
           SDKMANAGER="$(find /usr/local/lib/android/sdk/cmdline-tools -path '*/bin/sdkmanager' | sort -V | tail -1)"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+          "$SDKMANAGER" "platforms;android-36"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-      - uses: actions/upload-artifact@v4
-        with:
-          name: AppCommander-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Run JVM tests and Android static lint without APK packaging
+        # Neither task assembles or signs an APK; packaging remains prohibited.
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace
+      - name: Print Android lint diagnostics on failure
+        if: failure()
+        run: |
+          find app/build -name 'lint-results-debug.txt' -type f -print -exec cat {} \; || true

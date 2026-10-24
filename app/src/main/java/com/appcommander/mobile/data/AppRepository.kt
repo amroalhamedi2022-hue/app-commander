@@ -1,7 +1,6 @@
 package com.appcommander.mobile.data
 
 import android.app.AppOpsManager
-import android.app.admin.DevicePolicyManager
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
@@ -12,15 +11,19 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.DocumentsContract
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.ComponentEntry
 import com.appcommander.mobile.model.PermissionEntry
+import com.appcommander.mobile.privilege.RuntimePermissionSafety
 import com.appcommander.mobile.privilege.ShizukuController
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
+import androidx.core.content.FileProvider
 
 class AppRepository(private val context: Context) {
     private val pm = context.packageManager
@@ -60,12 +63,20 @@ class AppRepository(private val context: Context) {
             PackageManager.MATCH_DISABLED_COMPONENTS
         @Suppress("DEPRECATION")
         val pkg = pm.getPackageInfo(entry.packageName, flags)
+        val requested = pkg.requestedPermissions.orEmpty().toList()
         return AppDetails(
             app = entry,
-            permissions = pkg.requestedPermissions.orEmpty().mapIndexed { index, name ->
+            permissions = requested.mapIndexed { index, name ->
                 val granted = (pkg.requestedPermissionsFlags?.getOrNull(index) ?: 0) and
                     PackageInfo.REQUESTED_PERMISSION_GRANTED != 0
-                PermissionEntry(name, granted)
+                @Suppress("DEPRECATION")
+                val protectionLevel = runCatching { pm.getPermissionInfo(name, 0).protectionLevel }.getOrNull()
+                PermissionEntry(
+                    name, granted,
+                    runtimeMutable = RuntimePermissionSafety.canToggle(
+                        name, requested, entry.targetSdk, protectionLevel,
+                    ),
+                )
             }.sortedBy { it.name },
             activities = pkg.activities.orEmpty().map {
                 ComponentEntry(it.name, it.exported, it.enabled)
@@ -81,7 +92,6 @@ class AppRepository(private val context: Context) {
     }
 
     fun capabilities(): CapabilityState {
-        val dpm = context.getSystemService(DevicePolicyManager::class.java)
         return CapabilityState(
             usageAccess = hasUsageAccess(),
             shizukuInstalled = runCatching {
@@ -90,7 +100,6 @@ class AppRepository(private val context: Context) {
             }.isSuccess,
             shizukuRunning = ShizukuController.isRunning(),
             shizukuGranted = ShizukuController.hasPermission(),
-            deviceOwner = dpm.isDeviceOwnerApp(context.packageName),
         )
     }
 
@@ -160,42 +169,171 @@ class AppRepository(private val context: Context) {
         }
     }
 
-    fun inspectApk(uri: Uri): ApkInspection {
-        val displayName = queryDisplayName(uri) ?: "selected.apk"
-        val cached = File(context.cacheDir, "inspect-${System.currentTimeMillis()}.apk")
-        context.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "تعذّر فتح الملف" }
-            cached.outputStream().use { input.copyTo(it) }
+    /**
+     * Export only the installed base APK to a user-selected SAF document.
+     * A split installation needs its additional split APKs to reinstall; the
+     * returned flag ensures the UI never advertises this as a full backup.
+     * The destination provider controls its own document and may leave a
+     * partial file if an I/O error occurs.
+     */
+    @Throws(IOException::class)
+    internal fun exportInstalledBaseApk(packageName: String, destination: Uri): InstalledApkExport.Result {
+        // Only called with the fresh URI returned by CreateDocument. A
+        // provider may leave an empty/partial document if reading the source,
+        // writing the destination or closing the stream fails.
+        return InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = {
+                if (DocumentsContract.isDocumentUri(context, destination)) {
+                    DocumentsContract.deleteDocument(context.contentResolver, destination)
+                }
+            },
+        ) {
+            @Suppress("DEPRECATION")
+            val info = pm.getApplicationInfo(packageName, 0)
+            val source = File(info.sourceDir)
+            val expectedBytes = source.length()
+            if (!source.isFile || expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
+                throw IOException("Installed base APK cannot be exported")
+            }
+            val hasSplits = !info.splitSourceDirs.isNullOrEmpty()
+            val output = context.contentResolver.openOutputStream(destination, "wt")
+                ?: throw IOException("Cannot open selected SAF destination")
+            output.use { sink ->
+                source.inputStream().use { input ->
+                    InstalledApkExport.copyBase(input, sink, expectedBytes, hasSplits)
+                }
+            }
         }
-        val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
-            PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
-            PackageManager.GET_SIGNING_CERTIFICATES
-        @Suppress("DEPRECATION")
-        val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
-        val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
-        pkg.applicationInfo?.sourceDir = cached.absolutePath
-        pkg.applicationInfo?.publicSourceDir = cached.absolutePath
-        val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
-        val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
-        return ApkInspection(
-            fileName = displayName,
-            label = label,
-            packageName = pkg.packageName,
-            versionName = pkg.versionName.orEmpty().ifBlank { "—" },
-            versionCode = pkg.longVersionCode,
-            minSdk = minSdk,
-            targetSdk = pkg.applicationInfo?.targetSdkVersion ?: 0,
-            permissions = pkg.requestedPermissions?.sorted().orEmpty(),
-            activities = pkg.activities?.size ?: 0,
-            services = pkg.services?.size ?: 0,
-            receivers = pkg.receivers?.size ?: 0,
-            sizeBytes = cached.length(),
-            fileSha256 = sha256(cached),
-            signerSha256 = runCatching {
-                pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
-            }.getOrDefault(emptyList()),
-        ).also { cached.delete() }
     }
+
+    /**
+     * Export all installed APK components (base + splits) as a single SAF ZIP.
+     * Unlike Base APK export this preserves the split set, but NOT app data,
+     * installer session metadata, signatures verification or a restore action.
+     * All paths come from PackageManager; archive entry names are generated.
+     */
+    @Throws(IOException::class)
+    internal fun exportInstalledApkBundle(
+        packageName: String, destination: Uri,
+    ): InstalledApkBundleExport.Result {
+        return InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = {
+                if (DocumentsContract.isDocumentUri(context, destination)) {
+                    DocumentsContract.deleteDocument(context.contentResolver, destination)
+                }
+            },
+        ) {
+            @Suppress("DEPRECATION")
+            val info = pm.getApplicationInfo(packageName, 0)
+            val paths = listOf(info.sourceDir) + info.splitSourceDirs.orEmpty().toList()
+            val sources = paths.mapIndexed { index, path ->
+                val file = File(path)
+                val bytes = file.length()
+                if (!file.isFile || bytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
+                    throw IOException("Installed APK component cannot be exported")
+                }
+                val name = if (index == 0) "base.apk" else
+                    "split_${index.toString().padStart(3, '0')}.apk"
+                InstalledApkBundleExport.Source(name, bytes) { file.inputStream() }
+            }
+            val output = context.contentResolver.openOutputStream(destination, "wt")
+                ?: throw IOException("Cannot open selected SAF destination")
+            output.use { sink ->
+                InstalledApkBundleExport.write(packageName, sources, sink)
+            }
+        }
+    }
+
+    /** Read a user-selected exported ZIP via SAF; no extraction or installation. */
+    @Throws(IOException::class)
+    internal fun verifyInstalledApkBundle(uri: Uri): InstalledApkBundleVerifier.Result {
+        val input = context.contentResolver.openInputStream(uri)
+            ?: throw IOException("Cannot open APK bundle")
+        return InstalledApkBundleVerifier.verify(input)
+    }
+
+    fun inspectApk(uri: Uri): ApkInspection {
+        // SAF metadata is optional and untrusted: provider failures or spoofed
+        // labels must not prevent inspecting otherwise readable APK bytes.
+        val displayName = ApkDisplayName.safe(runCatching { queryDisplayName(uri) }.getOrNull())
+        // The URI belongs to an untrusted provider. Use a unique cache file,
+        // enforce a streaming size cap, and delete it on EVERY exit path.
+        return ApkCacheCopy.withTemporaryApk(context.cacheDir) { cached ->
+            val copied = context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "تعذّر فتح الملف" }
+                cached.outputStream().use { output ->
+                    ApkCacheCopy.copyWithSha256(input, output)
+                }
+            }
+            // Central-directory-only guard: never extract untrusted entries.
+            // This does not verify APK signing or certify that the APK is safe.
+            ApkArchivePreflight.check(cached)
+            val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
+                PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
+                PackageManager.GET_SIGNING_CERTIFICATES
+            @Suppress("DEPRECATION")
+            val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
+            val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
+            pkg.applicationInfo?.sourceDir = cached.absolutePath
+            pkg.applicationInfo?.publicSourceDir = cached.absolutePath
+            val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
+            val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
+            ApkInspection(
+                fileName = displayName,
+                label = label,
+                packageName = pkg.packageName,
+                versionName = pkg.versionName.orEmpty().ifBlank { "—" },
+                versionCode = pkg.longVersionCode,
+                minSdk = minSdk,
+                targetSdk = pkg.applicationInfo?.targetSdkVersion ?: 0,
+                permissions = pkg.requestedPermissions?.sorted().orEmpty(),
+                activities = pkg.activities?.size ?: 0,
+                services = pkg.services?.size ?: 0,
+                receivers = pkg.receivers?.size ?: 0,
+                sizeBytes = copied.sizeBytes,
+                fileSha256 = copied.sha256,
+                signerSha256 = runCatching {
+                    pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
+                }.getOrDefault(emptyList()),
+            )
+        }
+    }
+
+    /**
+     * Best-effort defense against a SAF provider changing its APK after
+     * inspection. Read and hash again off the UI thread. This is not an
+     * atomic install snapshot; Android's installer independently reopens URI.
+     */
+    fun matchesInspectedApk(uri: Uri, inspection: ApkInspection): Boolean = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            ApkInstallIntegrity.matches(input, inspection.sizeBytes, inspection.fileSha256)
+        } ?: false
+    }.getOrDefault(false)
+
+    /**
+     * Return a read-only URI for an app-private, byte-for-byte verified copy.
+     * Never give the installer the original mutable SAF URI: the provider may
+     * otherwise replace the APK between inspection and the installer's read.
+     */
+    fun prepareVerifiedInstall(uri: Uri, inspection: ApkInspection): Uri? = runCatching {
+        val directory = File(context.cacheDir, ApkInstallSnapshot.DIRECTORY)
+        val input = context.contentResolver.openInputStream(uri) ?: return@runCatching null
+        input.use { stream ->
+            val file = ApkInstallSnapshot.create(
+                directory, stream, inspection.sizeBytes, inspection.fileSha256,
+            ) ?: return@runCatching null
+            try {
+                val verifiedUri = FileProvider.getUriForFile(
+                    context, "${context.packageName}.verifiedapks", file,
+                )
+                ApkInstallSnapshot.cleanupExpired(directory)
+                verifiedUri
+            } catch (failure: Exception) {
+                file.delete()
+                throw failure
+            }
+        }
+    }.getOrNull()
 
     private fun queryDisplayName(uri: Uri): String? {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -217,16 +355,4 @@ class AppRepository(private val context: Context) {
         .digest(bytes)
         .joinToString("") { "%02x".format(it) }
 
-    private fun sha256(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().buffered().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count <= 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
 }

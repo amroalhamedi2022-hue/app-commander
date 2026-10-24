@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Never expose the whole cache directory. Only the dedicated install
+         snapshot subdirectory can be opened via this non-exported provider. -->
+    <cache-path
+        name="verified_apk_installs"
+        path="verified-apk-installs/" />
+</paths>

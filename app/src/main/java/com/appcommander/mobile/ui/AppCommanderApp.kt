@@ -73,7 +73,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
 import com.appcommander.mobile.data.AppRepository
-import com.appcommander.mobile.admin.DeviceOwnerController
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
@@ -82,6 +81,7 @@ import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.CommandResult
 import com.appcommander.mobile.privilege.CriticalPackageGuard
 import com.appcommander.mobile.privilege.ShizukuController
+import com.appcommander.mobile.privilege.SafeCommandCall
 import com.appcommander.mobile.ui.components.GlassBox
 import com.appcommander.mobile.ui.components.LiquidBackground
 import com.appcommander.mobile.ui.theme.AppCommanderTheme
@@ -126,7 +126,7 @@ private fun AppCommanderRoot(palette: LiquidPalette, onCyclePalette: () -> Unit)
     val scope = rememberCoroutineScope()
     var currentTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
     var apps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
-    var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false, false)) }
+    var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false)) }
     var loading by remember { mutableStateOf(true) }
     var selected by remember { mutableStateOf<AppEntry?>(null) }
 
@@ -252,8 +252,6 @@ private fun DashboardScreen(
                         StatusPill("أساسي", true)
                         StatusPill("الاستخدام", capabilities.usageAccess)
                         StatusPill("Shizuku", capabilities.shizukuGranted)
-                        StatusPill("Device Owner", capabilities.deviceOwner)
-                        StatusPill("Root", capabilities.rootAvailable)
                     }
                     if (!capabilities.usageAccess) {
                         Spacer(Modifier.height(14.dp))
@@ -401,15 +399,40 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var verifiedBundle by remember { mutableStateOf<com.appcommander.mobile.data.InstalledApkBundleVerifier.Result?>(null) }
+    var bundleError by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) scope.launch {
-            selectedUri = uri
+        if (uri != null && !busy) scope.launch {
+            // Never show an old inspection alongside a newly selected URI:
+            // that would let the install button launch an UNINSPECTED APK.
             busy = true
+            selectedUri = null
+            result = null
             error = null
-            result = runCatching { withContext(Dispatchers.IO) { repository.inspectApk(uri) } }
-                .onFailure { error = it.message ?: "تعذّر فحص الملف" }
-                .getOrNull()
+            val inspected = runCatching {
+                withContext(Dispatchers.IO) { repository.inspectApk(uri) }
+            }.onFailure { error = it.message ?: "تعذّر فحص الملف" }.getOrNull()
+            result = inspected
+            selectedUri = if (inspected != null) uri else null
             busy = false
+        }
+    }
+    val verifyBundlePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null && !busy) scope.launch {
+            busy = true
+            verifiedBundle = null
+            bundleError = null
+            try {
+                verifiedBundle = withContext(Dispatchers.IO) {
+                    repository.verifyInstalledApkBundle(uri)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                bundleError = "الحزمة غير مطابقة أو تعذرت قراءتها. لا تثبت ملفاتها قبل مراجعتها."
+            } finally {
+                busy = false
+            }
         }
     }
     LazyColumn(
@@ -427,6 +450,26 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                     Button(onClick = { picker.launch("application/vnd.android.package-archive") }, enabled = !busy) {
                         Text(if (busy) "جاري الفحص…" else "اختيار ملف APK")
                     }
+                }
+            }
+        }
+        item {
+            GlassBox(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("فحص حزمة APK المصدّرة", fontWeight = FontWeight.Bold)
+                    Text("تحقق من ملفات Base/Split وبصمات SHA-256 داخل ZIP دون استخراج أو تثبيت. هذا ليس فحص توقيع أو برمجيات خبيثة.", fontSize = 12.sp)
+                    Button(
+                        onClick = { verifyBundlePicker.launch("application/zip") },
+                        enabled = !busy,
+                    ) { Text("اختيار ZIP للتحقق") }
+                    verifiedBundle?.let { verified ->
+                        Text("تطابقت بصمات ${verified.entries.size} ملفات APK — ${formatBytes(verified.totalApkBytes)}")
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Text(verified.packageName, fontSize = 12.sp)
+                        }
+                        Text("تم التحقق من ملفات ZIP وفهرسها المركزي؛ لا يشمل ذلك صحة توقيع APK أو مصدره.", fontSize = 11.sp)
+                    }
+                    bundleError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
@@ -453,14 +496,56 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = {
-                            selectedUri?.let { uri ->
-                                val install = Intent(Intent.ACTION_VIEW, uri)
-                                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                runCatching { context.startActivity(install) }
+                        Text("مؤشرات مراجعة الأذونات", fontWeight = FontWeight.Bold)
+                        val signals = com.appcommander.mobile.data.ApkInspectionSignals.evaluate(
+                            apk.targetSdk, apk.permissions, apk.signerSha256,
+                        )
+                        if (signals.isEmpty()) {
+                            Text("لا توجد مؤشرات من القائمة المحدودة؛ هذا لا يعني أن الملف آمن.")
+                        } else {
+                            signals.forEach { finding ->
+                                Text("• ${finding.description}", fontSize = 12.sp)
                             }
-                        }) { Text("تثبيت عبر أندرويد") }
+                        }
+                        Text(
+                            com.appcommander.mobile.data.ApkInspectionSignals.DISCLAIMER,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "قبل التثبيت ننشئ نسخة خاصة متحققًا من SHA-256 لها. " +
+                                "المثبّت يقرأ النسخة الثابتة بدل رابط SAF القابل للتغيير. أندرويد يتحقق من التوقيع.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            enabled = !busy && selectedUri != null,
+                            onClick = {
+                                val uri = selectedUri
+                                if (uri != null) {
+                                    busy = true
+                                    scope.launch {
+                                        val verifiedUri = withContext(Dispatchers.IO) {
+                                            repository.prepareVerifiedInstall(uri, apk)
+                                        }
+                                        if (verifiedUri == null) {
+                                            error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."
+                                            result = null
+                                            selectedUri = null
+                                        } else {
+                                            val install = Intent(Intent.ACTION_VIEW)
+                                                .setDataAndType(verifiedUri, "application/vnd.android.package-archive")
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            runCatching { context.startActivity(install) }
+                                                .onFailure { error = "تعذّر فتح مثبّت أندرويد: " +
+                                                    (it.message ?: "خطأ غير معروف") }
+                                        }
+                                        busy = false
+                                    }
+                                }
+                            },
+                        ) { Text(if (busy) "جاري التحقق…" else "تثبيت عبر أندرويد") }
                     }
                 }
             }
@@ -525,7 +610,6 @@ private fun AppDetailSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val deviceOwnerController = remember { DeviceOwnerController(context.applicationContext) }
     var details by remember(entry.packageName) { mutableStateOf<AppDetails?>(null) }
     var section by rememberSaveable(entry.packageName) { mutableStateOf("activities") }
     var commandMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
@@ -533,16 +617,77 @@ private fun AppDetailSheet(
     var currentEnabled by remember(entry.packageName) { mutableStateOf(entry.enabled) }
     val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
     val protected = protectionReason != null
+    var exportBusy by remember(entry.packageName) { mutableStateOf(false) }
+    var exportMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { destination ->
+        if (destination == null) {
+            exportBusy = false
+        } else {
+            scope.launch {
+                try {
+                    val exported = withContext(Dispatchers.IO) {
+                        repository.exportInstalledBaseApk(entry.packageName, destination)
+                    }
+                    exportMessage = if (exported.hasSplits) {
+                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}. تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
+                    } else {
+                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    exportMessage = "تعذّر تصدير APK. قد يكون مزوّد الملفات ترك ملفًا جزئيًا؛ احذفه من وجهة الحفظ."
+                } finally {
+                    exportBusy = false
+                }
+            }
+        }
+    }
+    // Separate SAF document: a complete base + split APK archive, not a
+    // reinstallable one-click backup and never a copy of application data.
+    val bundlePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { destination ->
+        if (destination == null) {
+            exportBusy = false
+        } else {
+            scope.launch {
+                try {
+                    val bundle = withContext(Dispatchers.IO) {
+                        repository.exportInstalledApkBundle(entry.packageName, destination)
+                    }
+                    exportMessage = "تم تصدير ${bundle.entries.size} ملفات APK في ZIP " +
+                        "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) مع SHA-256 لكل ملف داخل manifest.json. " +
+                        "لا يشمل بيانات التطبيق، ولا يثبت سلامة التوقيع."
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    exportMessage = "تعذّر تصدير حزمة APKs. حاولنا حذف ملف ZIP الجزئي؛ " +
+                        "قد يحتاج الحذف اليدوي إذا رفض مزوّد SAF."
+                } finally {
+                    exportBusy = false
+                }
+            }
+        }
+    }
     fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
+        if (commandBusy) return
         scope.launch {
             commandBusy = true
-            val result = block()
-            commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
-            if (result.success) {
-                onSuccess()
-                details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+            try {
+                val result = SafeCommandCall.execute(block)
+                commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
+                if (result.success) {
+                    onSuccess()
+                    details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+                }
+            } finally {
+                // Always re-enable controls after a failed, cancelled or
+                // successful command; a thrown Binder error must not strand UI.
+                commandBusy = false
             }
-            commandBusy = false
         }
     }
     LaunchedEffect(entry.packageName) {
@@ -574,7 +719,33 @@ private fun AppDetailSheet(
                     OutlinedButton(onClick = { repository.openBatterySettings(entry.packageName) }) { Text("البطارية") }
                     OutlinedButton(onClick = { repository.openAutoStartSettings(entry.packageName) }) { Text("Auto-start") }
                     OutlinedButton(onClick = { repository.requestUninstall(entry.packageName) }) { Text("إزالة") }
+                    OutlinedButton(
+                        enabled = !exportBusy,
+                        onClick = {
+                            exportBusy = true
+                            exportMessage = null
+                            exportPicker.launch("${entry.packageName}-base.apk")
+                        },
+                    ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base APK") }
+                    OutlinedButton(
+                        enabled = !exportBusy,
+                        onClick = {
+                            exportBusy = true
+                            exportMessage = null
+                            bundlePicker.launch("${entry.packageName}-apks.zip")
+                        },
+                    ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base + Splits (ZIP)") }
                 }
+                exportMessage?.let { message ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(message, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    "تصدير Base APK يحفظ الملف الأساسي فقط. تصدير ZIP يشمل Base وجميع Splits المثبتة، " +
+                        "لكنه لا يشمل بيانات التطبيق ولا يثبّت الملفات تلقائيًا.",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (capabilities.shizukuGranted) {
                 item {
@@ -604,18 +775,6 @@ private fun AppDetailSheet(
                     commandMessage?.let {
                         Spacer(Modifier.height(7.dp))
                         Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            if (capabilities.deviceOwner) {
-                item {
-                    Text("تحكم Device Owner", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
-                    Spacer(Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, true) } }) { Text("تعليق") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, false) } }) { Text("إلغاء التعليق") }
-                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, true) } }) { Text("إخفاء") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, false) } }) { Text("إظهار") }
                     }
                 }
             }
@@ -665,7 +824,7 @@ private fun AppDetailSheet(
                         )
                     }
                     else -> items(details!!.permissions) { permission ->
-                        PermissionRow(permission, capabilities.shizukuGranted && (!protected || !permission.granted)) {
+                        PermissionRow(permission, capabilities.shizukuGranted && permission.runtimeMutable && (!protected || !permission.granted)) {
                             runCommand {
                                 ShizukuController.setPermission(entry.packageName, permission.name, !permission.granted)
                             }
@@ -724,6 +883,9 @@ private fun PermissionRow(permission: PermissionEntry, canControl: Boolean, onTo
             }
         }
         TinyTag(if (permission.granted) "ممنوح" else "غير ممنوح", if (permission.granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!permission.runtimeMutable) {
+            TinyTag("للعرض فقط")
+        }
         if (canControl) {
             TextButton(onClick = onToggle) { Text(if (permission.granted) "سحب" else "منح", fontSize = 11.sp) }
         }
