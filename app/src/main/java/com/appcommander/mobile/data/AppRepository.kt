@@ -19,7 +19,9 @@ import com.appcommander.mobile.model.ComponentEntry
 import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.RuntimePermissionSafety
 import com.appcommander.mobile.privilege.ShizukuController
+import java.io.File
 import java.security.MessageDigest
+import androidx.core.content.FileProvider
 
 class AppRepository(private val context: Context) {
     private val pm = context.packageManager
@@ -222,6 +224,31 @@ class AppRepository(private val context: Context) {
             ApkInstallIntegrity.matches(input, inspection.sizeBytes, inspection.fileSha256)
         } ?: false
     }.getOrDefault(false)
+
+    /**
+     * Return a read-only URI for an app-private, byte-for-byte verified copy.
+     * Never give the installer the original mutable SAF URI: the provider may
+     * otherwise replace the APK between inspection and the installer's read.
+     */
+    fun prepareVerifiedInstall(uri: Uri, inspection: ApkInspection): Uri? = runCatching {
+        val directory = File(context.cacheDir, ApkInstallSnapshot.DIRECTORY)
+        val input = context.contentResolver.openInputStream(uri) ?: return@runCatching null
+        input.use { stream ->
+            val file = ApkInstallSnapshot.create(
+                directory, stream, inspection.sizeBytes, inspection.fileSha256,
+            ) ?: return@runCatching null
+            try {
+                val verifiedUri = FileProvider.getUriForFile(
+                    context, "${context.packageName}.verifiedapks", file,
+                )
+                ApkInstallSnapshot.cleanupExpired(directory)
+                verifiedUri
+            } catch (failure: Exception) {
+                file.delete()
+                throw failure
+            }
+        }
+    }.getOrNull()
 
     private fun queryDisplayName(uri: Uri): String? {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
