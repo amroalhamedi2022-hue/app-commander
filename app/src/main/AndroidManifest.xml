@@ -27,6 +27,17 @@
         android:roundIcon="@drawable/ic_app_commander"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCommander">
+        <!-- Read-only, app-private snapshot for Android's system installer.
+             No SAF provider can mutate the bytes after verification. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.verifiedapks"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/verified_apk_paths" />
+        </provider>
         <activity
             android:name=".MainActivity"
             android:exported="true">
