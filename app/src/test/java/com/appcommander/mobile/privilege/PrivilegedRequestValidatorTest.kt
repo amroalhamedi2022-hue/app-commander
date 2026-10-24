@@ -44,4 +44,18 @@ class PrivilegedRequestValidatorTest {
                 PrivilegedOperation.REVOKE_PERMISSION, "org.example.reader", arg))
         }
     }
+    @Test fun componentClassMustBelongToTargetPackage() {
+        val pkg = "org.example.reader"
+        for (allowed in listOf(".MainActivity", ".ui.SettingsActivity",
+                "org.example.reader.MainActivity", "org.example.reader.ui.SettingsActivity")) {
+            assertNull(allowed, PrivilegedRequestValidator.error(
+                PrivilegedOperation.ENABLE_COMPONENT, pkg, allowed))
+        }
+        for (foreign in listOf("com.other.app.MainActivity", "org.example.readership.Main",
+                "MainActivity", "org.example.MainActivity")) {
+            assertNotNull(foreign, PrivilegedRequestValidator.error(
+                PrivilegedOperation.DISABLE_COMPONENT, pkg, foreign))
+        }
+    }
+
 }
