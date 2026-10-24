@@ -60,7 +60,7 @@ class PrivilegedProcessRunnerTest {
         val result = PrivilegedProcessRunner.runAllowed {
             throw IOException("executable not found")
         }
-        assertTrue(result.startsWith("exit=1\\n"))
+        assertTrue(result.startsWith("exit=1\n"))
         assertTrue(result.contains("could not be started"))
         assertFalse(result.contains("executable not found"))
     }
@@ -69,14 +69,14 @@ class PrivilegedProcessRunnerTest {
         val result = PrivilegedProcessRunner.runAllowed {
             throw SecurityException("sensitive runtime detail")
         }
-        assertTrue(result.startsWith("exit=1\\n"))
+        assertTrue(result.startsWith("exit=1\n"))
         assertTrue(result.contains("denied"))
         assertFalse(result.contains("sensitive runtime detail"))
     }
 
     @Test fun successfulAllowedProcessStillReportsItsRealExitCode() {
         val result = PrivilegedProcessRunner.runAllowed { FakeProcess(stdout = "ok", code = 7) }
-        assertTrue(result.startsWith("exit=7\\n"))
+        assertTrue(result.startsWith("exit=7\n"))
         assertTrue(result.contains("ok"))
     }
 
