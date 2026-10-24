@@ -2,6 +2,7 @@ package com.appcommander.mobile.data
 
 import java.io.File
 import java.io.IOException
+import java.text.Normalizer
 import java.util.zip.CRC32
 import java.util.zip.ZipFile
 
@@ -44,15 +45,19 @@ internal object ApkArchivePreflight {
                 val entry = entries.nextElement()
                 if (++count > MAX_ENTRIES) throw IOException("APK has too many ZIP entries")
                 val name = entry.name
+                // Distinct ZIP spellings may render as the same path in a UI
+                // or filesystem (e.g. precomposed vs decomposed accents).
+                // Normalize for collision checks, never rewrite the archive.
+                val canonicalName = Normalizer.normalize(name, Normalizer.Form.NFC)
                 // Directory entries legitimately end in '/', but an empty
                 // segment *inside* a path is ambiguous across ZIP readers.
-                val path = if (entry.isDirectory) name.dropLast(1) else name
+                val path = if (entry.isDirectory) canonicalName.dropLast(1) else canonicalName
                 if (name.length > MAX_ENTRY_NAME_LENGTH ||
                     path.isEmpty() || name.startsWith('/') || name.contains('\\') ||
                     name.any { unsafeDisplayCodePoint(it.code) } ||
                     path.split('/').any { it.isEmpty() || it == "." || it == ".." }
                 ) throw IOException("APK has an unsafe ZIP entry path")
-                if (!names.add(name)) throw IOException("APK has duplicate ZIP entry names")
+                if (!names.add(canonicalName)) throw IOException("APK has duplicate or canonically equivalent ZIP entry names")
                 val segments = path.split('/')
                 var parent = ""
                 for (i in 0 until segments.lastIndex) {
