@@ -79,7 +79,7 @@ class CommandUserService() : ICommandService.Stub() {
                     )
                 }.getOrDefault(false)
             } ?: false
-            if (!eligible) return "exit=1\\nPermission is not a requested runtime permission"
+            if (!eligible) return "exit=1\nPermission is not a requested runtime permission"
         }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
