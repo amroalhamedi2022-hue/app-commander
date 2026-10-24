@@ -72,6 +72,22 @@ class ApkInstallSnapshotTest {
         assertTrue(directory.listFiles().orEmpty().isEmpty())
     }
 
+    @Test fun creatingNewSnapshotReclaimsExpiredVerifiedFilesFirst() {
+        val directory = temp.newFolder("reclaim-before-copy")
+        val old = directory.resolve("verified-expired.apk").apply { writeText("old") }
+        val unrelated = directory.resolve("notes.txt").apply { writeText("keep") }
+        val now = System.currentTimeMillis()
+        assertTrue(old.setLastModified(now - ApkInstallSnapshot.MAX_AGE_MILLIS - 60_000L))
+        val bytes = "new verified package".toByteArray()
+        val created = ApkInstallSnapshot.create(
+            directory, ByteArrayInputStream(bytes), bytes.size.toLong(), sha(bytes),
+        )
+        assertNotNull(created)
+        assertFalse("Expired verified APK must be reclaimed before the new copy", old.exists())
+        assertTrue(unrelated.exists())
+        assertArrayEquals(bytes, created!!.readBytes())
+    }
+
     @Test fun expiryOnlyDeletesOldVerifiedSnapshots() {
         val directory = temp.newFolder("expiry")
         val now = 1_900_000_000_000L
