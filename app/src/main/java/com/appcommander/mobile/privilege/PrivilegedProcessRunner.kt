@@ -16,6 +16,7 @@ import kotlin.concurrent.thread
 internal object PrivilegedProcessRunner {
     const val DEFAULT_TIMEOUT_SECONDS = 15L
     const val MAX_CAPTURE_BYTES = 16 * 1024
+    private const val MAX_EMPTY_READS = 8
 
     /** Keep Binder failures structured if the allowlisted binary cannot start. */
     fun runAllowed(start: () -> Process): String = try {
@@ -64,15 +65,26 @@ internal object PrivilegedProcessRunner {
     private class BoundedDrain(private val stream: InputStream) {
         private val capture = ByteArrayOutputStream()
         private var truncated = false
+        private var stalled = false
 
         fun readAll() {
+            var emptyReads = 0
             try {
                 stream.use {
                     val buffer = ByteArray(4096)
                     while (true) {
                         val count = it.read(buffer)
                         if (count < 0) break
-                        if (count == 0) continue
+                        if (count == 0) {
+                            // A broken process pipe can return zero forever.
+                            // Bound retries instead of spinning a daemon at 100% CPU.
+                            if (++emptyReads >= MAX_EMPTY_READS) {
+                                synchronized(this) { stalled = true }
+                                break
+                            }
+                            continue
+                        }
+                        emptyReads = 0
                         synchronized(this) {
                             val room = MAX_CAPTURE_BYTES - capture.size()
                             if (room > 0) capture.write(buffer, 0, minOf(room, count))
@@ -90,6 +102,7 @@ internal object PrivilegedProcessRunner {
         @Synchronized fun snapshot(): String = buildString {
             append(capture.toString(Charsets.UTF_8.name()).trimEnd())
             if (truncated) append("\n[output truncated at 16 KiB]")
+            if (stalled) append("\n[output stream stalled]")
         }
     }
 }
