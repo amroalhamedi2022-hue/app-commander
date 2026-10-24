@@ -81,6 +81,7 @@ import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.CommandResult
 import com.appcommander.mobile.privilege.CriticalPackageGuard
 import com.appcommander.mobile.privilege.ShizukuController
+import com.appcommander.mobile.privilege.SafeCommandCall
 import com.appcommander.mobile.ui.components.GlassBox
 import com.appcommander.mobile.ui.components.LiquidBackground
 import com.appcommander.mobile.ui.theme.AppCommanderTheme
@@ -577,15 +578,21 @@ private fun AppDetailSheet(
     val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
     val protected = protectionReason != null
     fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
+        if (commandBusy) return
         scope.launch {
             commandBusy = true
-            val result = block()
-            commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
-            if (result.success) {
-                onSuccess()
-                details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+            try {
+                val result = SafeCommandCall.execute(block)
+                commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
+                if (result.success) {
+                    onSuccess()
+                    details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+                }
+            } finally {
+                // Always re-enable controls after a failed, cancelled or
+                // successful command; a thrown Binder error must not strand UI.
+                commandBusy = false
             }
-            commandBusy = false
         }
     }
     LaunchedEffect(entry.packageName) {
