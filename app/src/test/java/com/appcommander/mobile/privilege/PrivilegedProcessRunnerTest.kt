@@ -14,6 +14,7 @@ class PrivilegedProcessRunnerTest {
         stdout: String = "", stderr: String = "",
         private val finishes: Boolean = true,
         private val code: Int = 0,
+        private val interrupted: Boolean = false,
     ) : Process() {
         private val out = ByteArrayInputStream(stdout.toByteArray())
         private val err = ByteArrayInputStream(stderr.toByteArray())
@@ -24,7 +25,10 @@ class PrivilegedProcessRunnerTest {
         override fun getInputStream(): InputStream = out
         override fun getErrorStream(): InputStream = err
         override fun waitFor(): Int = code
-        override fun waitFor(timeout: Long, unit: TimeUnit): Boolean = finishes || destroyed
+        override fun waitFor(timeout: Long, unit: TimeUnit): Boolean {
+            if (interrupted) throw InterruptedException("private interruption detail")
+            return finishes || destroyed
+        }
         override fun exitValue(): Int = code
         override fun destroy() { destroyed = true }
         override fun destroyForcibly(): Process { destroyed = true; return this }
@@ -78,6 +82,22 @@ class PrivilegedProcessRunnerTest {
         val result = PrivilegedProcessRunner.runAllowed { FakeProcess(stdout = "ok", code = 7) }
         assertTrue(result.startsWith("exit=7\n"))
         assertTrue(result.contains("ok"))
+    }
+
+
+    @Test fun interruptedCommandIsKilledAndReturnsStructuredFailure() {
+        val process = FakeProcess(interrupted = true)
+        try {
+            val result = PrivilegedProcessRunner.runAllowed { process }
+            assertTrue(process.destroyed)
+            assertTrue(result.startsWith("exit=1\\n"))
+            assertTrue(result.contains("interrupted"))
+            assertFalse(result.contains("private interruption detail"))
+            assertTrue(Thread.currentThread().isInterrupted)
+        } finally {
+            // Do not leak the test's deliberate interrupt into JUnit.
+            Thread.interrupted()
+        }
     }
 
     @Test fun invalidTimeoutIsRejectedBeforeWaiting() {
