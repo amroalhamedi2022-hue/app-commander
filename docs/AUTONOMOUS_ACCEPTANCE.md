@@ -1,3 +1,10 @@
+## 2026-10-25 milestone: verify persisted SAF APK bundle before success (CI PENDING)
+- Functional gap: writing a ZIP and hashing source APKs did not prove that the selected SAF provider actually persisted the same bytes. Export now closes the destination, reopens the newly created document and independently checks all APK SHA-256 digests, manifest and ZIP central directory before reporting success.
+- Failure path: existing scoped best-effort cleanup deletes only the newly created SAF document. Readback denied, truncated or changed bytes fail closed; provider may refuse deletion, in which case the UI warns about manual cleanup. Readback adds I/O proportional to archive size; device latency and provider support remain NOT TESTED.
+- New JVM regressions: successful base+split readback after close, silent truncation, silent mutation, write-only provider and write failure.
+- Evidence status: source change committed; CI/JUnit PENDING until matching SHA run is observed. Android/HyperOS SAF providers and physical-device behavior NOT TESTED. No APK build requested because this stage tests archive byte integrity; on-device provider compatibility remains a separate acceptance gate.
+- Reference: Android's official Storage Access Framework and DocumentsContract APIs; no copied third-party source or new dependency.
+
 # Autonomous acceptance ledger — App Commander Android
 
 AUTOMATION_COMPLETE: NOT READY

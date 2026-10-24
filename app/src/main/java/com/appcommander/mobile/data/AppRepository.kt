@@ -236,11 +236,18 @@ class AppRepository(private val context: Context) {
                     "split_${index.toString().padStart(3, '0')}.apk"
                 InstalledApkBundleExport.Source(name, bytes) { file.inputStream() }
             }
-            val output = context.contentResolver.openOutputStream(destination, "wt")
-                ?: throw IOException("Cannot open selected SAF destination")
-            output.use { sink ->
-                InstalledApkBundleExport.write(packageName, sources, sink)
-            }
+            InstalledApkBundleExport.writeAndVerify(
+                packageName = packageName,
+                sources = sources,
+                openForWrite = {
+                    context.contentResolver.openOutputStream(destination, "wt")
+                        ?: throw IOException("Cannot open selected SAF destination")
+                },
+                openForRead = {
+                    context.contentResolver.openInputStream(destination)
+                        ?: throw IOException("Cannot reopen exported SAF document for verification")
+                },
+            )
         }
     }
 

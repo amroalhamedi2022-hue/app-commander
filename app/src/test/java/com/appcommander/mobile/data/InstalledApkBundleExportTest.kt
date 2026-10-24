@@ -167,4 +167,96 @@ class InstalledApkBundleExportTest {
             InstalledApkBundleExport.write("com.example.app", listOf(stalled), ByteArrayOutputStream())
         }
     }
+
+    @Test fun exportedSafDocumentIsReopenedAfterCloseAndVerified() {
+        var stored = ByteArrayOutputStream()
+        var closed = false
+        var reads = 0
+        val base = byteArrayOf(1, 2, 3, 4, 5)
+        val split = byteArrayOf(6, 7, 8)
+        val result = InstalledApkBundleExport.writeAndVerify(
+            "com.example.app",
+            listOf(source("base.apk", base), source("split_001.apk", split)),
+            openForWrite = {
+                object : OutputStream() {
+                    override fun write(b: Int) { stored.write(b) }
+                    override fun write(b: ByteArray, off: Int, len: Int) { stored.write(b, off, len) }
+                    override fun close() { closed = true }
+                }
+            },
+            openForRead = {
+                assertTrue("Must close the SAF output before reopening", closed)
+                reads++
+                ByteArrayInputStream(stored.toByteArray())
+            },
+        )
+        assertEquals(1, reads)
+        assertEquals(2, result.entries.size)
+        assertEquals(8L, result.totalApkBytes)
+    }
+
+    @Test fun silentlyTruncatedSafDocumentCannotBeReportedAsExported() {
+        var saved = ByteArrayOutputStream()
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleExport.writeAndVerify(
+                "com.example.app",
+                listOf(source("base.apk", byteArrayOf(1, 2, 3))),
+                openForWrite = { saved.also { it.reset() } },
+                openForRead = {
+                    val bytes = saved.toByteArray()
+                    ByteArrayInputStream(bytes.copyOf(bytes.size - 22))
+                },
+            )
+        }
+    }
+
+    @Test fun silentlyModifiedSafDocumentCannotBeReportedAsExported() {
+        val saved = ByteArrayOutputStream()
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleExport.writeAndVerify(
+                "com.example.app",
+                listOf(source("base.apk", byteArrayOf(1, 2, 3))),
+                openForWrite = { saved },
+                openForRead = {
+                    val bytes = saved.toByteArray()
+                    // Corrupt local ZIP payload/header without updating the index.
+                    bytes[0] = (bytes[0].toInt() xor 1).toByte()
+                    ByteArrayInputStream(bytes)
+                },
+            )
+        }
+    }
+
+    @Test fun providerRefusingReadbackFailsClosed() {
+        val saved = ByteArrayOutputStream()
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleExport.writeAndVerify(
+                "com.example.app",
+                listOf(source("base.apk", byteArrayOf(1))),
+                openForWrite = { saved },
+                openForRead = { throw IOException("SAF provider is write-only") },
+            )
+        }
+    }
+
+    @Test fun writeFailureNeverAttemptsReadback() {
+        var readback = false
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleExport.writeAndVerify(
+                "com.example.app",
+                listOf(source("base.apk", byteArrayOf(1, 2))),
+                openForWrite = {
+                    object : OutputStream() {
+                        override fun write(b: Int) { throw IOException("SAF disk full") }
+                    }
+                },
+                openForRead = {
+                    readback = true
+                    ByteArrayInputStream(byteArrayOf())
+                },
+            )
+        }
+        assertFalse(readback)
+    }
+
 }

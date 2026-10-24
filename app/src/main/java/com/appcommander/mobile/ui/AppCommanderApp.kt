@@ -658,8 +658,8 @@ private fun AppDetailSheet(
                     val bundle = withContext(Dispatchers.IO) {
                         repository.exportInstalledApkBundle(entry.packageName, destination)
                     }
-                    exportMessage = "تم تصدير ${bundle.entries.size} ملفات APK في ZIP " +
-                        "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) مع SHA-256 لكل ملف داخل manifest.json. " +
+                    exportMessage = "تم تصدير ${bundle.entries.size} ملفات APK في ZIP والتحقق من الملف المحفوظ بإعادة فتحه " +
+                        "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) ومطابقة SHA-256 وفهرس ZIP. " +
                         "لا يشمل بيانات التطبيق، ولا يثبت سلامة التوقيع."
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
