@@ -29,6 +29,8 @@ class InstalledApkExportTest {
             ByteArrayInputStream(bytes), ByteArrayOutputStream(), 3, hasSplits = true,
         )
         assertTrue(result.hasSplits)
+        assertEquals(sha(bytes), result.sha256)
+        assertEquals(3L, result.bytes)
     }
 
     @Test fun rejectsTruncatedAndOversizedSources() {
