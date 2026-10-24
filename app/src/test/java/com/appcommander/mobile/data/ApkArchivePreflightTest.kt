@@ -160,4 +160,29 @@ class ApkArchivePreflightTest {
         assertEquals(2, ApkArchivePreflight.check(apk).entries)
     }
 
+    @Test fun rejectsImpossibleCompressedSizeInCentralDirectory() {
+        val apk = zip("bad-compressed-size.apk",
+            "AndroidManifest.xml" to byteArrayOf(3, 0, 8, 0),
+            "classes.dex" to ByteArray(128) { it.toByte() },
+        )
+        val bytes = apk.readBytes()
+        val signature = byteArrayOf(0x50, 0x4b, 0x01, 0x02)
+        val index = (0..bytes.size - 24).firstOrNull { offset ->
+            signature.indices.all { bytes[offset + it] == signature[it] }
+        } ?: error("ZIP central directory not found")
+        // Compressed-size field at offset 20 of first central-directory entry.
+        // Its uncompressed size remains nonzero.
+        for (i in 20..23) bytes[index + i] = 0
+        apk.writeBytes(bytes)
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsDirectoryEntriesWithPayloads() {
+        val apk = zip("directory-payload.apk",
+            "AndroidManifest.xml" to byteArrayOf(1),
+            "assets/" to byteArrayOf(7, 8, 9),
+        )
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
 }
