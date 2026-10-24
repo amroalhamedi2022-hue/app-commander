@@ -726,7 +726,7 @@ private fun PermissionRow(permission: PermissionEntry, canControl: Boolean, onTo
         }
         TinyTag(if (permission.granted) "ممنوح" else "غير ممنوح", if (permission.granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
         if (!permission.runtimeMutable) {
-            TinyTag("إعدادات النظام")
+            TinyTag("للعرض فقط")
         }
         if (canControl) {
             TextButton(onClick = onToggle) { Text(if (permission.granted) "سحب" else "منح", fontSize = 11.sp) }
