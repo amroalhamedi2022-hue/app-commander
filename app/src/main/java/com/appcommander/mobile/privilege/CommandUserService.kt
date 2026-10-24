@@ -60,7 +60,7 @@ class CommandUserService() : ICommandService.Stub() {
                     DeclaredComponentSafety.isDeclared(pkg, requireNotNull(arg), names)
                 }.getOrDefault(false)
             } ?: false
-            if (!declared) return "exit=1\\nComponent not declared by target package"
+            if (!declared) return "exit=1\nComponent not declared by target package"
         }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
