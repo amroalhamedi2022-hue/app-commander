@@ -24,6 +24,12 @@ internal object PrivilegedProcessRunner {
         "exit=1\nPrivileged command could not be started or read"
     } catch (_: SecurityException) {
         "exit=1\nPrivileged command was denied by the runtime"
+    } catch (_: InterruptedException) {
+        // Binder worker cancellation must not leave a privileged pm/am process
+        // running or leak a Java exception across IPC. collect() kills it in
+        // finally; restore the interrupted flag for the calling thread.
+        Thread.currentThread().interrupt()
+        "exit=1\nPrivileged command interrupted"
     }
 
     fun collect(process: Process, timeoutSeconds: Long = DEFAULT_TIMEOUT_SECONDS): String {
