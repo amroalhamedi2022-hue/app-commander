@@ -36,6 +36,10 @@ internal object ApkInstallSnapshot {
         if (!directory.isDirectory && !directory.mkdirs()) {
             throw IOException("Cannot create private install snapshot directory")
         }
+        // Expired verified APKs can consume hundreds of MiB each. Reclaim
+        // them BEFORE allocating a new snapshot, otherwise a full cache may
+        // prevent installation before the post-copy cleanup ever runs.
+        cleanupExpired(directory)
         val file = File.createTempFile(PREFIX, SUFFIX, directory)
         var verified = false
         try {
