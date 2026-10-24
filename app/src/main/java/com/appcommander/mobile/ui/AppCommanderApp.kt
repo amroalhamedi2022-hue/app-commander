@@ -472,14 +472,39 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Spacer(Modifier.height(8.dp))
-                        Button(onClick = {
-                            selectedUri?.let { uri ->
-                                val install = Intent(Intent.ACTION_VIEW, uri)
-                                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                runCatching { context.startActivity(install) }
-                            }
-                        }) { Text("تثبيت عبر أندرويد") }
+                        Text(
+                            "قبل التثبيت نعيد فحص بصمة الملف من مصدر SAF. " +
+                                "قد يغيّر مزوّد الملفات المحتوى بعد الفحص؛ التحقق النهائي مسؤولية أندرويد.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            enabled = !busy && selectedUri != null,
+                            onClick = {
+                                val uri = selectedUri
+                                if (uri != null) {
+                                    busy = true
+                                    scope.launch {
+                                        val unchanged = withContext(Dispatchers.IO) {
+                                            repository.matchesInspectedApk(uri, apk)
+                                        }
+                                        if (!unchanged) {
+                                            error = "تغيّر الملف أو تعذّر إعادة قراءته؛ اختره وافحصه من جديد."
+                                            result = null
+                                            selectedUri = null
+                                        } else {
+                                            val install = Intent(Intent.ACTION_VIEW, uri)
+                                                .setDataAndType(uri, "application/vnd.android.package-archive")
+                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            runCatching { context.startActivity(install) }
+                                                .onFailure { error = "تعذّر فتح مثبّت أندرويد: " +
+                                                    (it.message ?: "خطأ غير معروف") }
+                                        }
+                                        busy = false
+                                    }
+                                }
+                            },
+                        ) { Text(if (busy) "جاري التحقق…" else "تثبيت عبر أندرويد") }
                     }
                 }
             }
