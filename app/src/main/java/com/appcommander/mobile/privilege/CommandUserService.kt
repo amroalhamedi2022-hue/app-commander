@@ -62,6 +62,25 @@ class CommandUserService() : ICommandService.Stub() {
             } ?: false
             if (!declared) return "exit=1\nComponent not declared by target package"
         }
+        // Never forward a signature/normal/special permission to pm grant or
+        // revoke. Confirm the target actually requests a dangerous runtime
+        // permission in the elevated process; fail closed on visibility errors.
+        if (operation == PrivilegedOperation.GRANT_PERMISSION ||
+            operation == PrivilegedOperation.REVOKE_PERMISSION) {
+            val eligible = serviceContext?.let { context ->
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    val info = context.packageManager.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
+                    @Suppress("DEPRECATION")
+                    val level = context.packageManager.getPermissionInfo(requireNotNull(arg), 0).protectionLevel
+                    RuntimePermissionSafety.canToggle(
+                        requireNotNull(arg), info.requestedPermissions.orEmpty().toList(),
+                        info.applicationInfo?.targetSdkVersion ?: 0, level,
+                    )
+                }.getOrDefault(false)
+            } ?: false
+            if (!eligible) return "exit=1\\nPermission is not a requested runtime permission"
+        }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
             PrivilegedOperation.DISABLE_PACKAGE -> arrayOf("pm", "disable-user", "--user", "0", pkg)
