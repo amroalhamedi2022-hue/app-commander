@@ -11,8 +11,9 @@ import java.util.zip.ZipInputStream
  * Never extracts or executes APK entries. SHA-256 is an integrity comparison,
  * NOT APK signing verification or a guarantee of package authenticity.
  *
- * ZIP local-entry streaming checks CRCs but does not validate the central
- * directory; this must not be used as a general-purpose ZIP security scanner.
+ * ZIP local entries, CRCs and the central directory are checked independently.
+ * Only canonical App Commander ZIP32 exports are accepted; this is not a
+ * general-purpose ZIP security scanner or an APK signing verifier.
  */
 internal object InstalledApkBundleVerifier {
     private const val MAX_MANIFEST_BYTES = 16 * 1024
@@ -39,7 +40,9 @@ internal object InstalledApkBundleVerifier {
         val actual = ArrayList<InstalledApkBundleExport.EntryDigest>()
         var total = 0L
         var manifest: String? = null
-        ZipInputStream(source).use { zip ->
+        val localEntries = ArrayList<ZipBundleStructure.LocalEntry>()
+        val tracking = ZipBundleStructure.TrackingStream(source)
+        ZipInputStream(tracking).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (entry.isDirectory || manifest != null) throw IOException("Unexpected bundle ZIP entry")
@@ -77,7 +80,15 @@ internal object InstalledApkBundleVerifier {
                     actual.add(InstalledApkBundleExport.EntryDigest(entry.name, copied.sizeBytes, copied.sha256))
                 }
                 zip.closeEntry() // Checks CRC when present; never extracts files.
+                localEntries.add(ZipBundleStructure.LocalEntry(
+                    entry.name, entry.size, entry.compressedSize, entry.crc,
+                ))
             }
+            // ZipInputStream stops at the first central-directory record. Read
+            // the remaining raw bytes, then compare the bounded central index
+            // against the already checked local entries and reject truncation.
+            tracking.drain()
+            ZipBundleStructure.validate(tracking.finalBytes(), tracking.bytesRead, localEntries)
         }
         val manifestText = manifest ?: throw IOException("Missing APK bundle manifest")
         val match = header.matchEntire(manifestText) ?: throw IOException("Invalid APK bundle manifest")
