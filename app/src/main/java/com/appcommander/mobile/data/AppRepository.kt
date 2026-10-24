@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.DocumentsContract
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
@@ -177,19 +178,30 @@ class AppRepository(private val context: Context) {
      */
     @Throws(IOException::class)
     internal fun exportInstalledBaseApk(packageName: String, destination: Uri): InstalledApkExport.Result {
-        @Suppress("DEPRECATION")
-        val info = pm.getApplicationInfo(packageName, 0)
-        val source = File(info.sourceDir)
-        val expectedBytes = source.length()
-        if (!source.isFile || expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
-            throw IOException("Installed base APK cannot be exported")
-        }
-        val hasSplits = !info.splitSourceDirs.isNullOrEmpty()
-        val output = context.contentResolver.openOutputStream(destination, "wt")
-            ?: throw IOException("Cannot open selected SAF destination")
-        return output.use { sink ->
-            source.inputStream().use { input ->
-                InstalledApkExport.copyBase(input, sink, expectedBytes, hasSplits)
+        // Only called with the fresh URI returned by CreateDocument. A
+        // provider may leave an empty/partial document if reading the source,
+        // writing the destination or closing the stream fails.
+        return InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = {
+                if (DocumentsContract.isDocumentUri(context, destination)) {
+                    DocumentsContract.deleteDocument(context.contentResolver, destination)
+                }
+            },
+        ) {
+            @Suppress("DEPRECATION")
+            val info = pm.getApplicationInfo(packageName, 0)
+            val source = File(info.sourceDir)
+            val expectedBytes = source.length()
+            if (!source.isFile || expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
+                throw IOException("Installed base APK cannot be exported")
+            }
+            val hasSplits = !info.splitSourceDirs.isNullOrEmpty()
+            val output = context.contentResolver.openOutputStream(destination, "wt")
+                ?: throw IOException("Cannot open selected SAF destination")
+            output.use { sink ->
+                source.inputStream().use { input ->
+                    InstalledApkExport.copyBase(input, sink, expectedBytes, hasSplits)
+                }
             }
         }
     }
