@@ -54,7 +54,4 @@ data class CapabilityState(
     val shizukuInstalled: Boolean,
     val shizukuRunning: Boolean,
     val shizukuGranted: Boolean,
-    val deviceOwner: Boolean,
-    val rootChecked: Boolean = false,
-    val rootAvailable: Boolean = false,
 )

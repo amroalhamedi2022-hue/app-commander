@@ -73,7 +73,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
 import com.appcommander.mobile.data.AppRepository
-import com.appcommander.mobile.admin.DeviceOwnerController
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
@@ -252,8 +251,6 @@ private fun DashboardScreen(
                         StatusPill("أساسي", true)
                         StatusPill("الاستخدام", capabilities.usageAccess)
                         StatusPill("Shizuku", capabilities.shizukuGranted)
-                        StatusPill("Device Owner", capabilities.deviceOwner)
-                        StatusPill("Root", capabilities.rootAvailable)
                     }
                     if (!capabilities.usageAccess) {
                         Spacer(Modifier.height(14.dp))
@@ -542,7 +539,6 @@ private fun AppDetailSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val deviceOwnerController = remember { DeviceOwnerController(context.applicationContext) }
     var details by remember(entry.packageName) { mutableStateOf<AppDetails?>(null) }
     var section by rememberSaveable(entry.packageName) { mutableStateOf("activities") }
     var commandMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
@@ -621,18 +617,6 @@ private fun AppDetailSheet(
                     commandMessage?.let {
                         Spacer(Modifier.height(7.dp))
                         Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            if (capabilities.deviceOwner) {
-                item {
-                    Text("تحكم Device Owner", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
-                    Spacer(Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, true) } }) { Text("تعليق") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, false) } }) { Text("إلغاء التعليق") }
-                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, true) } }) { Text("إخفاء") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, false) } }) { Text("إظهار") }
                     }
                 }
             }

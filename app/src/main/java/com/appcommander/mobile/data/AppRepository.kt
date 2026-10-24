@@ -1,7 +1,6 @@
 package com.appcommander.mobile.data
 
 import android.app.AppOpsManager
-import android.app.admin.DevicePolicyManager
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
@@ -80,7 +79,6 @@ class AppRepository(private val context: Context) {
     }
 
     fun capabilities(): CapabilityState {
-        val dpm = context.getSystemService(DevicePolicyManager::class.java)
         return CapabilityState(
             usageAccess = hasUsageAccess(),
             shizukuInstalled = runCatching {
@@ -89,7 +87,6 @@ class AppRepository(private val context: Context) {
             }.isSuccess,
             shizukuRunning = ShizukuController.isRunning(),
             shizukuGranted = ShizukuController.hasPermission(),
-            deviceOwner = dpm.isDeviceOwnerApp(context.packageName),
         )
     }
 
