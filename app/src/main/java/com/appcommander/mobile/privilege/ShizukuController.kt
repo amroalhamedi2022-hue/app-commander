@@ -102,14 +102,19 @@ object ShizukuController {
 
     private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult = withContext(Dispatchers.IO) {
         if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
-        runCatching {
+        try {
             val reply = obtainService().execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
             val firstLine = reply.lineSequence().firstOrNull().orEmpty()
             val success = firstLine == "exit=0"
             CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
-        }.getOrElse {
+        } catch (cancelled: java.util.concurrent.CancellationException) {
+            // runCatching swallows coroutine cancellation and can leave
+            // stale privileged work running after its UI scope is gone.
             remote = null
-            CommandResult(false, it.message ?: "Command failed")
+            throw cancelled
+        } catch (_: Exception) {
+            remote = null
+            CommandResult(false, "Command failed")
         }
     }
 
