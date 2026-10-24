@@ -17,6 +17,7 @@ import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.ComponentEntry
 import com.appcommander.mobile.model.PermissionEntry
+import com.appcommander.mobile.privilege.RuntimePermissionSafety
 import com.appcommander.mobile.privilege.ShizukuController
 import java.security.MessageDigest
 
@@ -58,12 +59,20 @@ class AppRepository(private val context: Context) {
             PackageManager.MATCH_DISABLED_COMPONENTS
         @Suppress("DEPRECATION")
         val pkg = pm.getPackageInfo(entry.packageName, flags)
+        val requested = pkg.requestedPermissions.orEmpty().toList()
         return AppDetails(
             app = entry,
-            permissions = pkg.requestedPermissions.orEmpty().mapIndexed { index, name ->
+            permissions = requested.mapIndexed { index, name ->
                 val granted = (pkg.requestedPermissionsFlags?.getOrNull(index) ?: 0) and
                     PackageInfo.REQUESTED_PERMISSION_GRANTED != 0
-                PermissionEntry(name, granted)
+                @Suppress("DEPRECATION")
+                val protectionLevel = runCatching { pm.getPermissionInfo(name, 0).protectionLevel }.getOrNull()
+                PermissionEntry(
+                    name, granted,
+                    runtimeMutable = RuntimePermissionSafety.canToggle(
+                        name, requested, entry.targetSdk, protectionLevel,
+                    ),
+                )
             }.sortedBy { it.name },
             activities = pkg.activities.orEmpty().map {
                 ComponentEntry(it.name, it.exported, it.enabled)
