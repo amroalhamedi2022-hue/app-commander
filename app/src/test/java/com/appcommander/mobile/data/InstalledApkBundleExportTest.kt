@@ -103,6 +103,25 @@ class InstalledApkBundleExportTest {
         assertEquals(0, opened)
     }
 
+    @Test fun rejectsAggregateTwoGibLimitBeforeReadingSources() {
+        var reads = 0
+        val sources = (0 until 5).map { index ->
+            InstalledApkBundleExport.Source(
+                if (index == 0) "base.apk" else "split_${index.toString().padStart(3, '0')}.apk",
+                ApkCacheCopy.MAX_APK_BYTES,
+            ) {
+                reads++
+                ByteArrayInputStream(byteArrayOf(1))
+            }
+        }
+        val destination = ByteArrayOutputStream()
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleExport.write("com.example.app", sources, destination)
+        }
+        assertEquals(0, reads)
+        assertEquals(0, destination.size())
+    }
+
     @Test fun detectsTruncatedAndGrowingInstalledApks() {
         val truncated = InstalledApkBundleExport.Source("base.apk", 4) {
             ByteArrayInputStream(byteArrayOf(1, 2, 3))
