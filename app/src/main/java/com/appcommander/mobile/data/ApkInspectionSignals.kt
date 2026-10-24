@@ -34,6 +34,26 @@ object ApkInspectionSignals {
             "يطلب قراءة جهات الاتصال.",
         "android.permission.RECORD_AUDIO" to
             "يطلب تسجيل الصوت من الميكروفون.",
+        "android.permission.CAMERA" to
+            "يطلب استخدام كاميرا الجهاز.",
+        "android.permission.ACCESS_FINE_LOCATION" to
+            "يطلب الوصول إلى الموقع الجغرافي الدقيق.",
+        "android.permission.ACCESS_BACKGROUND_LOCATION" to
+            "يطلب الوصول إلى الموقع حتى عندما لا يكون التطبيق ظاهرًا؛ يعتمد المنح على إصدار Android وموافقة المستخدم.",
+        "android.permission.SEND_SMS" to
+            "يطلب إرسال رسائل SMS؛ قد يترتب على الإرسال رسوم من المشغّل.",
+        "android.permission.READ_CALL_LOG" to
+            "يطلب قراءة سجل المكالمات؛ قد تقيّد المنصة منح هذا الإذن.",
+        "android.permission.READ_PHONE_NUMBERS" to
+            "يطلب قراءة أرقام الهاتف المرتبطة بالجهاز.",
+        "android.permission.READ_CALENDAR" to
+            "يطلب قراءة أحداث التقويم.",
+        "android.permission.WRITE_CONTACTS" to
+            "يطلب تعديل جهات الاتصال.",
+        "android.permission.READ_MEDIA_IMAGES" to
+            "يطلب قراءة الصور المخزنة؛ الوصول الفعلي يخضع لأذونات النظام.",
+        "android.permission.READ_MEDIA_VIDEO" to
+            "يطلب قراءة الفيديوهات المخزنة؛ الوصول الفعلي يخضع لأذونات النظام.",
     )
 
     fun evaluate(targetSdk: Int, permissions: Collection<String>, signerSha256: List<String>): List<Finding> {
@@ -49,6 +69,17 @@ object ApkInspectionSignals {
         val declared = permissions.toSet()
         for ((permission, description) in permissionIndicators) {
             if (permission in declared) findings += Finding(permission, description)
+        }
+        // Combined capabilities deserve a separate, explainable review prompt.
+        // This is manifest-only analysis; permissions may never be granted.
+        if ("android.permission.READ_SMS" in declared && "android.permission.SEND_SMS" in declared) {
+            findings += Finding("sms_read_send_combination",
+                "يطلب قراءة رسائل SMS وإرسالها معًا؛ راجع ضرورة الجمع بين الصلاحيتين.")
+        }
+        if ("android.permission.ACCESS_FINE_LOCATION" in declared &&
+            "android.permission.ACCESS_BACKGROUND_LOCATION" in declared) {
+            findings += Finding("precise_background_location_combination",
+                "يطلب الموقع الدقيق والموقع في الخلفية معًا؛ راجع سبب الحاجة للتتبع المستمر.")
         }
         return findings
     }
