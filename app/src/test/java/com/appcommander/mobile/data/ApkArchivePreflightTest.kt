@@ -137,8 +137,8 @@ class ApkArchivePreflightTest {
     @Test fun rejectsCanonicallyEquivalentUnicodeZipPaths() {
         val apk = zip("unicode-alias.apk",
             "AndroidManifest.xml" to byteArrayOf(1),
-            "assets/caf\\u00E9.png".replace("\\u00E9", "\u00E9") to byteArrayOf(2),
-            "assets/cafe\\u0301.png".replace("\\u0301", "\u0301") to byteArrayOf(3),
+            "assets/caf\u00E9.png" to byteArrayOf(2),
+            "assets/cafe\u0301.png" to byteArrayOf(3),
         )
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
