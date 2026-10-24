@@ -112,4 +112,50 @@ class InstalledApkBundleVerifierTest {
         assertEquals("com.example.single", verified.packageName)
         assertEquals(1, verified.entries.size)
     }
+
+    private fun readU32(bytes: ByteArray, offset: Int): Int =
+        (bytes[offset].toInt() and 255) or
+            ((bytes[offset + 1].toInt() and 255) shl 8) or
+            ((bytes[offset + 2].toInt() and 255) shl 16) or
+            ((bytes[offset + 3].toInt() and 255) shl 24)
+
+    @Test fun rejectsTruncatedCentralDirectoryEvenWhenLocalApkHashesMatch() {
+        val valid = exported()
+        val centralOffset = readU32(valid, valid.size - 22 + 16)
+        for (truncated in listOf(
+            valid.copyOf(centralOffset),
+            valid.copyOf(valid.size - 22),
+            valid.copyOf(valid.size - 7),
+        )) {
+            assertThrows(IOException::class.java) {
+                InstalledApkBundleVerifier.verify(ByteArrayInputStream(truncated))
+            }
+        }
+    }
+
+    @Test fun rejectsTrailingGarbageAndForgedCentralEntryCount() {
+        val valid = exported()
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(
+                ByteArrayInputStream(valid + byteArrayOf(0, 1, 2, 3)),
+            )
+        }
+        val forged = valid.copyOf()
+        forged[forged.size - 22 + 10] = 1
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+        }
+    }
+
+    @Test fun rejectsCentralDirectoryEntryNameCrcAndLocalOffsetTampering() {
+        val valid = exported()
+        val centralOffset = readU32(valid, valid.size - 22 + 16)
+        for (index in listOf(centralOffset + 46, centralOffset + 16, centralOffset + 42)) {
+            val forged = valid.copyOf()
+            forged[index] = (forged[index].toInt() xor 1).toByte()
+            assertThrows(IOException::class.java) {
+                InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+            }
+        }
+    }
 }
