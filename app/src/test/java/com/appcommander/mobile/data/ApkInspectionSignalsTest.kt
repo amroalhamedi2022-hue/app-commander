@@ -40,4 +40,38 @@ class ApkInspectionSignalsTest {
         assertTrue(findings.any { it.code == "android.permission.BIND_ACCESSIBILITY_SERVICE" })
         assertFalse(findings.any { it.description.contains("فيروس") })
     }
+    @Test fun sensitivePermissionsAreExplainedWithoutClaimingTheyWereGranted() {
+        val findings = ApkInspectionSignals.evaluate(
+            35,
+            listOf(
+                "android.permission.CAMERA",
+                "android.permission.ACCESS_FINE_LOCATION",
+                "android.permission.ACCESS_BACKGROUND_LOCATION",
+                "android.permission.SEND_SMS",
+                "android.permission.READ_SMS",
+                "android.permission.READ_CALL_LOG",
+                "android.permission.READ_MEDIA_IMAGES",
+                "android.permission.CAMERA",
+            ),
+            listOf("certificate"),
+        )
+        val codes = findings.map { it.code }
+        assertTrue(codes.contains("android.permission.CAMERA"))
+        assertTrue(codes.contains("android.permission.READ_CALL_LOG"))
+        assertTrue(codes.contains("android.permission.READ_MEDIA_IMAGES"))
+        assertEquals(1, codes.count { it == "android.permission.CAMERA" })
+        assertTrue(codes.contains("sms_read_send_combination"))
+        assertTrue(codes.contains("precise_background_location_combination"))
+        assertFalse(findings.any { it.description.contains("تم منح") })
+    }
+
+    @Test fun combinationsRequireBothExactPermissionNames() {
+        val codes = ApkInspectionSignals.evaluate(
+            35,
+            listOf("android.permission.SEND_SMS", "android.permission.ACCESS_BACKGROUND_LOCATION"),
+            listOf("certificate"),
+        ).map { it.code }
+        assertFalse(codes.contains("sms_read_send_combination"))
+        assertFalse(codes.contains("precise_background_location_combination"))
+    }
 }
