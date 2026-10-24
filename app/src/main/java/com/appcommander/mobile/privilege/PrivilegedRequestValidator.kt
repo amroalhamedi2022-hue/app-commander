@@ -32,13 +32,12 @@ internal object PrivilegedRequestValidator {
             return if (argument.contains('.') && packagePattern.matches(argument)) null
                 else "Invalid permission name"
         }
-        // ComponentName must belong to the requested package. Reject a
-        // syntactically valid fully qualified class from another package,
-        // rather than passing a misleading cross-package target to pm.
-        if (!classPattern.matches(argument) ||
-            !(argument.startsWith(".") || argument.startsWith("$packageName."))) {
-            return "Component class must belong to target package"
-        }
-        return null
+        // Android permits manifest components implemented in a different
+        // Java namespace (for example, a library activity). Syntax alone
+        // cannot prove ownership: the elevated service verifies the class
+        // against the target package's declared components before executing.
+        return if (classPattern.matches(argument) &&
+            (argument.startsWith(".") || argument.contains('.'))) null
+            else "Invalid component class name"
     }
 }
