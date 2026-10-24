@@ -136,4 +136,37 @@ class PrivilegedProcessRunnerTest {
             PrivilegedProcessRunner.collect(FakeProcess(), timeoutSeconds = 0)
         }
     }
+
+    @Test fun successfulExitWithBrokenStdoutMustFailClosed() {
+        val broken = object : InputStream() {
+            override fun read(): Int = throw IOException("sensitive pipe failure")
+            override fun read(b: ByteArray, off: Int, len: Int): Int =
+                throw IOException("sensitive pipe failure")
+        }
+        val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = broken))
+        assertTrue(result.startsWith("exit=1"))
+        assertTrue(result.contains("[output stream read failed]"))
+        assertFalse(result.contains("sensitive pipe failure"))
+    }
+
+    @Test fun partialOutputThenReadFailureIsNeverReportedAsSuccess() {
+        val partial = object : InputStream() {
+            private var first = true
+            override fun read(): Int = -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                if (first) {
+                    first = false
+                    b[off] = 'O'.code.toByte()
+                    b[off + 1] = 'K'.code.toByte()
+                    return 2
+                }
+                throw IOException("provider failed after partial data")
+            }
+        }
+        val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = partial))
+        assertTrue(result.startsWith("exit=1"))
+        assertTrue(result.contains("OK"))
+        assertTrue(result.contains("[output stream read failed]"))
+        assertFalse(result.contains("provider failed after partial data"))
+    }
 }
