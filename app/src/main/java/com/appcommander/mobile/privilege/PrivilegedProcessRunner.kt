@@ -54,7 +54,11 @@ internal object PrivilegedProcessRunner {
             // Do not report a privileged command as successful on partial I/O.
             val exitCode = when {
                 !completed -> 124
-                stdout.isStalled() || stderr.isStalled() -> 1
+                // An exit=0 is untrustworthy if either reader failed or is
+                // still blocked after the bounded join: output may be partial.
+                stdout.isStalled() || stderr.isStalled() ||
+                    stdout.hasReadFailure() || stderr.hasReadFailure() ||
+                    outThread.isAlive || errThread.isAlive -> 1
                 else -> process.exitValue()
             }
             return buildString {
@@ -72,6 +76,7 @@ internal object PrivilegedProcessRunner {
         private val capture = ByteArrayOutputStream()
         private var truncated = false
         private var stalled = false
+        private var readFailed = false
 
         fun readAll() {
             var emptyReads = 0
@@ -100,17 +105,24 @@ internal object PrivilegedProcessRunner {
                         // blocking on a full stdout/stderr pipe.
                     }
                 }
-            } catch (_: Exception) {
-                // A timed-out process may close pipes while being killed.
+            } catch (failure: Exception) {
+                // A stream can fail even when the command exits with code 0.
+                // Never report success when stdout/stderr was only partially
+                // observed. Do not expose exception details across Binder.
+                synchronized(this) { readFailed = true }
+                if (failure is InterruptedException) Thread.currentThread().interrupt()
             }
         }
 
         @Synchronized fun isStalled(): Boolean = stalled
 
+        @Synchronized fun hasReadFailure(): Boolean = readFailed
+
         @Synchronized fun snapshot(): String = buildString {
             append(capture.toString(Charsets.UTF_8.name()).trimEnd())
             if (truncated) append("\n[output truncated at 16 KiB]")
             if (stalled) append("\n[output stream stalled]")
+            if (readFailed) append("\n[output stream read failed]")
         }
     }
 }
