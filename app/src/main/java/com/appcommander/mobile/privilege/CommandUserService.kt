@@ -80,7 +80,7 @@ class CommandUserService() : ICommandService.Stub() {
         }
         // Typed argv only: bounded time and bounded stdout/stderr prevent
         // hung package-manager commands from pinning a privileged Binder call.
-        return PrivilegedProcessRunner.collect(Runtime.getRuntime().exec(command))
+        return PrivilegedProcessRunner.runAllowed { Runtime.getRuntime().exec(command) }
     }
 
 }
