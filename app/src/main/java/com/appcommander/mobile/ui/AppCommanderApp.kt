@@ -577,6 +577,34 @@ private fun AppDetailSheet(
     var currentEnabled by remember(entry.packageName) { mutableStateOf(entry.enabled) }
     val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
     val protected = protectionReason != null
+    var exportBusy by remember(entry.packageName) { mutableStateOf(false) }
+    var exportMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { destination ->
+        if (destination == null) {
+            exportBusy = false
+        } else {
+            scope.launch {
+                try {
+                    val exported = withContext(Dispatchers.IO) {
+                        repository.exportInstalledBaseApk(entry.packageName, destination)
+                    }
+                    exportMessage = if (exported.hasSplits) {
+                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
+                    } else {
+                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    exportMessage = "تعذّر تصدير APK. قد يكون مزوّد الملفات ترك ملفًا جزئيًا؛ احذفه من وجهة الحفظ."
+                } finally {
+                    exportBusy = false
+                }
+            }
+        }
+    }
     fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
         if (commandBusy) return
         scope.launch {
@@ -624,7 +652,24 @@ private fun AppDetailSheet(
                     OutlinedButton(onClick = { repository.openBatterySettings(entry.packageName) }) { Text("البطارية") }
                     OutlinedButton(onClick = { repository.openAutoStartSettings(entry.packageName) }) { Text("Auto-start") }
                     OutlinedButton(onClick = { repository.requestUninstall(entry.packageName) }) { Text("إزالة") }
+                    OutlinedButton(
+                        enabled = !exportBusy,
+                        onClick = {
+                            exportBusy = true
+                            exportMessage = null
+                            exportPicker.launch("${entry.packageName}-base.apk")
+                        },
+                    ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base APK") }
                 }
+                exportMessage?.let { message ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(message, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    "التصدير يحفظ APK الأساسي فقط عبر SAF، ولا يشمل ملفات Split APK أو بيانات التطبيق.",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (capabilities.shizukuGranted) {
                 item {
