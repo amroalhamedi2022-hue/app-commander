@@ -15,6 +15,7 @@ class PrivilegedProcessRunnerTest {
         private val finishes: Boolean = true,
         private val code: Int = 0,
         private val interrupted: Boolean = false,
+        private val stdoutOverride: InputStream? = null,
     ) : Process() {
         private val out = ByteArrayInputStream(stdout.toByteArray())
         private val err = ByteArrayInputStream(stderr.toByteArray())
@@ -22,7 +23,7 @@ class PrivilegedProcessRunnerTest {
         var destroyed = false
             private set
         override fun getOutputStream(): OutputStream = stdin
-        override fun getInputStream(): InputStream = out
+        override fun getInputStream(): InputStream = stdoutOverride ?: out
         override fun getErrorStream(): InputStream = err
         override fun waitFor(): Int = code
         override fun waitFor(timeout: Long, unit: TimeUnit): Boolean {
@@ -32,6 +33,36 @@ class PrivilegedProcessRunnerTest {
         override fun exitValue(): Int = code
         override fun destroy() { destroyed = true }
         override fun destroyForcibly(): Process { destroyed = true; return this }
+    }
+
+    @Test fun permanentlyZeroLengthPipeReadCannotSpinForever() {
+        val brokenPipe = object : InputStream() {
+            override fun read(): Int = 0
+            override fun read(b: ByteArray, off: Int, len: Int): Int = 0
+        }
+        val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = brokenPipe))
+        assertTrue(result.startsWith("exit=0"))
+        assertTrue(result.contains("[output stream stalled]"))
+    }
+
+    @Test fun occasionalZeroLengthPipeReadsDoNotLoseFollowingOutput() {
+        val pipe = object : InputStream() {
+            var calls = 0
+            override fun read(): Int = -1
+            override fun read(b: ByteArray, off: Int, len: Int): Int {
+                calls++
+                if (calls <= 2) return 0
+                if (calls == 3) {
+                    b[off] = 'O'.code.toByte()
+                    b[off + 1] = 'K'.code.toByte()
+                    return 2
+                }
+                return -1
+            }
+        }
+        val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = pipe))
+        assertTrue(result.contains("OK"))
+        assertFalse(result.contains("output stream stalled"))
     }
 
     @Test fun successfulCommandPreservesExitCodeAndBothStreams() {
