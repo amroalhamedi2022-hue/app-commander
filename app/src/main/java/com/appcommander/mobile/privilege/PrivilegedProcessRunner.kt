@@ -1,6 +1,7 @@
 package com.appcommander.mobile.privilege
 
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.thread
@@ -15,6 +16,15 @@ import kotlin.concurrent.thread
 internal object PrivilegedProcessRunner {
     const val DEFAULT_TIMEOUT_SECONDS = 15L
     const val MAX_CAPTURE_BYTES = 16 * 1024
+
+    /** Keep Binder failures structured if the allowlisted binary cannot start. */
+    fun runAllowed(start: () -> Process): String = try {
+        collect(start())
+    } catch (_: IOException) {
+        "exit=1\nPrivileged command could not be started or read"
+    } catch (_: SecurityException) {
+        "exit=1\nPrivileged command was denied by the runtime"
+    }
 
     fun collect(process: Process, timeoutSeconds: Long = DEFAULT_TIMEOUT_SECONDS): String {
         require(timeoutSeconds in 1..120)
