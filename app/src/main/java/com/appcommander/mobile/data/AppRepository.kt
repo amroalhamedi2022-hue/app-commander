@@ -20,6 +20,7 @@ import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.RuntimePermissionSafety
 import com.appcommander.mobile.privilege.ShizukuController
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import androidx.core.content.FileProvider
 
@@ -164,6 +165,32 @@ class AppRepository(private val context: Context) {
                 Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             ) }
+        }
+    }
+
+    /**
+     * Export only the installed base APK to a user-selected SAF document.
+     * A split installation needs its additional split APKs to reinstall; the
+     * returned flag ensures the UI never advertises this as a full backup.
+     * The destination provider controls its own document and may leave a
+     * partial file if an I/O error occurs.
+     */
+    @Throws(IOException::class)
+    fun exportInstalledBaseApk(packageName: String, destination: Uri): InstalledApkExport.Result {
+        @Suppress("DEPRECATION")
+        val info = pm.getApplicationInfo(packageName, 0)
+        val source = File(info.sourceDir)
+        val expectedBytes = source.length()
+        if (!source.isFile || expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
+            throw IOException("Installed base APK cannot be exported")
+        }
+        val hasSplits = !info.splitSourceDirs.isNullOrEmpty()
+        val output = context.contentResolver.openOutputStream(destination, "wt")
+            ?: throw IOException("Cannot open selected SAF destination")
+        return output.use { sink ->
+            source.inputStream().use { input ->
+                InstalledApkExport.copyBase(input, sink, expectedBytes, hasSplits)
+            }
         }
     }
 
