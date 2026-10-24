@@ -75,6 +75,21 @@ internal object ApkArchivePreflight {
                     filePaths.add(path)
                 }
                 val size = entry.size
+                val compressedSize = entry.compressedSize
+                // Never trust central-directory lengths blindly. Reject
+                // unsupported compression, impossible sizes and nonempty
+                // directory payloads before invoking Android's APK parser.
+                // This is metadata validation, NOT verification of all ZIP
+                // local headers, CRCs or APK signatures.
+                if (entry.method != java.util.zip.ZipEntry.STORED &&
+                    entry.method != java.util.zip.ZipEntry.DEFLATED) {
+                    throw IOException("APK contains an unsupported ZIP compression method")
+                }
+                if (compressedSize < 0L || compressedSize > file.length() ||
+                    (size > 0L && compressedSize == 0L) ||
+                    (entry.isDirectory && size != 0L)) {
+                    throw IOException("APK contains inconsistent ZIP entry metadata")
+                }
                 if (size < 0L || size > MAX_DECLARED_UNCOMPRESSED_BYTES - expandedBytes) {
                     throw IOException("APK ZIP metadata exceeds inspection limits")
                 }
