@@ -2,6 +2,7 @@ package com.appcommander.mobile.privilege
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.concurrent.TimeUnit
@@ -53,6 +54,30 @@ class PrivilegedProcessRunnerTest {
         assertTrue(result.startsWith("exit=0\n"))
         assertEquals(2, Regex("output truncated at 16 KiB").findAll(result).count())
         assertTrue(result.length < 2 * PrivilegedProcessRunner.MAX_CAPTURE_BYTES + 200)
+    }
+
+    @Test fun missingAllowlistedBinaryReturnsFailureWithoutBinderException() {
+        val result = PrivilegedProcessRunner.runAllowed {
+            throw IOException("executable not found")
+        }
+        assertTrue(result.startsWith("exit=1\\n"))
+        assertTrue(result.contains("could not be started"))
+        assertFalse(result.contains("executable not found"))
+    }
+
+    @Test fun runtimeSecurityDenialReturnsFailureWithoutLeakingDetails() {
+        val result = PrivilegedProcessRunner.runAllowed {
+            throw SecurityException("sensitive runtime detail")
+        }
+        assertTrue(result.startsWith("exit=1\\n"))
+        assertTrue(result.contains("denied"))
+        assertFalse(result.contains("sensitive runtime detail"))
+    }
+
+    @Test fun successfulAllowedProcessStillReportsItsRealExitCode() {
+        val result = PrivilegedProcessRunner.runAllowed { FakeProcess(stdout = "ok", code = 7) }
+        assertTrue(result.startsWith("exit=7\\n"))
+        assertTrue(result.contains("ok"))
     }
 
     @Test fun invalidTimeoutIsRejectedBeforeWaiting() {
