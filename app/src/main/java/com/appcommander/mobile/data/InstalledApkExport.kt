@@ -12,6 +12,31 @@ import java.io.OutputStream
 internal object InstalledApkExport {
     data class Result(val bytes: Long, val sha256: String, val hasSplits: Boolean)
 
+    /**
+     * ACTION_CREATE_DOCUMENT creates the destination before copying begins.
+     * If any step fails, make a best-effort attempt to remove that newly
+     * created document rather than silently leaving a corrupt APK behind.
+     * Cleanup failures must never hide the original copy failure.
+     *
+     * The caller MUST supply a cleanup callback scoped to the newly created
+     * SAF document, never an existing user-selected document.
+     */
+    inline fun <T> withPartialDocumentCleanup(
+        cleanup: () -> Unit,
+        write: () -> T,
+    ): T {
+        try {
+            return write()
+        } catch (failure: Throwable) {
+            try {
+                cleanup()
+            } catch (_: Throwable) {
+                // Preserve the original failure and allow UI to warn the user.
+            }
+            throw failure
+        }
+    }
+
     @Throws(IOException::class)
     fun copyBase(
         input: InputStream,
