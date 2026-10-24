@@ -212,6 +212,17 @@ class AppRepository(private val context: Context) {
         }
     }
 
+    /**
+     * Best-effort defense against a SAF provider changing its APK after
+     * inspection. Read and hash again off the UI thread. This is not an
+     * atomic install snapshot; Android's installer independently reopens URI.
+     */
+    fun matchesInspectedApk(uri: Uri, inspection: ApkInspection): Boolean = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            ApkInstallIntegrity.matches(input, inspection.sizeBytes, inspection.fileSha256)
+        } ?: false
+    }.getOrDefault(false)
+
     private fun queryDisplayName(uri: Uri): String? {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
             ?.use { cursor ->
