@@ -108,6 +108,19 @@ class AppRepository(private val context: Context) {
         )
     }
 
+    /**
+     * Re-query after an elevated command instead of optimistically flipping
+     * the old UI state. An unresolvable package is treated as disabled.
+     */
+    fun isInstalledAppEnabled(packageName: String): Boolean = runCatching {
+        @Suppress("DEPRECATION")
+        val info = pm.getApplicationInfo(packageName, PackageManager.MATCH_DISABLED_COMPONENTS)
+        ComponentEnabledState.effective(
+            info.enabled,
+            pm.getApplicationEnabledSetting(packageName),
+        )
+    }.getOrDefault(false)
+
     fun capabilities(): CapabilityState {
         return CapabilityState(
             usageAccess = hasUsageAccess(),
