@@ -55,7 +55,7 @@ class ActivityLaunchSafetyTest {
 
     @Test fun malformedDeclaredPermissionFailsClosedWithoutCallingChecker() {
         var checks = 0
-        for (bad in listOf(" ", "\t", " com.example.permission.LAUNCH", "com.example.permission.LAUNCH ")) {
+        for (bad in listOf(" ", "\t", " com.example.permission.LAUNCH", "com.example.permission.LAUNCH ", "com.example.permission.LAUNCH\nEVIL", "com.example.permission.LAUNCH;evil", "com.example.permission.\u202eLAUNCH", "x".repeat(256))) {
             assertFalse(ActivityLaunchSafety.callerHasPermission(bad) {
                 checks++
                 true
