@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -79,6 +80,8 @@ import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.CommandResult
+import com.appcommander.mobile.privilege.PrivilegedActionConsent
+import com.appcommander.mobile.privilege.PrivilegedOperation
 import com.appcommander.mobile.privilege.CriticalPackageGuard
 import com.appcommander.mobile.privilege.ShizukuController
 import com.appcommander.mobile.privilege.SafeCommandCall
@@ -601,6 +604,17 @@ private fun RoutinesScreen(padding: PaddingValues, capabilities: CapabilityState
     }
 }
 
+/**
+ * Pending consent is deliberately in-memory only: dismiss, navigation and
+ * rotation drop the request. The closure is never executed by rendering.
+ */
+private data class PendingPrivilegedAction(
+    val packageName: String,
+    val description: String,
+    val onSuccess: () -> Unit,
+    val execute: suspend () -> CommandResult,
+)
+
 @Composable
 private fun AppDetailSheet(
     entry: AppEntry,
@@ -614,6 +628,7 @@ private fun AppDetailSheet(
     var section by rememberSaveable(entry.packageName) { mutableStateOf("activities") }
     var commandMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     var commandBusy by remember(entry.packageName) { mutableStateOf(false) }
+    var pendingPrivileged by remember(entry.packageName) { mutableStateOf<PendingPrivilegedAction?>(null) }
     var currentEnabled by remember(entry.packageName) { mutableStateOf(entry.enabled) }
     val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
     val protected = protectionReason != null
@@ -674,8 +689,9 @@ private fun AppDetailSheet(
     }
     fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
         if (commandBusy) return
+        // Lock synchronously: two rapid taps must not dispatch duplicate Binder commands.
+        commandBusy = true
         scope.launch {
-            commandBusy = true
             try {
                 val result = SafeCommandCall.execute(block)
                 commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
@@ -689,6 +705,21 @@ private fun AppDetailSheet(
                 commandBusy = false
             }
         }
+    }
+    fun requestPrivileged(
+        operation: Int,
+        argument: String = "",
+        onSuccess: () -> Unit = {},
+        block: suspend () -> CommandResult,
+    ) {
+        if (commandBusy || pendingPrivileged != null || !capabilities.shizukuGranted) return
+        val description = PrivilegedActionConsent.description(operation, entry.packageName, argument)
+        if (description == null) {
+            commandMessage = "تم رفض طلب Shizuku غير صالح قبل التنفيذ."
+            return
+        }
+        // Only the confirm button below can dispatch this one-shot request.
+        pendingPrivileged = PendingPrivilegedAction(entry.packageName, description, onSuccess, block)
     }
     LaunchedEffect(entry.packageName) {
         details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
@@ -756,19 +787,33 @@ private fun AppDetailSheet(
                     }
                     Spacer(Modifier.height(6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = !commandBusy && !protected, onClick = { runCommand { ShizukuController.forceStop(entry.packageName) } }) {
+                        Button(enabled = !commandBusy && !protected, onClick = {
+                            requestPrivileged(PrivilegedOperation.FORCE_STOP) { ShizukuController.forceStop(entry.packageName) }
+                        }) {
                             Text("Force stop")
                         }
                         OutlinedButton(enabled = !commandBusy && (!protected || !currentEnabled), onClick = {
-                            runCommand(onSuccess = { currentEnabled = !currentEnabled }) {
-                                if (currentEnabled) ShizukuController.freeze(entry.packageName)
+                            val disabling = currentEnabled
+                            requestPrivileged(
+                                if (disabling) PrivilegedOperation.DISABLE_PACKAGE else PrivilegedOperation.ENABLE_PACKAGE,
+                                onSuccess = { currentEnabled = !disabling },
+                            ) {
+                                if (disabling) ShizukuController.freeze(entry.packageName)
                                 else ShizukuController.unfreeze(entry.packageName)
                             }
                         }) { Text(if (currentEnabled) "تجميد" else "إلغاء التجميد") }
-                        OutlinedButton(enabled = !commandBusy && !protected, onClick = { runCommand { ShizukuController.blockBackground(entry.packageName) } }) {
+                        OutlinedButton(enabled = !commandBusy && !protected, onClick = {
+                            requestPrivileged(PrivilegedOperation.BLOCK_BACKGROUND) {
+                                ShizukuController.blockBackground(entry.packageName)
+                            }
+                        }) {
                             Text("منع الخلفية")
                         }
-                        OutlinedButton(enabled = !commandBusy, onClick = { runCommand { ShizukuController.allowBackground(entry.packageName) } }) {
+                        OutlinedButton(enabled = !commandBusy, onClick = {
+                            requestPrivileged(PrivilegedOperation.ALLOW_BACKGROUND) {
+                                ShizukuController.allowBackground(entry.packageName)
+                            }
+                        }) {
                             Text("السماح بالخلفية")
                         }
                     }
@@ -803,7 +848,12 @@ private fun AppDetailSheet(
                             enabled = component.enabled,
                             onClick = { repository.launchActivity(entry.packageName, component.name) },
                             onToggle = if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
-                                runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
+                                requestPrivileged(
+                                    if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
+                                    argument = component.name,
+                                ) {
+                                    ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
+                                }
                             }) else null,
                         )
                     }
@@ -811,7 +861,12 @@ private fun AppDetailSheet(
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
                             if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
-                                runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
+                                requestPrivileged(
+                                    if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
+                                    argument = component.name,
+                                ) {
+                                    ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
+                                }
                             }) else null,
                         )
                     }
@@ -819,13 +874,21 @@ private fun AppDetailSheet(
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
                             if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
-                                runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
+                                requestPrivileged(
+                                    if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
+                                    argument = component.name,
+                                ) {
+                                    ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
+                                }
                             }) else null,
                         )
                     }
                     else -> items(details!!.permissions) { permission ->
                         PermissionRow(permission, capabilities.shizukuGranted && permission.runtimeMutable && (!protected || !permission.granted)) {
-                            runCommand {
+                            requestPrivileged(
+                                if (permission.granted) PrivilegedOperation.REVOKE_PERMISSION else PrivilegedOperation.GRANT_PERMISSION,
+                                argument = permission.name,
+                            ) {
                                 ShizukuController.setPermission(entry.packageName, permission.name, !permission.granted)
                             }
                         }
@@ -837,6 +900,29 @@ private fun AppDetailSheet(
                 Spacer(Modifier.height(24.dp))
             }
         }
+    }
+    pendingPrivileged?.let { action ->
+        AlertDialog(
+            onDismissRequest = { if (pendingPrivileged === action) pendingPrivileged = null },
+            title = { Text("تأكيد أمر Shizuku") },
+            text = { Text(action.description, fontSize = 13.sp) },
+            confirmButton = {
+                Button(
+                    enabled = !commandBusy && capabilities.shizukuGranted,
+                    onClick = {
+                        if (pendingPrivileged === action) {
+                            pendingPrivileged = null
+                            if (action.packageName == entry.packageName && capabilities.shizukuGranted) {
+                                runCommand(action.onSuccess, action.execute)
+                            }
+                        }
+                    },
+                ) { Text("أوافق، نفّذ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPrivileged = null }) { Text("إلغاء") }
+            },
+        )
     }
 }
 
