@@ -98,6 +98,44 @@ class ApkProviderExposureTest {
         assertEquals(1, result.withoutWritePermission)
     }
 
+    @Test fun malformedPathPermissionsDoNotHideMissingGatesOrValidProviderFallbacks() {
+        val malformed = listOf(
+            "com.example.permission.READ\\nEVIL",
+            "com.example.permission.\\u202eREAD",
+            "com.example.permission.READ;EVIL",
+            "x".repeat(256),
+        )
+        val result = count(arrayOf(
+            Provider(true, read = malformed[0], write = malformed[1]),
+            Provider(
+                true,
+                read = "app.READ",
+                write = "app.WRITE",
+                pathRules = listOf(
+                    ApkComponentExposure.PathPermissionGate(malformed[2], malformed[3]),
+                ),
+            ),
+            Provider(
+                true,
+                pathRules = listOf(
+                    ApkComponentExposure.PathPermissionGate(malformed[2], malformed[3]),
+                ),
+            ),
+        ))
+        assertEquals(
+            ApkComponentExposure.ProviderCounts(
+                exported = 3,
+                withoutReadPermission = 2,
+                withoutWritePermission = 2,
+                uriGrantCapable = 0,
+                pathPermissionRules = 2,
+                pathRulesWithoutReadPermission = 1,
+                pathRulesWithoutWritePermission = 1,
+            ),
+            result,
+        )
+    }
+
     @Test fun providerInventoryIsConnectedToAndroidArchiveAndUi() {
         val repo = File("src/main/java/com/appcommander/mobile/data/AppRepository.kt").readText()
         val model = File("src/main/java/com/appcommander/mobile/model/AppModels.kt").readText()
