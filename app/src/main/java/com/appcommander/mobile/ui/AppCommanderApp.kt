@@ -491,8 +491,18 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         DetailLine("الملف", apk.fileName)
                         DetailLine("الإصدار", "${apk.versionName} (${apk.versionCode})")
                         DetailLine("Android SDK", "min ${apk.minSdk} • target ${apk.targetSdk}")
+                        DetailLine("توافق هذا الجهاز", com.appcommander.mobile.data.ApkCompatibility.assess(
+                            apk.minSdk, android.os.Build.VERSION.SDK_INT,
+                        ).description)
                         DetailLine("الحجم", formatBytes(apk.sizeBytes))
                         DetailLine("المكوّنات", "${apk.activities} Activity • ${apk.services} Service • ${apk.receivers} Receiver")
+                        DetailLine("مكوّنات مصدّرة", "${apk.exportedActivities} Activity • ${apk.exportedServices} Service • ${apk.exportedReceivers} Receiver")
+                        DetailLine("مصدّرة دون إذن معلن", "${apk.unguardedExportedActivities} Activity • ${apk.unguardedExportedServices} Service • ${apk.unguardedExportedReceivers} Receiver")
+                        Text(
+                            "هذه أعداد من تعريفات Manifest فقط؛ التصدير أو غياب إذن على مستوى المكوّن لا يثبت إمكانية الوصول الفعلية أو وجود ثغرة.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         DetailLine("الأذونات", apk.permissions.size.toString())
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             DetailLine("SHA-256", apk.fileSha256)

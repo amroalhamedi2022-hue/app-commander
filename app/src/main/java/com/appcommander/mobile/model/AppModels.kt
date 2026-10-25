@@ -52,6 +52,13 @@ data class ApkInspection(
     val sizeBytes: Long,
     val fileSha256: String,
     val signerSha256: List<String>,
+    // Counts of exported manifest components; not proof that a caller can invoke them.
+    val exportedActivities: Int = 0,
+    val exportedServices: Int = 0,
+    val exportedReceivers: Int = 0,
+    val unguardedExportedActivities: Int = 0,
+    val unguardedExportedServices: Int = 0,
+    val unguardedExportedReceivers: Int = 0,
 )
 
 data class CapabilityState(

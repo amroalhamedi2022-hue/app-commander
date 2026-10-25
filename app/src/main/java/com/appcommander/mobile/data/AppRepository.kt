@@ -374,6 +374,15 @@ class AppRepository(private val context: Context) {
             pkg.applicationInfo?.publicSourceDir = cached.absolutePath
             val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
             val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
+            val activityExposure = ApkComponentExposure.count(
+                pkg.activities, { it.exported }, { it.permission },
+            )
+            val serviceExposure = ApkComponentExposure.count(
+                pkg.services, { it.exported }, { it.permission },
+            )
+            val receiverExposure = ApkComponentExposure.count(
+                pkg.receivers, { it.exported }, { it.permission },
+            )
             ApkInspection(
                 fileName = displayName,
                 label = label,
@@ -391,6 +400,12 @@ class AppRepository(private val context: Context) {
                 signerSha256 = runCatching {
                     pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
                 }.getOrDefault(emptyList()),
+                exportedActivities = activityExposure.exported,
+                exportedServices = serviceExposure.exported,
+                exportedReceivers = receiverExposure.exported,
+                unguardedExportedActivities = activityExposure.withoutDeclaredPermission,
+                unguardedExportedServices = serviceExposure.withoutDeclaredPermission,
+                unguardedExportedReceivers = receiverExposure.withoutDeclaredPermission,
             )
         }
     }
