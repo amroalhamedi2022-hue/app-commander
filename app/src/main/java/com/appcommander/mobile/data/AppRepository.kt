@@ -96,7 +96,11 @@ class AppRepository(private val context: Context) {
                 )
             }.sortedBy { it.name },
             activities = pkg.activities.orEmpty().map {
-                ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
+                ComponentEntry(
+                    it.name, it.exported, componentEnabled(it.name, it.enabled),
+                    requiredPermission = it.permission,
+                    callerHasPermission = canAccessActivity(it.permission),
+                )
             }.sortedBy { it.name },
             services = pkg.services.orEmpty().map {
                 ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
@@ -149,6 +153,16 @@ class AppRepository(private val context: Context) {
     }
 
     /**
+     * ActivityInfo.permission is enforced by Android for cross-app starts.
+     * A visible/exported activity may still be inaccessible to our UID.
+     * Do not request privileged grants or bypass this check through Shizuku.
+     */
+    private fun canAccessActivity(permission: String?): Boolean =
+        permission.isNullOrEmpty() || runCatching {
+            context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+        }.getOrDefault(false)
+
+    /**
      * Activity Launcher uses ordinary Android permissions only. Re-check the
      * component at click time: the list can be stale after an app update,
      * component toggle or package disable. Never attempt private activities
@@ -170,6 +184,7 @@ class AppRepository(private val context: Context) {
             )
             if (!ActivityLaunchSafety.eligible(
                     packageName, className, activity.exported, componentEnabled, appEnabled,
+                    canAccessActivity(activity.permission),
                 )
             ) return false
             context.startActivity(
