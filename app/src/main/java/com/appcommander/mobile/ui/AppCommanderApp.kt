@@ -866,10 +866,10 @@ private fun AppDetailSheet(
                     FilterChip(
                         selected = exportedActivitiesOnly,
                         onClick = { exportedActivitiesOnly = !exportedActivitiesOnly },
-                        label = { Text("المصدّرة فقط (القابلة للفتح)") },
+                        label = { Text("المصدّرة فقط") },
                     )
                     Text(
-                        "التشغيل العادي يسمح فقط بمكوّن مصدّر ومفعّل. لا يستخدم Shizuku لتجاوز قيود Android.",
+                        "التشغيل يتطلب مكوّنًا مصدّرًا ومفعّلًا وأي إذن يفرضه التطبيق الآخر. لا يستخدم Shizuku لتجاوز قيود Android.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -889,7 +889,7 @@ private fun AppDetailSheet(
                             name = component.name,
                             exported = component.exported,
                             enabled = component.enabled,
-                            onClick = if (currentEnabled) ({
+                            onClick = if (currentEnabled && component.callerHasPermission) ({
                                 val dispatched = repository.launchActivity(entry.packageName, component.name)
                                 activityLaunchMessage = if (dispatched) {
                                     "تم إرسال طلب فتح ${component.name}؛ لا يؤكد ذلك أن الشاشة اشتغلت بنجاح."
@@ -897,6 +897,7 @@ private fun AppDetailSheet(
                                     "تعذّر فتح ${component.name}: قد تكون غير مصدّرة أو معطّلة أو مقيّدة من Android."
                                 }
                             }) else null,
+                            launchPermissionGranted = component.callerHasPermission,
                             onToggle = if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
                                 requestPrivileged(
                                     if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
@@ -983,6 +984,7 @@ private fun ComponentRow(
     enabled: Boolean,
     onClick: (() -> Unit)?,
     onToggle: (() -> Unit)? = null,
+    launchPermissionGranted: Boolean = true,
 ) {
     Row(
         Modifier
@@ -1000,6 +1002,7 @@ private fun ComponentRow(
             }
         }
         TinyTag(if (exported) "exported" else "internal")
+        if (!launchPermissionGranted) TinyTag("إذن تشغيل غير متاح", MaterialTheme.colorScheme.error)
         if (onToggle != null) {
             TextButton(onClick = onToggle) { Text(if (enabled) "تعطيل" else "تفعيل", fontSize = 11.sp) }
         }
