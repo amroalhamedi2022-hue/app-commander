@@ -37,6 +37,42 @@ internal object InstalledApkExport {
         }
     }
 
+    /**
+     * Complete the single-base SAF export only after the newly created document
+     * has been closed, reopened and independently hashed. A provider can accept
+     * every write but persist different/truncated bytes. This detects that case
+     * without retaining the APK in memory or making a second private copy.
+     *
+     * The caller must use withPartialDocumentCleanup around this operation,
+     * scoped ONLY to the fresh CreateDocument URI. A readback failure is fatal.
+     * This verifies saved bytes, NOT the APK signature or future provider changes.
+     */
+    @Throws(IOException::class)
+    fun copyBaseAndVerify(
+        openSource: () -> InputStream,
+        openForWrite: () -> OutputStream,
+        openForRead: () -> InputStream,
+        expectedBytes: Long,
+        hasSplits: Boolean,
+    ): Result {
+        // Reject invalid sizes before opening or creating any output stream.
+        if (expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
+            throw IOException("Installed base APK exceeds safe export limits")
+        }
+        val written = openSource().use { input ->
+            openForWrite().use { output ->
+                copyBase(input, output, expectedBytes, hasSplits)
+            }
+        }
+        // Both streams are closed before readback: remote SAF providers may
+        // commit their data only on close().
+        val matches = openForRead().use { input ->
+            ApkInstallIntegrity.matches(input, written.bytes, written.sha256)
+        }
+        if (!matches) throw IOException("Saved SAF base APK failed SHA-256 readback")
+        return written
+    }
+
     @Throws(IOException::class)
     fun copyBase(
         input: InputStream,
