@@ -169,4 +169,35 @@ class PrivilegedProcessRunnerTest {
         assertTrue(result.contains("[output stream read failed]"))
         assertFalse(result.contains("provider failed after partial data"))
     }
+
+    @Test fun blockedPipeReaderIsClosedAfterProcessExitAndFailsClosed() {
+        val gate = java.lang.Object()
+        @Volatile var closed = false
+        val blockedPipe = object : InputStream() {
+            override fun read(): Int = -1
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                synchronized(gate) {
+                    while (!closed) gate.wait()
+                }
+                throw IOException("private blocked pipe detail")
+            }
+            override fun close() {
+                synchronized(gate) {
+                    closed = true
+                    gate.notifyAll()
+                }
+            }
+        }
+
+        val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = blockedPipe))
+
+        assertTrue("Incomplete pipe capture must not report success", result.startsWith("exit=1\\n"))
+        assertTrue(result.contains("[output stream stalled]"))
+        assertFalse(result.contains("private blocked pipe detail"))
+        assertFalse(
+            "The blocked stdout reader must not survive collect()",
+            Thread.getAllStackTraces().keys.any { it.isAlive && it.name == "privileged-stdout" },
+        )
+    }
+
 }
