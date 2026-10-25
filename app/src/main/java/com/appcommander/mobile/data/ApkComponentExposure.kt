@@ -24,7 +24,7 @@ internal object ApkComponentExposure {
             exportedCount++
             val permission = declaredPermission(component)
             // Empty or malformed declarations are not reliable protection.
-            if (permission.isNullOrBlank() || permission != permission.trim()) {
+            if (!PermissionNameSafety.isWellFormed(permission)) {
                 withoutPermission++
             }
         }
@@ -54,7 +54,7 @@ internal object ApkComponentExposure {
     )
 
     private fun hasDeclaredPermission(permission: String?): Boolean =
-        !permission.isNullOrBlank() && permission == permission.trim()
+        PermissionNameSafety.isWellFormed(permission)
 
     fun <T> countProviders(
         providers: Array<T>?,
