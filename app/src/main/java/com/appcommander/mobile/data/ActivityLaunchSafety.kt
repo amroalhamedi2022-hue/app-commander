@@ -21,7 +21,9 @@ internal object ActivityLaunchSafety {
      * A failed Android permission query is NOT evidence of access.
      */
     fun callerHasPermission(permission: String?, check: (String) -> Boolean): Boolean {
-        if (permission.isNullOrEmpty()) return true
+        if (permission == null || permission.isEmpty()) return true
+        // A malformed non-empty permission must never be treated as unrestricted.
+        if (permission.isBlank() || permission != permission.trim()) return false
         return try { check(permission) } catch (_: Exception) { false }
     }
 
