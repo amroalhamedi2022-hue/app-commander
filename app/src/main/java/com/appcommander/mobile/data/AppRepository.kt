@@ -118,13 +118,43 @@ class AppRepository(private val context: Context) {
         return runCatching { context.startActivity(intent); true }.getOrDefault(false)
     }
 
-    fun launchActivity(packageName: String, className: String): Boolean = runCatching {
-        context.startActivity(
-            Intent().setComponent(ComponentName(packageName, className))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-        true
-    }.getOrDefault(false)
+    /**
+     * Activity Launcher uses ordinary Android permissions only. Re-check the
+     * component at click time: the list can be stale after an app update,
+     * component toggle or package disable. Never attempt private activities
+     * through Shizuku or assume startActivity means the target stayed open.
+     */
+    fun launchActivity(packageName: String, className: String): Boolean {
+        if (!ActivityLaunchSafety.validNames(packageName, className)) return false
+        return runCatching {
+            val component = ComponentName(packageName, className)
+            @Suppress("DEPRECATION")
+            val activity = pm.getActivityInfo(component, 0)
+            val componentEnabled = effectiveComponentEnabled(
+                activity.enabled, pm.getComponentEnabledSetting(component),
+            )
+            val appEnabled = effectiveComponentEnabled(
+                activity.applicationInfo.enabled, pm.getApplicationEnabledSetting(packageName),
+            )
+            if (!ActivityLaunchSafety.eligible(
+                    packageName, className, activity.exported, componentEnabled, appEnabled,
+                )
+            ) return false
+            context.startActivity(
+                Intent().setComponent(component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        }.getOrDefault(false)
+    }
+
+    private fun effectiveComponentEnabled(manifestEnabled: Boolean, override: Int): Boolean =
+        when (override) {
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER,
+            PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED -> false
+            else -> manifestEnabled
+        }
 
     fun openAppInfo(packageName: String) {
         startSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageName)

@@ -73,6 +73,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
+import com.appcommander.mobile.data.ActivityLaunchSafety
 import com.appcommander.mobile.data.AppRepository
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
@@ -626,6 +627,9 @@ private fun AppDetailSheet(
     val scope = rememberCoroutineScope()
     var details by remember(entry.packageName) { mutableStateOf<AppDetails?>(null) }
     var section by rememberSaveable(entry.packageName) { mutableStateOf("activities") }
+    var activityQuery by rememberSaveable(entry.packageName) { mutableStateOf("") }
+    var exportedActivitiesOnly by rememberSaveable(entry.packageName) { mutableStateOf(true) }
+    var activityLaunchMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     var commandMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     var commandBusy by remember(entry.packageName) { mutableStateOf(false) }
     var pendingPrivileged by remember(entry.packageName) { mutableStateOf<PendingPrivilegedAction?>(null) }
@@ -837,16 +841,49 @@ private fun AppDetailSheet(
                     }
                 }
             }
+            if (section == "activities") {
+                item {
+                    OutlinedTextField(
+                        value = activityQuery,
+                        onValueChange = { activityQuery = it.take(128) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("ابحث في Activities") },
+                        singleLine = true,
+                    )
+                    FilterChip(
+                        selected = exportedActivitiesOnly,
+                        onClick = { exportedActivitiesOnly = !exportedActivitiesOnly },
+                        label = { Text("المصدّرة فقط (القابلة للفتح)") },
+                    )
+                    Text(
+                        "التشغيل العادي يسمح فقط بمكوّن مصدّر ومفعّل. لا يستخدم Shizuku لتجاوز قيود Android.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    activityLaunchMessage?.let {
+                        Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
             if (details == null) {
                 item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             } else {
                 when (section) {
-                    "activities" -> items(details!!.activities) { component ->
+                    "activities" -> items(
+                        ActivityLaunchSafety.visible(details!!.activities, activityQuery, exportedActivitiesOnly)
+                    ) { component ->
                         ComponentRow(
                             name = component.name,
                             exported = component.exported,
                             enabled = component.enabled,
-                            onClick = { repository.launchActivity(entry.packageName, component.name) },
+                            onClick = if (entry.enabled) ({
+                                val dispatched = repository.launchActivity(entry.packageName, component.name)
+                                activityLaunchMessage = if (dispatched) {
+                                    "تم إرسال طلب فتح ${component.name}؛ لا يؤكد ذلك أن الشاشة اشتغلت بنجاح."
+                                } else {
+                                    "تعذّر فتح ${component.name}: قد تكون غير مصدّرة أو معطّلة أو مقيّدة من Android."
+                                }
+                            }) else null,
                             onToggle = if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
                                 requestPrivileged(
                                     if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
