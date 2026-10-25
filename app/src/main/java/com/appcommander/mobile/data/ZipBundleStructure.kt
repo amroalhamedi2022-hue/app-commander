@@ -121,7 +121,11 @@ internal object ZipBundleStructure {
                 method != 8 || startDisk != 0 || commentLength != 0 ||
                 localOffset != expectedLocalOffset || localOffset >= centralOffset ||
                 nameLength !in 1..64 || extraLength > 64 ||
-                size == 0xffffffffL || compressed == 0xffffffffL
+                size == 0xffffffffL || compressed == 0xffffffffL ||
+                // The exporter uses DEFLATE level zero for every entry.
+                // A smaller compressed payload cannot be one of our
+                // canonical backups, even if its SHA manifest is valid.
+                compressed < size
             ) throw IOException("Unsupported ZIP central directory metadata")
             val name = String(rawTail, cursor + 46, nameLength, Charsets.UTF_8)
             if (name != expected.name || size != expected.size ||
