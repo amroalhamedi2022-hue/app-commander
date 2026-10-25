@@ -158,9 +158,9 @@ class AppRepository(private val context: Context) {
      * Do not request privileged grants or bypass this check through Shizuku.
      */
     private fun canAccessActivity(permission: String?): Boolean =
-        permission.isNullOrEmpty() || runCatching {
-            context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-        }.getOrDefault(false)
+        ActivityLaunchSafety.callerHasPermission(permission) { required ->
+            context.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED
+        }
 
     /**
      * Activity Launcher uses ordinary Android permissions only. Re-check the
