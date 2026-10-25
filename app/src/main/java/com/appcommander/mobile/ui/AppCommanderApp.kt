@@ -495,11 +495,14 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                             apk.minSdk, android.os.Build.VERSION.SDK_INT,
                         ).description)
                         DetailLine("الحجم", formatBytes(apk.sizeBytes))
-                        DetailLine("المكوّنات", "${apk.activities} Activity • ${apk.services} Service • ${apk.receivers} Receiver")
-                        DetailLine("مكوّنات مصدّرة", "${apk.exportedActivities} Activity • ${apk.exportedServices} Service • ${apk.exportedReceivers} Receiver")
+                        DetailLine("المكوّنات", "${apk.activities} Activity • ${apk.services} Service • ${apk.receivers} Receiver • ${apk.providers} Provider")
+                        DetailLine("مكوّنات مصدّرة", "${apk.exportedActivities} Activity • ${apk.exportedServices} Service • ${apk.exportedReceivers} Receiver • ${apk.exportedProviders} Provider")
                         DetailLine("مصدّرة دون إذن معلن", "${apk.unguardedExportedActivities} Activity • ${apk.unguardedExportedServices} Service • ${apk.unguardedExportedReceivers} Receiver")
+                        DetailLine("Providers مصدّرة دون إذن قراءة معلن", apk.providersWithoutReadPermission.toString())
+                        DetailLine("Providers مصدّرة دون إذن كتابة معلن", apk.providersWithoutWritePermission.toString())
+                        DetailLine("Providers تسمح بمنح URI", apk.providersGrantUriPermissions.toString())
                         Text(
-                            "هذه أعداد من تعريفات Manifest فقط؛ التصدير أو غياب إذن على مستوى المكوّن لا يثبت إمكانية الوصول الفعلية أو وجود ثغرة.",
+                            "هذه أعداد من تعريفات Manifest فقط؛ التصدير أو غياب إذن على مستوى المكوّن لا يثبت إمكانية الوصول الفعلية أو وجود ثغرة. أذونات المسارات ومنح URI وفحوص وقت التشغيل قد تغيّر الوصول الفعلي.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
