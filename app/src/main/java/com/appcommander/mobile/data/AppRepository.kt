@@ -196,13 +196,19 @@ class AppRepository(private val context: Context) {
                 throw IOException("Installed base APK cannot be exported")
             }
             val hasSplits = !info.splitSourceDirs.isNullOrEmpty()
-            val output = context.contentResolver.openOutputStream(destination, "wt")
-                ?: throw IOException("Cannot open selected SAF destination")
-            output.use { sink ->
-                source.inputStream().use { input ->
-                    InstalledApkExport.copyBase(input, sink, expectedBytes, hasSplits)
-                }
-            }
+            InstalledApkExport.copyBaseAndVerify(
+                openSource = { source.inputStream() },
+                openForWrite = {
+                    context.contentResolver.openOutputStream(destination, "wt")
+                        ?: throw IOException("Cannot open selected SAF destination")
+                },
+                openForRead = {
+                    context.contentResolver.openInputStream(destination)
+                        ?: throw IOException("Cannot reopen exported SAF base APK for verification")
+                },
+                expectedBytes = expectedBytes,
+                hasSplits = hasSplits,
+            )
         }
     }
 
