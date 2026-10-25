@@ -22,8 +22,9 @@ internal object ActivityLaunchSafety {
         exported: Boolean,
         componentEnabled: Boolean,
         appEnabled: Boolean,
+        callerHasPermission: Boolean = true,
     ): Boolean = validNames(packageName, className) &&
-        exported && componentEnabled && appEnabled
+        exported && componentEnabled && appEnabled && callerHasPermission
 
     fun visible(
         activities: List<ComponentEntry>,
