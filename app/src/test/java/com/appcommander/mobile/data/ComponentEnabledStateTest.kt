@@ -68,7 +68,7 @@ class ComponentEnabledStateTest {
         assertEquals(3, source.split(
             "ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)"
         ).size - 1)
-        assertTrue(source.contains("onClick = if (currentEnabled) ({"))
+        assertTrue(source.contains("onClick = if (currentEnabled && component.callerHasPermission) ({"))
         assertTrue(source.contains("repository.isInstalledAppEnabled(entry.packageName)"))
     }
 }
