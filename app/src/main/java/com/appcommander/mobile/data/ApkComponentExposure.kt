@@ -57,11 +57,13 @@ internal object ApkComponentExposure {
         var noWriteGate = 0
         var uriGrantCount = 0
         for (provider in providers) {
+            // Even non-exported providers may intentionally grant access to
+            // specific URIs, so count grant-capable providers independently.
+            if (grantsUriPermissions(provider)) uriGrantCount++
             if (!exported(provider)) continue
             exportedCount++
             if (readPermission(provider).isNullOrBlank()) noReadGate++
             if (writePermission(provider).isNullOrBlank()) noWriteGate++
-            if (grantsUriPermissions(provider)) uriGrantCount++
         }
         return ProviderCounts(exportedCount, noReadGate, noWriteGate, uriGrantCount)
     }
