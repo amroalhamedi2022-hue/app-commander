@@ -34,6 +34,26 @@ class ApkComponentExposureTest {
         assertEquals(ApkComponentExposure.Counts(5, 4), count(items))
     }
 
+    @Test fun internalControlsBidiPunctuationAndOverlongPermissionsAreNotReliableGates() {
+        val malformed = listOf(
+            "com.example.permission.READ\\nEVIL",
+            "com.example.permission.\\u202eREAD",
+            "com.example.permission.READ;EVIL",
+            "x".repeat(256),
+        )
+        assertEquals(
+            ApkComponentExposure.Counts(4, 4),
+            count(malformed.map { Item(true, it) }.toTypedArray()),
+        )
+        assertEquals(
+            ApkComponentExposure.Counts(2, 0),
+            count(arrayOf(
+                Item(true, "android.permission.READ_SMS"),
+                Item(true, "com.example.permission.CUSTOM"),
+            )),
+        )
+    }
+
     @Test fun countsAreIndependentAcrossComponentKinds() {
         val activities = count(arrayOf(Item(true, null), Item(true, "app.PRIVATE")))
         val services = count(arrayOf(Item(false, null), Item(true, null)))
