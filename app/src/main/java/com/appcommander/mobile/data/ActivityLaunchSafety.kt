@@ -10,7 +10,6 @@ import com.appcommander.mobile.model.ComponentEntry
  */
 internal object ActivityLaunchSafety {
     private val packagePattern = Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")
-    private val permissionPattern = Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")
     private val classPattern = Regex("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+")
 
     fun validNames(packageName: String, className: String): Boolean =
@@ -24,7 +23,7 @@ internal object ActivityLaunchSafety {
     fun callerHasPermission(permission: String?, check: (String) -> Boolean): Boolean {
         if (permission == null || permission.isEmpty()) return true
         // A malformed non-empty permission must never be treated as unrestricted.
-        if (permission.length > 255 || !permissionPattern.matches(permission)) return false
+        if (!PermissionNameSafety.isWellFormed(permission)) return false
         return try { check(permission) } catch (_: Exception) { false }
     }
 
