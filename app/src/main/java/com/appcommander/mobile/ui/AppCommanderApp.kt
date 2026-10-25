@@ -75,6 +75,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
 import com.appcommander.mobile.data.ActivityLaunchSafety
 import com.appcommander.mobile.data.AppRepository
+import com.appcommander.mobile.data.ComponentEnabledState
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
@@ -701,6 +702,12 @@ private fun AppDetailSheet(
                 commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
                 if (result.success) {
                     onSuccess()
+                    // The command may have raced with an external package
+                    // change. Display PackageManager's state, not a guessed
+                    // inverse of the stale row shown before confirmation.
+                    currentEnabled = withContext(Dispatchers.IO) {
+                        repository.isInstalledAppEnabled(entry.packageName)
+                    }
                     details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
                 }
             } finally {
@@ -785,6 +792,12 @@ private fun AppDetailSheet(
             if (capabilities.shizukuGranted) {
                 item {
                     Text("تحكم متقدم عبر Shizuku", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                    if (!currentEnabled) {
+                        Text(
+                            "التطبيق معطّل: أعد تفعيله أولًا قبل تعديل مكوّناته أو فتح Activities.",
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
                     if (protected) {
                         Spacer(Modifier.height(5.dp))
                         Text("محمي: $protectionReason", fontSize = 11.sp, color = MaterialTheme.colorScheme.tertiary)
@@ -876,7 +889,7 @@ private fun AppDetailSheet(
                             name = component.name,
                             exported = component.exported,
                             enabled = component.enabled,
-                            onClick = if (entry.enabled) ({
+                            onClick = if (currentEnabled) ({
                                 val dispatched = repository.launchActivity(entry.packageName, component.name)
                                 activityLaunchMessage = if (dispatched) {
                                     "تم إرسال طلب فتح ${component.name}؛ لا يؤكد ذلك أن الشاشة اشتغلت بنجاح."
@@ -884,7 +897,7 @@ private fun AppDetailSheet(
                                     "تعذّر فتح ${component.name}: قد تكون غير مصدّرة أو معطّلة أو مقيّدة من Android."
                                 }
                             }) else null,
-                            onToggle = if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
+                            onToggle = if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
                                 requestPrivileged(
                                     if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
                                     argument = component.name,
@@ -897,7 +910,7 @@ private fun AppDetailSheet(
                     "services" -> items(details!!.services) { component ->
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
-                            if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
+                            if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
                                 requestPrivileged(
                                     if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
                                     argument = component.name,
@@ -910,7 +923,7 @@ private fun AppDetailSheet(
                     "receivers" -> items(details!!.receivers) { component ->
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
-                            if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
+                            if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
                                 requestPrivileged(
                                     if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
                                     argument = component.name,
