@@ -366,7 +366,7 @@ class AppRepository(private val context: Context) {
             ApkArchivePreflight.check(cached)
             val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
                 PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
-                PackageManager.GET_SIGNING_CERTIFICATES
+                PackageManager.GET_PROVIDERS or PackageManager.GET_SIGNING_CERTIFICATES
             @Suppress("DEPRECATION")
             val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
             val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
@@ -383,6 +383,10 @@ class AppRepository(private val context: Context) {
             val receiverExposure = ApkComponentExposure.count(
                 pkg.receivers, { it.exported }, { it.permission },
             )
+            val providerExposure = ApkComponentExposure.countProviders(
+                pkg.providers, { it.exported }, { it.readPermission },
+                { it.writePermission }, { it.grantUriPermissions },
+            )
             ApkInspection(
                 fileName = displayName,
                 label = label,
@@ -395,6 +399,7 @@ class AppRepository(private val context: Context) {
                 activities = pkg.activities?.size ?: 0,
                 services = pkg.services?.size ?: 0,
                 receivers = pkg.receivers?.size ?: 0,
+                providers = pkg.providers?.size ?: 0,
                 sizeBytes = copied.sizeBytes,
                 fileSha256 = copied.sha256,
                 signerSha256 = runCatching {
@@ -406,6 +411,10 @@ class AppRepository(private val context: Context) {
                 unguardedExportedActivities = activityExposure.withoutDeclaredPermission,
                 unguardedExportedServices = serviceExposure.withoutDeclaredPermission,
                 unguardedExportedReceivers = receiverExposure.withoutDeclaredPermission,
+                exportedProviders = providerExposure.exported,
+                providersWithoutReadPermission = providerExposure.withoutReadPermission,
+                providersWithoutWritePermission = providerExposure.withoutWritePermission,
+                providersGrantUriPermissions = providerExposure.uriGrantCapable,
             )
         }
     }
