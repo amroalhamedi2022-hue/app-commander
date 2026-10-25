@@ -44,7 +44,10 @@ class AppRepository(private val context: Context) {
                         versionName = pkg.versionName.orEmpty().ifBlank { "—" },
                         targetSdk = info.targetSdkVersion,
                         isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
-                        enabled = info.enabled,
+                        enabled = ComponentEnabledState.effective(
+                            info.enabled,
+                            runCatching { pm.getApplicationEnabledSetting(info.packageName) }.getOrNull(),
+                        ),
                         lastUpdateTime = pkg.lastUpdateTime,
                         usageMillis = stat?.totalTimeInForeground ?: 0L,
                         lastTimeUsed = stat?.lastTimeUsed ?: 0L,
@@ -64,6 +67,20 @@ class AppRepository(private val context: Context) {
         @Suppress("DEPRECATION")
         val pkg = pm.getPackageInfo(entry.packageName, flags)
         val requested = pkg.requestedPermissions.orEmpty().toList()
+        val appEnabled = ComponentEnabledState.effective(
+            pkg.applicationInfo?.enabled ?: false,
+            runCatching { pm.getApplicationEnabledSetting(entry.packageName) }.getOrNull(),
+        )
+        // ComponentInfo.enabled may only reflect the manifest default.
+        // Re-query the per-component override for every inventory row.
+        // A missing/denied state is not proof that a component is enabled.
+        fun componentEnabled(name: String, manifestEnabled: Boolean): Boolean =
+            appEnabled && ComponentEnabledState.effective(
+                manifestEnabled,
+                runCatching {
+                    pm.getComponentEnabledSetting(ComponentName(entry.packageName, name))
+                }.getOrNull(),
+            )
         return AppDetails(
             app = entry,
             permissions = requested.mapIndexed { index, name ->
@@ -79,13 +96,13 @@ class AppRepository(private val context: Context) {
                 )
             }.sortedBy { it.name },
             activities = pkg.activities.orEmpty().map {
-                ComponentEntry(it.name, it.exported, it.enabled)
+                ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
             }.sortedBy { it.name },
             services = pkg.services.orEmpty().map {
-                ComponentEntry(it.name, it.exported, it.enabled)
+                ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
             }.sortedBy { it.name },
             receivers = pkg.receivers.orEmpty().map {
-                ComponentEntry(it.name, it.exported, it.enabled)
+                ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
             }.sortedBy { it.name },
             apkPath = pkg.applicationInfo?.sourceDir.orEmpty(),
         )
@@ -130,11 +147,13 @@ class AppRepository(private val context: Context) {
             val component = ComponentName(packageName, className)
             @Suppress("DEPRECATION")
             val activity = pm.getActivityInfo(component, 0)
-            val componentEnabled = effectiveComponentEnabled(
-                activity.enabled, pm.getComponentEnabledSetting(component),
+            val componentEnabled = ComponentEnabledState.effective(
+                activity.enabled,
+                runCatching { pm.getComponentEnabledSetting(component) }.getOrNull(),
             )
-            val appEnabled = effectiveComponentEnabled(
-                activity.applicationInfo.enabled, pm.getApplicationEnabledSetting(packageName),
+            val appEnabled = ComponentEnabledState.effective(
+                activity.applicationInfo.enabled,
+                runCatching { pm.getApplicationEnabledSetting(packageName) }.getOrNull(),
             )
             if (!ActivityLaunchSafety.eligible(
                     packageName, className, activity.exported, componentEnabled, appEnabled,
@@ -146,15 +165,6 @@ class AppRepository(private val context: Context) {
             true
         }.getOrDefault(false)
     }
-
-    private fun effectiveComponentEnabled(manifestEnabled: Boolean, override: Int): Boolean =
-        when (override) {
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED -> true
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER,
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED -> false
-            else -> manifestEnabled
-        }
 
     fun openAppInfo(packageName: String) {
         startSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageName)
