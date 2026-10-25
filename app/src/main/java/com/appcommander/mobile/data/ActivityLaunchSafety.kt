@@ -16,6 +16,15 @@ internal object ActivityLaunchSafety {
         packageName.length in 3..255 && className.length in 3..512 &&
             packagePattern.matches(packageName) && classPattern.matches(className)
 
+    /**
+     * The caller must hold any permission enforced by the target activity.
+     * A failed Android permission query is NOT evidence of access.
+     */
+    fun callerHasPermission(permission: String?, check: (String) -> Boolean): Boolean {
+        if (permission.isNullOrEmpty()) return true
+        return try { check(permission) } catch (_: Exception) { false }
+    }
+
     fun eligible(
         packageName: String,
         className: String,
