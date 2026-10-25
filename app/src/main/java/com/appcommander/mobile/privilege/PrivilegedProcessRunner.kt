@@ -50,12 +50,19 @@ internal object PrivilegedProcessRunner {
             }
             outThread.join(1500)
             errThread.join(1500)
+            // A process can exit while a pipe remains open (for example, an
+            // inherited descriptor or a broken provider stream). Do not leave
+            // a daemon reader parked forever after returning to the Binder UI.
+            // Mark the capture incomplete BEFORE closing so it can never turn
+            // into a false exit=0 merely because close releases the reader.
+            if (outThread.isAlive) stdout.closeAfterStall()
+            if (errThread.isAlive) stderr.closeAfterStall()
+            outThread.join(250)
+            errThread.join(250)
             // A stalled pipe means the output was not completely observed.
             // Do not report a privileged command as successful on partial I/O.
             val exitCode = when {
                 !completed -> 124
-                // An exit=0 is untrustworthy if either reader failed or is
-                // still blocked after the bounded join: output may be partial.
                 stdout.isStalled() || stderr.isStalled() ||
                     stdout.hasReadFailure() || stderr.hasReadFailure() ||
                     outThread.isAlive || errThread.isAlive -> 1
@@ -69,6 +76,8 @@ internal object PrivilegedProcessRunner {
             }.trimEnd()
         } finally {
             if (!completed) process.destroyForcibly()
+            if (outThread.isAlive) stdout.closeAfterStall()
+            if (errThread.isAlive) stderr.closeAfterStall()
         }
     }
 
@@ -112,6 +121,11 @@ internal object PrivilegedProcessRunner {
                 synchronized(this) { readFailed = true }
                 if (failure is InterruptedException) Thread.currentThread().interrupt()
             }
+        }
+
+        fun closeAfterStall() {
+            synchronized(this) { stalled = true }
+            runCatching { stream.close() }
         }
 
         @Synchronized fun isStalled(): Boolean = stalled
