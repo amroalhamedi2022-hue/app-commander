@@ -49,6 +49,7 @@ data class ApkInspection(
     val activities: Int,
     val services: Int,
     val receivers: Int,
+    val providers: Int,
     val sizeBytes: Long,
     val fileSha256: String,
     val signerSha256: List<String>,
@@ -59,6 +60,10 @@ data class ApkInspection(
     val unguardedExportedActivities: Int = 0,
     val unguardedExportedServices: Int = 0,
     val unguardedExportedReceivers: Int = 0,
+    val exportedProviders: Int = 0,
+    val providersWithoutReadPermission: Int = 0,
+    val providersWithoutWritePermission: Int = 0,
+    val providersGrantUriPermissions: Int = 0,
 )
 
 data class CapabilityState(
