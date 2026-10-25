@@ -37,6 +37,46 @@ class ActivityLaunchSafetyTest {
         assertEquals(3, all.size)
     }
 
+    @Test fun exportedActivityWithUnheldPermissionIsNotLaunchable() {
+        val pkg = "com.example.app"
+        val activity = "com.example.app.RestrictedActivity"
+        assertFalse(ActivityLaunchSafety.eligible(pkg, activity, true, true, true, false))
+        assertTrue(ActivityLaunchSafety.eligible(pkg, activity, true, true, true, true))
+    }
+
+    @Test fun permissionDoesNotBypassOtherLaunchRestrictions() {
+        val pkg = "com.example.app"
+        val activity = "com.example.app.RestrictedActivity"
+        assertFalse(ActivityLaunchSafety.eligible(pkg, activity, false, true, true, true))
+        assertFalse(ActivityLaunchSafety.eligible(pkg, activity, true, false, true, true))
+        assertFalse(ActivityLaunchSafety.eligible(pkg, activity, true, true, false, true))
+    }
+
+    @Test fun inventoryPreservesPermissionGateDuringSearchAndExportedFiltering() {
+        val restricted = ComponentEntry(
+            "com.example.RestrictedActivity", true, true,
+            requiredPermission = "com.example.permission.PRIVATE",
+            callerHasPermission = false,
+        )
+        val public = ComponentEntry("com.example.PublicActivity", true, true)
+        val visible = ActivityLaunchSafety.visible(listOf(restricted, public), "", true)
+        assertEquals(2, visible.size)
+        assertFalse(visible.first().callerHasPermission)
+        assertEquals(listOf(restricted), ActivityLaunchSafety.visible(visible, "restricted", true))
+    }
+
+    @Test fun androidRepositoryAndComposeEnforcePermissionAtInventoryAndClickTime() {
+        val repo = File("src/main/java/com/appcommander/mobile/data/AppRepository.kt").readText()
+        val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
+        assertTrue(repo.contains("requiredPermission = it.permission"))
+        assertTrue(repo.contains("callerHasPermission = canAccessActivity(it.permission)"))
+        assertTrue(repo.contains("context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED"))
+        assertTrue(repo.contains("canAccessActivity(activity.permission)"))
+        assertTrue(ui.contains("currentEnabled && component.callerHasPermission"))
+        assertTrue(ui.contains("launchPermissionGranted = component.callerHasPermission"))
+        assertTrue(ui.contains("إذن تشغيل غير متاح"))
+    }
+
     @Test fun repositoryAndUiRequireFreshPackageManagerChecksAndHonestFeedback() {
         val repo = File("src/main/java/com/appcommander/mobile/data/AppRepository.kt").readText()
         val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
