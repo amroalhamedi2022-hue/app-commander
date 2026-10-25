@@ -21,5 +21,13 @@ The change is a pure string-policy contract and manifest-summary classification;
 - Device SAF/Shizuku, Xiaomi Pad 5 UI, and real PackageManager behavior remain NOT TESTED.
 - Google Drive LIVE sync is unavailable in this runtime; no Drive write/read-back will be claimed.
 
-## Result
-PENDING implementation and exact-SHA CI.
+## Result — N18 SOURCE ACCEPTANCE PASS (2026-10-26)
+- Shared helper commit: c35274246d91493f601f354ed4768896f122e5a3; Activity Launcher integration: 8c0ec76562213eed9b3170e353517ba33b738fc7; manifest exposure integration: f8bbb709c78c7df4a1c71bdda595de544203648b.
+- New regression commits: 6f1724f8169eb3b874a5be1cb418da03afe764a0 and f08acb0e3d9e35fbae8a1c89b2b85c2525fef960. Exact source/test SHA: f08acb0e3d9e35fbae8a1c89b2b85c2525fef960.
+- **PASS:** GitHub Actions [run 40242400761](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40242400761), job source-checks; exact tasks :app:testDebugUnitTest and :app:lintDebug both succeeded (BUILD SUCCESSFUL, 36 tasks executed).
+- Regressions cover newline, bidi, punctuation, overlength, valid Android/custom permission names, fail-closed activity checks, provider read/write gates, and invalid path rules falling back to valid provider defaults.
+- **Artifacts: []** No APK packaged or uploaded. Xiaomi Pad 5/HyperOS, real PackageManager, SAF, Shizuku and visual UI remain NOT TESTED.
+- Google Drive LIVE sync: **SYNC FAILED** because Google Drive/Docs connector tools are unavailable in this runtime; no Drive write/read-back is claimed.
+
+## Next
+Return to Explode Arena for the next bounded native milestone; later resume App Commander with real-device SAF/Shizuku acceptance planning. Do not merge PRs or write to main.
