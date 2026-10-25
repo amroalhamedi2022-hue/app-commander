@@ -76,19 +76,21 @@ object ShizukuController {
     }
     suspend fun unsuspend(packageName: String) = exec(PrivilegedOperation.UNSUSPEND_PACKAGE, packageName)
 
-    suspend fun blockBackground(packageName: String): CommandResult {
-        return destructive(packageName) {
-            val first = exec(PrivilegedOperation.BLOCK_BACKGROUND, packageName)
-            val second = exec(PrivilegedOperation.BLOCK_ANY_BACKGROUND, packageName)
-            combine(first, second, "Background blocked")
+    suspend fun blockBackground(packageName: String): CommandResult =
+        destructive(packageName) {
+            BackgroundAppOpsSequence.apply(
+                "RUN_IN_BACKGROUND", "RUN_ANY_IN_BACKGROUND", "Background blocked",
+                first = { exec(PrivilegedOperation.BLOCK_BACKGROUND, packageName) },
+                second = { exec(PrivilegedOperation.BLOCK_ANY_BACKGROUND, packageName) },
+            )
         }
-    }
 
-    suspend fun allowBackground(packageName: String): CommandResult {
-        val first = exec(PrivilegedOperation.ALLOW_BACKGROUND, packageName)
-        val second = exec(PrivilegedOperation.ALLOW_ANY_BACKGROUND, packageName)
-        return combine(first, second, "Background allowed")
-    }
+    suspend fun allowBackground(packageName: String): CommandResult =
+        BackgroundAppOpsSequence.apply(
+            "RUN_IN_BACKGROUND", "RUN_ANY_IN_BACKGROUND", "Background allowed",
+            first = { exec(PrivilegedOperation.ALLOW_BACKGROUND, packageName) },
+            second = { exec(PrivilegedOperation.ALLOW_ANY_BACKGROUND, packageName) },
+        )
 
     suspend fun setPermission(packageName: String, permission: String, grant: Boolean): CommandResult {
         return if (grant) exec(PrivilegedOperation.GRANT_PERMISSION, packageName, permission)
@@ -156,11 +158,6 @@ object ShizukuController {
             }
             throw failure
         }
-    }
-
-    private fun combine(first: CommandResult, second: CommandResult, successText: String): CommandResult {
-        return if (first.success && second.success) CommandResult(true, successText)
-        else CommandResult(false, listOf(first.output, second.output).filter { it.isNotBlank() }.joinToString("\n"))
     }
 
     private fun safe(value: String): String {
