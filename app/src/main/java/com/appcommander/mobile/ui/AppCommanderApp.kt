@@ -498,11 +498,14 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         DetailLine("المكوّنات", "${apk.activities} Activity • ${apk.services} Service • ${apk.receivers} Receiver • ${apk.providers} Provider")
                         DetailLine("مكوّنات مصدّرة", "${apk.exportedActivities} Activity • ${apk.exportedServices} Service • ${apk.exportedReceivers} Receiver • ${apk.exportedProviders} Provider")
                         DetailLine("مصدّرة دون إذن معلن", "${apk.unguardedExportedActivities} Activity • ${apk.unguardedExportedServices} Service • ${apk.unguardedExportedReceivers} Receiver")
-                        DetailLine("Providers مصدّرة دون إذن قراءة معلن", apk.providersWithoutReadPermission.toString())
-                        DetailLine("Providers مصدّرة دون إذن كتابة معلن", apk.providersWithoutWritePermission.toString())
+                        DetailLine("Providers مصدّرة دون إذن قراءة افتراضي", apk.providersWithoutReadPermission.toString())
+                        DetailLine("Providers مصدّرة دون إذن كتابة افتراضي", apk.providersWithoutWritePermission.toString())
+                        DetailLine("قواعد PathPermission للمسارات", apk.providerPathPermissionRules.toString())
+                        DetailLine("مسارات دون إذن قراءة فعّال", apk.providerPathRulesWithoutReadPermission.toString())
+                        DetailLine("مسارات دون إذن كتابة فعّال", apk.providerPathRulesWithoutWritePermission.toString())
                         DetailLine("Providers تسمح بمنح URI", apk.providersGrantUriPermissions.toString())
                         Text(
-                            "هذه أعداد من تعريفات Manifest فقط؛ التصدير أو غياب إذن على مستوى المكوّن لا يثبت إمكانية الوصول الفعلية أو وجود ثغرة. أذونات المسارات ومنح URI وفحوص وقت التشغيل قد تغيّر الوصول الفعلي.",
+                            "هذه أعداد من تعريفات Manifest فقط؛ التصدير أو غياب إذن على مستوى المكوّن لا يثبت إمكانية الوصول الفعلية أو وجود ثغرة. تُحسب صلاحيات المسار مع الرجوع إلى إذن Provider الافتراضي، لكن منح URI وفحوص وقت التشغيل قد تغيّر الوصول الفعلي.",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -386,6 +386,11 @@ class AppRepository(private val context: Context) {
             val providerExposure = ApkComponentExposure.countProviders(
                 pkg.providers, { it.exported }, { it.readPermission },
                 { it.writePermission }, { it.grantUriPermissions },
+                { provider ->
+                    provider.pathPermissions.orEmpty().map { rule ->
+                        ApkComponentExposure.PathPermissionGate(rule.readPermission, rule.writePermission)
+                    }
+                },
             )
             ApkInspection(
                 fileName = displayName,
@@ -415,6 +420,9 @@ class AppRepository(private val context: Context) {
                 providersWithoutReadPermission = providerExposure.withoutReadPermission,
                 providersWithoutWritePermission = providerExposure.withoutWritePermission,
                 providersGrantUriPermissions = providerExposure.uriGrantCapable,
+                providerPathPermissionRules = providerExposure.pathPermissionRules,
+                providerPathRulesWithoutReadPermission = providerExposure.pathRulesWithoutReadPermission,
+                providerPathRulesWithoutWritePermission = providerExposure.pathRulesWithoutWritePermission,
             )
         }
     }

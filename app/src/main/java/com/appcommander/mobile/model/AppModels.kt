@@ -64,6 +64,9 @@ data class ApkInspection(
     val providersWithoutReadPermission: Int = 0,
     val providersWithoutWritePermission: Int = 0,
     val providersGrantUriPermissions: Int = 0,
+    val providerPathPermissionRules: Int = 0,
+    val providerPathRulesWithoutReadPermission: Int = 0,
+    val providerPathRulesWithoutWritePermission: Int = 0,
 )
 
 data class CapabilityState(

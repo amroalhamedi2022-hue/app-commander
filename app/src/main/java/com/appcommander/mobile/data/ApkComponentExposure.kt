@@ -42,7 +42,19 @@ internal object ApkComponentExposure {
         val withoutReadPermission: Int,
         val withoutWritePermission: Int,
         val uriGrantCapable: Int,
+        val pathPermissionRules: Int = 0,
+        val pathRulesWithoutReadPermission: Int = 0,
+        val pathRulesWithoutWritePermission: Int = 0,
     )
+
+    /** Pure manifest snapshot of one Android path-permission rule. */
+    data class PathPermissionGate(
+        val readPermission: String?,
+        val writePermission: String?,
+    )
+
+    private fun hasDeclaredPermission(permission: String?): Boolean =
+        !permission.isNullOrBlank() && permission == permission.trim()
 
     fun <T> countProviders(
         providers: Array<T>?,
@@ -50,21 +62,40 @@ internal object ApkComponentExposure {
         readPermission: (T) -> String?,
         writePermission: (T) -> String?,
         grantsUriPermissions: (T) -> Boolean,
+        pathPermissions: (T) -> List<PathPermissionGate> = { emptyList() },
     ): ProviderCounts {
         if (providers == null) return ProviderCounts(0, 0, 0, 0)
         var exportedCount = 0
         var noReadGate = 0
         var noWriteGate = 0
         var uriGrantCount = 0
+        var pathRuleCount = 0
+        var pathRulesWithoutRead = 0
+        var pathRulesWithoutWrite = 0
         for (provider in providers) {
-            // Even non-exported providers may intentionally grant access to
-            // specific URIs, so count grant-capable providers independently.
+            // URI grants can apply to selected URIs even for a non-exported
+            // provider, so keep that inventory independent from export state.
             if (grantsUriPermissions(provider)) uriGrantCount++
             if (!exported(provider)) continue
             exportedCount++
-            if (readPermission(provider).isNullOrBlank()) noReadGate++
-            if (writePermission(provider).isNullOrBlank()) noWriteGate++
+            val defaultRead = readPermission(provider).takeIf(::hasDeclaredPermission)
+            val defaultWrite = writePermission(provider).takeIf(::hasDeclaredPermission)
+            if (defaultRead == null) noReadGate++
+            if (defaultWrite == null) noWriteGate++
+
+            // A path rule overrides only its declared direction; otherwise
+            // the provider-level permission remains the effective manifest gate.
+            for (rule in pathPermissions(provider)) {
+                pathRuleCount++
+                val effectiveRead = rule.readPermission.takeIf(::hasDeclaredPermission) ?: defaultRead
+                val effectiveWrite = rule.writePermission.takeIf(::hasDeclaredPermission) ?: defaultWrite
+                if (effectiveRead == null) pathRulesWithoutRead++
+                if (effectiveWrite == null) pathRulesWithoutWrite++
+            }
         }
-        return ProviderCounts(exportedCount, noReadGate, noWriteGate, uriGrantCount)
+        return ProviderCounts(
+            exportedCount, noReadGate, noWriteGate, uriGrantCount,
+            pathRuleCount, pathRulesWithoutRead, pathRulesWithoutWrite,
+        )
     }
 }
