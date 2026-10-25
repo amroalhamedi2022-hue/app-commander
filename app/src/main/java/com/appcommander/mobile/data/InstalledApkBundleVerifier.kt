@@ -29,6 +29,46 @@ internal object InstalledApkBundleVerifier {
         override fun write(b: ByteArray, off: Int, len: Int) = Unit
     }
 
+    /**
+     * App Commander writes APK entries with DEFLATE level 0, so legitimate
+     * exports do not expand substantially. Bound inflation WHILE reading,
+     * before ZIP central metadata is available. A forged, highly compressed
+     * APK entry must not consume hundreds of MiB of CPU work just to be
+     * rejected by the canonical-layout check at the end.
+     *
+     * Track raw input per entry rather than since the start of the ZIP: a
+     * compressed later split must not borrow the raw-byte budget of base.apk.
+     * The 1 MiB slack covers inflater read-ahead and tiny metadata entries.
+     * This is intentionally NOT a general-purpose ZIP reader.
+     */
+    private class BoundedEntryStream(
+        private val zip: ZipInputStream,
+        private val tracking: ZipBundleStructure.TrackingStream,
+    ) : InputStream() {
+        private val rawStart = tracking.bytesRead
+        private var expanded = 0L
+
+        override fun read(): Int {
+            val value = zip.read()
+            if (value >= 0) account(1)
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            val count = zip.read(buffer, offset, length)
+            if (count > 0) account(count)
+            return count
+        }
+
+        private fun account(count: Int) {
+            expanded += count
+            val raw = tracking.bytesRead - rawStart
+            if (raw < 0 || expanded > 1024L * 1024 + 16L * raw) {
+                throw IOException("APK bundle entry expands beyond canonical ZIP budget")
+            }
+        }
+    }
+
     data class Result(
         val packageName: String,
         val entries: List<InstalledApkBundleExport.EntryDigest>,
@@ -72,7 +112,9 @@ internal object InstalledApkBundleVerifier {
                     val expectedName = if (actual.isEmpty()) "base.apk" else
                         "split_" + actual.size.toString().padStart(3, '0') + ".apk"
                     if (entry.name != expectedName) throw IOException("Unexpected APK bundle entry name")
-                    val copied = ApkCacheCopy.copyWithSha256(zip, discard, ApkCacheCopy.MAX_APK_BYTES)
+                    val copied = ApkCacheCopy.copyWithSha256(
+                        BoundedEntryStream(zip, tracking), discard, ApkCacheCopy.MAX_APK_BYTES,
+                    )
                     if (copied.sizeBytes > InstalledApkBundleExport.MAX_TOTAL_BYTES - total) {
                         throw IOException("Bundle exceeds total size limit")
                     }
