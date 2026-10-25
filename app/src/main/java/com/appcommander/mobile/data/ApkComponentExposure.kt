@@ -30,4 +30,39 @@ internal object ApkComponentExposure {
         }
         return Counts(exportedCount, withoutPermission)
     }
+
+    /**
+     * Content providers have independent read and write permission gates.
+     * A permission protecting only one direction must not hide the other.
+     * URI grants and path-specific permissions are counted separately or
+     * noted as limitations; none of these counts proves public reachability.
+     */
+    data class ProviderCounts(
+        val exported: Int,
+        val withoutReadPermission: Int,
+        val withoutWritePermission: Int,
+        val uriGrantCapable: Int,
+    )
+
+    fun <T> countProviders(
+        providers: Array<T>?,
+        exported: (T) -> Boolean,
+        readPermission: (T) -> String?,
+        writePermission: (T) -> String?,
+        grantsUriPermissions: (T) -> Boolean,
+    ): ProviderCounts {
+        if (providers == null) return ProviderCounts(0, 0, 0, 0)
+        var exportedCount = 0
+        var noReadGate = 0
+        var noWriteGate = 0
+        var uriGrantCount = 0
+        for (provider in providers) {
+            if (!exported(provider)) continue
+            exportedCount++
+            if (readPermission(provider).isNullOrBlank()) noReadGate++
+            if (writePermission(provider).isNullOrBlank()) noWriteGate++
+            if (grantsUriPermissions(provider)) uriGrantCount++
+        }
+        return ProviderCounts(exportedCount, noReadGate, noWriteGate, uriGrantCount)
+    }
 }
