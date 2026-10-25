@@ -191,7 +191,7 @@ class PrivilegedProcessRunnerTest {
 
         val result = PrivilegedProcessRunner.collect(FakeProcess(stdoutOverride = blockedPipe))
 
-        assertTrue("Incomplete pipe capture must not report success", result.startsWith("exit=1\\n"))
+        assertTrue("Incomplete pipe capture must not report success", result.startsWith("exit=1\n"))
         assertTrue(result.contains("[output stream stalled]"))
         assertFalse(result.contains("private blocked pipe detail"))
         assertFalse(
