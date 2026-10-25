@@ -200,6 +200,28 @@ class AppRepository(private val context: Context) {
     }
 
     /**
+     * Read the installed package and all ordered APK source files as one
+     * best-effort identity snapshot. Do not trust a stale UI app entry.
+     * PackageManager metadata and file stamps are checked again after the
+     * exported SAF document has been independently reopened and verified.
+     */
+    @Throws(IOException::class)
+    private fun readInstalledPackageSnapshot(packageName: String): InstalledPackageSnapshot {
+        @Suppress("DEPRECATION")
+        val installed = pm.getPackageInfo(packageName, 0)
+        val info = installed.applicationInfo
+            ?: throw IOException("Installed package has no APK source information")
+        val paths = listOf(info.sourceDir) + info.splitSourceDirs.orEmpty().toList()
+        return InstalledPackageSnapshot.capture(
+            installed.packageName, installed.longVersionCode, installed.lastUpdateTime, paths,
+        ) { path ->
+            val file = File(path)
+            if (!file.isFile) throw IOException("Installed APK component disappeared")
+            InstalledPackageSnapshot.Component(path, file.length(), file.lastModified())
+        }
+    }
+
+    /**
      * Export only the installed base APK to a user-selected SAF document.
      * A split installation needs its additional split APKs to reinstall; the
      * returned flag ensures the UI never advertises this as a full backup.
@@ -218,16 +240,10 @@ class AppRepository(private val context: Context) {
                 }
             },
         ) {
-            @Suppress("DEPRECATION")
-            val info = pm.getApplicationInfo(packageName, 0)
-            val source = File(info.sourceDir)
-            val expectedBytes = source.length()
-            if (!source.isFile || expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
-                throw IOException("Installed base APK cannot be exported")
-            }
-            val hasSplits = !info.splitSourceDirs.isNullOrEmpty()
-            InstalledApkExport.copyBaseAndVerify(
-                openSource = { source.inputStream() },
+            val snapshot = readInstalledPackageSnapshot(packageName)
+            val base = snapshot.components.first()
+            val written = InstalledApkExport.copyBaseAndVerify(
+                openSource = { File(base.path).inputStream() },
                 openForWrite = {
                     context.contentResolver.openOutputStream(destination, "wt")
                         ?: throw IOException("Cannot open selected SAF destination")
@@ -236,9 +252,11 @@ class AppRepository(private val context: Context) {
                     context.contentResolver.openInputStream(destination)
                         ?: throw IOException("Cannot reopen exported SAF base APK for verification")
                 },
-                expectedBytes = expectedBytes,
-                hasSplits = hasSplits,
+                expectedBytes = base.bytes,
+                hasSplits = snapshot.components.size > 1,
             )
+            snapshot.requireUnchanged { readInstalledPackageSnapshot(packageName) }
+            written
         }
     }
 
@@ -259,20 +277,15 @@ class AppRepository(private val context: Context) {
                 }
             },
         ) {
-            @Suppress("DEPRECATION")
-            val info = pm.getApplicationInfo(packageName, 0)
-            val paths = listOf(info.sourceDir) + info.splitSourceDirs.orEmpty().toList()
-            val sources = paths.mapIndexed { index, path ->
-                val file = File(path)
-                val bytes = file.length()
-                if (!file.isFile || bytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
-                    throw IOException("Installed APK component cannot be exported")
-                }
+            val snapshot = readInstalledPackageSnapshot(packageName)
+            val sources = snapshot.components.mapIndexed { index, component ->
                 val name = if (index == 0) "base.apk" else
                     "split_${index.toString().padStart(3, '0')}.apk"
-                InstalledApkBundleExport.Source(name, bytes) { file.inputStream() }
+                InstalledApkBundleExport.Source(name, component.bytes) {
+                    File(component.path).inputStream()
+                }
             }
-            InstalledApkBundleExport.writeAndVerify(
+            val written = InstalledApkBundleExport.writeAndVerify(
                 packageName = packageName,
                 sources = sources,
                 openForWrite = {
@@ -284,6 +297,8 @@ class AppRepository(private val context: Context) {
                         ?: throw IOException("Cannot reopen exported SAF document for verification")
                 },
             )
+            snapshot.requireUnchanged { readInstalledPackageSnapshot(packageName) }
+            written
         }
     }
 
