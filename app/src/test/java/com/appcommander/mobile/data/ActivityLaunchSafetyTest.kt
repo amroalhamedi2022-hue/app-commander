@@ -37,6 +37,22 @@ class ActivityLaunchSafetyTest {
         assertEquals(3, all.size)
     }
 
+    @Test fun noActivityPermissionNeedsNoExtraPermissionCheck() {
+        var checked = false
+        assertTrue(ActivityLaunchSafety.callerHasPermission(null) { checked = true; false })
+        assertTrue(ActivityLaunchSafety.callerHasPermission("") { checked = true; false })
+        assertFalse(checked)
+    }
+
+    @Test fun permissionGateChecksActualPermissionAndFailsClosed() {
+        val required = "com.example.permission.LAUNCH"
+        assertTrue(ActivityLaunchSafety.callerHasPermission(required) { it == required })
+        assertFalse(ActivityLaunchSafety.callerHasPermission(required) { false })
+        assertFalse(ActivityLaunchSafety.callerHasPermission(required) {
+            throw SecurityException("Permission service unavailable")
+        })
+    }
+
     @Test fun exportedActivityWithUnheldPermissionIsNotLaunchable() {
         val pkg = "com.example.app"
         val activity = "com.example.app.RestrictedActivity"
@@ -70,7 +86,8 @@ class ActivityLaunchSafetyTest {
         val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
         assertTrue(repo.contains("requiredPermission = it.permission"))
         assertTrue(repo.contains("callerHasPermission = canAccessActivity(it.permission)"))
-        assertTrue(repo.contains("context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED"))
+        assertTrue(repo.contains("ActivityLaunchSafety.callerHasPermission(permission)"))
+        assertTrue(repo.contains("context.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED"))
         assertTrue(repo.contains("canAccessActivity(activity.permission)"))
         assertTrue(ui.contains("currentEnabled && component.callerHasPermission"))
         assertTrue(ui.contains("launchPermissionGranted = component.callerHasPermission"))
