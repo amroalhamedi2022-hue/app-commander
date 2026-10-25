@@ -95,7 +95,13 @@ internal object ZipBundleStructure {
             centralSize > rawTail.size - 22
         ) throw IOException("ZIP central directory bounds mismatch")
         var cursor = end - centralSize.toInt()
-        var previousLocalOffset = -1L
+        // Our exporter writes each DEFLATED entry as:
+        // 30-byte local header + UTF-8 name + timestamp extra + compressed
+        // payload + 16-byte signed data descriptor. Both local and central
+        // timestamp extra lengths are identical for these generated entries.
+        // Checking only increasing offsets allowed a forged central index to
+        // point into compressed data while all APK digests still matched.
+        var expectedLocalOffset = 0L
         for (expected in local) {
             if (cursor > end - 46 || u32(rawTail, cursor) != 0x02014b50L) {
                 throw IOException("Invalid ZIP central directory entry")
@@ -111,19 +117,25 @@ internal object ZipBundleStructure {
             val startDisk = u16(rawTail, cursor + 34)
             val localOffset = u32(rawTail, cursor + 42)
             val nextCursor = cursor.toLong() + 46 + nameLength + extraLength + commentLength
-            if (nextCursor > end || flags and 1 != 0 || method != 8 || startDisk != 0 ||
-                localOffset <= previousLocalOffset || (previousLocalOffset < 0 && localOffset != 0L) ||
-                localOffset >= centralOffset || nameLength !in 1..64 ||
+            if (nextCursor > end || (flags != 8 && flags != 0x808) ||
+                method != 8 || startDisk != 0 || commentLength != 0 ||
+                localOffset != expectedLocalOffset || localOffset >= centralOffset ||
+                nameLength !in 1..64 || extraLength > 64 ||
                 size == 0xffffffffL || compressed == 0xffffffffL
             ) throw IOException("Unsupported ZIP central directory metadata")
             val name = String(rawTail, cursor + 46, nameLength, Charsets.UTF_8)
             if (name != expected.name || size != expected.size ||
                 compressed != expected.compressedSize || crc != expected.crc
             ) throw IOException("ZIP central directory differs from local entries")
-            previousLocalOffset = localOffset
+            expectedLocalOffset += 30L + nameLength + extraLength + compressed + 16L
+            if (expectedLocalOffset > centralOffset) {
+                throw IOException("ZIP local entry extends into central directory")
+            }
             cursor = nextCursor.toInt()
         }
-        if (cursor != end) throw IOException("Unexpected ZIP central directory bytes")
+        if (cursor != end || expectedLocalOffset != centralOffset) {
+            throw IOException("ZIP local/central directory layout mismatch")
+        }
     }
 
     private fun u16(bytes: ByteArray, offset: Int): Int {
