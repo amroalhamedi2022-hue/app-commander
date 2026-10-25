@@ -16,6 +16,10 @@ data class ComponentEntry(
     val name: String,
     val exported: Boolean,
     val enabled: Boolean,
+    // Activity launch is not necessarily allowed merely because it is exported.
+    // Android may require a permission held by the calling application.
+    val requiredPermission: String? = null,
+    val callerHasPermission: Boolean = true,
 )
 
 data class PermissionEntry(
