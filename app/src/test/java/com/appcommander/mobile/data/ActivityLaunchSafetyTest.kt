@@ -53,6 +53,22 @@ class ActivityLaunchSafetyTest {
         })
     }
 
+    @Test fun malformedDeclaredPermissionFailsClosedWithoutCallingChecker() {
+        var checks = 0
+        for (bad in listOf(" ", "\t", " com.example.permission.LAUNCH", "com.example.permission.LAUNCH ")) {
+            assertFalse(ActivityLaunchSafety.callerHasPermission(bad) {
+                checks++
+                true
+            })
+        }
+        assertEquals(0, checks)
+        assertTrue(ActivityLaunchSafety.callerHasPermission("com.example.permission.LAUNCH") {
+            checks++
+            true
+        })
+        assertEquals(1, checks)
+    }
+
     @Test fun exportedActivityWithUnheldPermissionIsNotLaunchable() {
         val pkg = "com.example.app"
         val activity = "com.example.app.RestrictedActivity"
