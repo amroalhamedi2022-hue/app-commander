@@ -172,7 +172,7 @@ class PrivilegedProcessRunnerTest {
 
     @Test fun blockedPipeReaderIsClosedAfterProcessExitAndFailsClosed() {
         val gate = java.lang.Object()
-        @Volatile var closed = false
+        var closed = false
         val blockedPipe = object : InputStream() {
             override fun read(): Int = -1
             override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
