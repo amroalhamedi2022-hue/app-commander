@@ -631,14 +631,14 @@ private fun AppDetailSheet(
                         repository.exportInstalledBaseApk(entry.packageName, destination)
                     }
                     exportMessage = if (exported.hasSplits) {
-                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}. تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
+                        "تم تصدير base.apk والتحقق من الملف المحفوظ بإعادة فتحه ومطابقة SHA-256 (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}. تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
                     } else {
-                        "تم تصدير base.apk (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
+                        "تم تصدير base.apk والتحقق من الملف المحفوظ بإعادة فتحه ومطابقة SHA-256 (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
                     }
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {
-                    exportMessage = "تعذّر تصدير APK. قد يكون مزوّد الملفات ترك ملفًا جزئيًا؛ احذفه من وجهة الحفظ."
+                    exportMessage = "تعذّر تصدير APK أو فشل التحقق من الملف المحفوظ. حاولنا حذف الملف الجزئي؛ قد يلزم حذفه يدويًا إذا رفض مزوّد الملفات."
                 } finally {
                     exportBusy = false
                 }
