@@ -245,3 +245,15 @@ Updated: 2026-10-23
 - **Artifacts: []** No APK packaging/upload. Xiaomi Pad 5/HyperOS, real Shizuku Binder behavior, SAF and visual UI remain **NOT TESTED**.
 - **Drive SYNC FAILED:** Google Drive/Docs connector tools unavailable in this runtime; LIVE handoff/index were not written/read back.
 - PR #1 remains open Draft; no merge or main write. Next: continue Explode Arena after this App Commander round.
+
+
+## 2026-10-26 — N20 Shizuku stale-Binder and binding-lifecycle recovery
+- **Engineering question:** if cached `ICommandService.asBinder().pingBinder()` fails while the old remote reference remains non-null, timeout recovery's `remote == null` guard never resets `binding`; later callers can wait on the same stale pending bind. `onBindingDied` and `onNullBinding` were also not handled explicitly.
+- **Production:** added pure Kotlin `ShizukuConnectionState` / `BindingRequest`; dead cached remotes are discarded with identity checking, disconnect/dead/null binding callbacks fail the active waiter and allow retry, and timeout cleanup only resets the exact waiter that is still current. Errors from an old command cannot clear a newer Binder.
+- **Tests:** `ShizukuConnectionStateTest` covers dead Binder retry, preserving a newer Binder, disconnect/binding-death/null-binding recovery, successful waiter completion, stale timeout isolation, and controller callback wiring.
+- **PASS exact source+test SHA `659d5b3c3582e3bb97acfa0ae438fd007a0e1169`:** [GitHub Actions run 40252299297](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40252299297), `./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace`; both tasks PASS, `BUILD SUCCESSFUL` (36 tasks executed). [Artifacts](https://api.github.com/repos/amroalhamedi2022-hue/app-commander/actions/runs/40252299297/artifacts): total_count=0.
+- **NOT TESTED:** actual Binder death/null-binding on Xiaomi Pad 5/HyperOS, SAF behavior on device, and Liquid UI/device workflows.
+- **License review:** official Shizuku LICENSE is Apache-2.0; no external code or dependency added.
+- **Drive SYNC FAILED:** Google Drive/Docs tools are not exposed in this runtime, so LIVE handoff/index were not read or written back. See `docs/N20_SHIZUKU_BINDER_RECOVERY_PLAN.md`; no Drive sync is claimed.
+- PR #1 remains open Draft; no merge/main write, APK packaging, or Device Owner provisioning.
+
