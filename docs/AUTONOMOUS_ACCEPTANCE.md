@@ -146,8 +146,6 @@ Updated: 2026-10-26
 - Regression commit `685a8cf37855eca9accafbbc146a080cb0ffa086`: four JUnit cases in `InstalledApkBundleInflationSafetyTest`: valid multi-MiB base+split export, high-ratio base rejection during streaming, high-ratio later split rejection independent of previous base budget, and compressed manifest rejection despite correct APK digest.
 - Acceptance: `:app:testDebugUnitTest :app:lintDebug` on exact SHA; CI run https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40178200970 PENDING when recorded. Do not claim PASS before completion. No APK build/artifact: decompression safety is deterministic JVM behavior; SAF provider/device remains separate.
 - NOT TESTED: Xiaomi Pad 5/HyperOS SAF and Shizuku, APK install, Liquid UI and independent device recheck. PR #1 remains Draft; no merge or main changes. Next: resolve CI, fix any failure, then prioritize device-gated SAF/Activity/Shizuku checks using disposable test apps. References: Oracle Java 21 ZipOutputStream setLevel documentation and general resource-exhaustion guidance; no third-party code copied.
-
-
 ### CI RESOLVED — 2026-10-25 streaming ZIP inflation milestone
 - **PASS:** GitHub Actions [run 40178200970](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40178200970) completed SUCCESS on exact source/test SHA `685a8cf37855eca9accafbbc146a080cb0ffa086`; job `source-checks` and step `Run JVM tests and Android static lint without APK packaging` both succeeded. Four new `InstalledApkBundleInflationSafetyTest` cases included in the repository JUnit suite. Artifacts `[]`; no APK was assembled or uploaded.
 - Scope: verified JVM/source and lint only. **NOT TESTED:** Xiaomi Pad 5, real SAF provider, Shizuku, install, Liquid UI, independent double device check. PR #1 remains Draft; no merge/main changes.
@@ -456,3 +454,17 @@ Updated: 2026-10-26
 - **PASS — source/JUnit/lint CI:** [run #40408619247](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40408619247) on head `4b3570f0648af93e9f9c5fc72aae25c4e5605abf`; `:app:testDebugUnitTest` and `:app:lintDebug` succeeded, `BUILD SUCCESSFUL in 1m 19s`, zero artifacts. Initial run `40408442586` was cancelled by PR concurrency and is not counted.
 - **PASS — post-ledger PR-head recheck:** [run #40408973395](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40408973395) on head `e9f99a58039cc44547a0a3f9cb9a8372ec635b2c`; `:app:testDebugUnitTest` and `:app:lintDebug` passed, `BUILD SUCCESSFUL in 1m 20s`, zero artifacts. **PASS — subsequent docs-head recheck:** [run #40409365147](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40409365147) on head `31b0fec399a48ee2c31d6a38595670c885df1fe2`; `:app:testDebugUnitTest` and `:app:lintDebug` passed, `BUILD SUCCESSFUL in 1m 23s`, zero artifacts. The current evidence-only commit still requires a final CI check. No APK build/artifact, merge/main write/root/Device Owner. Physical device, APK signature authenticity, malware detection, Shizuku operations, and broad real-world corpus remain **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** because no Google Drive/Docs connector is available in this runtime; no Drive update is claimed.
+
+
+## 2026-10-27 N35 — resilient app-inventory refresh state
+
+- **Engineering question:** can failed, cancelled or overlapping PackageManager inventory refreshes leave the UI loading forever, erase the last good inventory, or allow an older request to overwrite a newer one?
+- **Production change:** added pure `InventoryRefreshState` generation reducer; latest request wins; failure preserves cached apps, stops the spinner and shows a generic retry card in Dashboard/Apps; cancellation clears only its own current spinner and is rethrown.
+- **Regression tests:** five JVM tests cover failure retention, stale success/failure isolation, cancellation, successful-empty semantics and retry generation reset.
+- **Plan:** [N35 acceptance plan](https://github.com/amroalhamedi2022-hue/app-commander/blob/automation/apk-inspection-safety-20261023/docs/N35_RESILIENT_INVENTORY_REFRESH_PLAN.md).
+- **Exact source/test SHA:** `26d894ae6a031e33457d65c1a381eb119f7788ea`; UI blob `b5c12fbf1798be8a09114a63a7c75b3ef54a8643`; reducer blob `66208e273e4a1c861649b1b58f6e754f972f4dc9`; test blob `2fc8d4b2f2464d534a0ae94d1b6d94326d965180`.
+- **PASS:** [source-only CI #40415628864](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40415628864), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 37s**, 36 actionable tasks. Artifacts: **0**.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS runtime, live PackageManager failure/cancellation, visual retry interaction, Shizuku device operations, APK signature authenticity and malware detection. Source/JVM PASS is not device PASS.
+- No APK packaging/signing/upload, release, merge, main write, auto-merge, root or Device Owner. PR #1 remains Draft.
+- The following ledger-only commit requires its own source-only CI query; do not transfer the above result to the new head without rechecking.
+- **Google Drive:** SYNC FAILED — no Drive/Docs connector is available in this runtime, so LIVE handoff/index read/write/read-back and folder metadata verification could not be performed.
