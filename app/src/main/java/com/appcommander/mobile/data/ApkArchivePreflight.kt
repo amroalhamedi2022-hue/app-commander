@@ -208,6 +208,7 @@ internal object ApkArchivePreflight {
         RandomAccessFile(file, "r").use { input ->
             input.seek(offset)
             var consumed = 0L
+            val localRanges = ArrayList<Pair<Long, Long>>(expectedEntries)
             repeat(expectedEntries) {
                 if (directoryBytes - consumed < 46L) {
                     throw IOException("Truncated APK ZIP central directory entry")
@@ -217,6 +218,9 @@ internal object ApkArchivePreflight {
                 if (readU32(header, 0) != 0x02014b50L) {
                     throw IOException("Invalid APK ZIP central directory signature")
                 }
+                val flags = readU16(header, 8)
+                val method = readU16(header, 10)
+                val crc = readU32(header, 16)
                 val compressedSize = readU32(header, 20)
                 val uncompressedSize = readU32(header, 24)
                 val nameLength = readU16(header, 28)
@@ -234,13 +238,154 @@ internal object ApkArchivePreflight {
                     localHeaderOffset >= offset ||
                     recordBytes > directoryBytes - consumed
                 ) throw IOException("Unsupported or inconsistent APK ZIP central metadata")
-                input.seek(input.filePointer + variableBytes)
+                if (flags and 0x0041 != 0) {
+                    throw IOException("Encrypted APK ZIP entries are unsupported")
+                }
+
+                val nameBytes = ByteArray(nameLength)
+                input.readFully(nameBytes)
+                input.seek(input.filePointer + extraLength + commentLength)
                 consumed += recordBytes
+
+                val rangeEnd = validateLocalRecord(
+                    input = input,
+                    localOffset = localHeaderOffset,
+                    centralOffset = offset,
+                    centralName = nameBytes,
+                    centralFlags = flags,
+                    centralMethod = method,
+                    centralCrc = crc,
+                    centralCompressedSize = compressedSize,
+                    centralUncompressedSize = uncompressedSize,
+                )
+                localRanges.add(localHeaderOffset to rangeEnd)
             }
             if (consumed != directoryBytes) {
                 throw IOException("APK ZIP central directory record count/size mismatch")
             }
+
+            // Distinct central-directory records must not alias or overlap the
+            // same local header, compressed bytes, or optional data descriptor.
+            val ordered = localRanges.sortedBy { it.first }
+            for (index in 1 until ordered.size) {
+                if (ordered[index].first < ordered[index - 1].second) {
+                    throw IOException("APK ZIP local records overlap")
+                }
+            }
         }
+    }
+
+    /**
+     * Cross-check a central-directory record against its local header without
+     * extracting or inflating the entry. The central directory remains the
+     * source of the compressed byte count; local metadata must agree with it.
+     */
+    private fun validateLocalRecord(
+        input: RandomAccessFile,
+        localOffset: Long,
+        centralOffset: Long,
+        centralName: ByteArray,
+        centralFlags: Int,
+        centralMethod: Int,
+        centralCrc: Long,
+        centralCompressedSize: Long,
+        centralUncompressedSize: Long,
+    ): Long {
+        val centralPosition = input.filePointer
+        try {
+            if (localOffset < 0L || centralOffset - localOffset < 30L) {
+                throw IOException("APK ZIP local header is outside the data region")
+            }
+            input.seek(localOffset)
+            val header = ByteArray(30)
+            input.readFully(header)
+            if (readU32(header, 0) != 0x04034b50L) {
+                throw IOException("Invalid APK ZIP local-header signature")
+            }
+            val localFlags = readU16(header, 6)
+            val localMethod = readU16(header, 8)
+            val localCrc = readU32(header, 14)
+            val localCompressedSize = readU32(header, 18)
+            val localUncompressedSize = readU32(header, 22)
+            val localNameLength = readU16(header, 26)
+            val localExtraLength = readU16(header, 28)
+            if (localNameLength !in 1..MAX_ENTRY_NAME_LENGTH ||
+                localNameLength != centralName.size ||
+                localFlags != centralFlags ||
+                localMethod != centralMethod ||
+                localFlags and 0x0041 != 0
+            ) throw IOException("APK ZIP local and central headers disagree")
+
+            val dataStart = localOffset + 30L + localNameLength + localExtraLength
+            if (dataStart > centralOffset) {
+                throw IOException("APK ZIP local header fields cross the central-directory boundary")
+            }
+            val localName = ByteArray(localNameLength)
+            input.readFully(localName)
+            if (!localName.contentEquals(centralName)) {
+                throw IOException("APK ZIP local and central filenames disagree")
+            }
+
+            val hasDescriptor = centralFlags and 0x0008 != 0
+            if (!hasDescriptor) {
+                if (localCrc != centralCrc ||
+                    localCompressedSize != centralCompressedSize ||
+                    localUncompressedSize != centralUncompressedSize
+                ) throw IOException("APK ZIP local sizes or CRC disagree with central metadata")
+            } else if (
+                (localCrc != 0L && localCrc != centralCrc) ||
+                (localCompressedSize != 0L && localCompressedSize != centralCompressedSize) ||
+                (localUncompressedSize != 0L && localUncompressedSize != centralUncompressedSize)
+            ) {
+                throw IOException("APK ZIP local placeholders disagree with central metadata")
+            }
+
+            if (centralCompressedSize > centralOffset - dataStart) {
+                throw IOException("APK ZIP entry data crosses the central-directory boundary")
+            }
+            val dataEnd = dataStart + centralCompressedSize
+            return if (hasDescriptor) {
+                validateDataDescriptor(
+                    input, dataEnd, centralOffset,
+                    centralCrc, centralCompressedSize, centralUncompressedSize,
+                )
+            } else {
+                dataEnd
+            }
+        } finally {
+            input.seek(centralPosition)
+        }
+    }
+
+    /** Validate the ZIP32 data descriptor, with or without its optional signature. */
+    private fun validateDataDescriptor(
+        input: RandomAccessFile,
+        dataEnd: Long,
+        centralOffset: Long,
+        expectedCrc: Long,
+        expectedCompressedSize: Long,
+        expectedUncompressedSize: Long,
+    ): Long {
+        fun matches(withSignature: Boolean): Boolean {
+            val length = if (withSignature) 16L else 12L
+            if (dataEnd < 0L || centralOffset - dataEnd < length) return false
+            input.seek(dataEnd)
+            val bytes = ByteArray(length.toInt())
+            input.readFully(bytes)
+            val valuesOffset = if (withSignature) {
+                if (readU32(bytes, 0) != 0x08074b50L) return false
+                4
+            } else {
+                0
+            }
+            return readU32(bytes, valuesOffset) == expectedCrc &&
+                readU32(bytes, valuesOffset + 4) == expectedCompressedSize &&
+                readU32(bytes, valuesOffset + 8) == expectedUncompressedSize
+        }
+
+        if (matches(withSignature = true)) return dataEnd + 16L
+        if (matches(withSignature = false)) return dataEnd + 12L
+        throw IOException("APK ZIP data descriptor disagrees with central metadata")
     }
 
     private fun readU16(bytes: ByteArray, offset: Int): Int {
