@@ -39,6 +39,20 @@ class ApkArchivePreflightTest {
         return file
     }
 
+
+    private fun zipWithEntryComment(name: String, entryName: String, comment: String): File {
+        val file = temp.newFile(name)
+        ZipOutputStream(file.outputStream()).use { output ->
+            output.putNextEntry(ZipEntry("AndroidManifest.xml"))
+            output.write(byteArrayOf(1, 2, 3))
+            output.closeEntry()
+            output.putNextEntry(ZipEntry(entryName).apply { this.comment = comment })
+            output.write(byteArrayOf(4, 5, 6))
+            output.closeEntry()
+        }
+        return file
+    }
+
     private fun endRecord(bytes: ByteArray): Int {
         for (offset in bytes.size - 22 downTo maxOf(0, bytes.size - 22 - 0xffff)) {
             if (offset + 22 > bytes.size) continue
@@ -278,6 +292,70 @@ class ApkArchivePreflightTest {
             "assets/صور/أيقونة.png" to byteArrayOf(2, 3),
         )
         assertEquals(2, ApkArchivePreflight.check(apk).entries)
+    }
+
+    @Test fun rejectsMalformedUtf8EntryNamesWithOrWithoutEfsFlag() {
+        for (efsEnabled in listOf(false, true)) {
+            val apk = zip(
+                "malformed-utf8-name-$efsEnabled.apk",
+                "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+                "assets/ab.txt" to byteArrayOf(4, 5, 6),
+            )
+            val bytes = apk.readBytes()
+            val central = centralRecordOffset(bytes, "assets/ab.txt")
+            val local = readU32Value(bytes, central + 42).toInt()
+            val originalFlags = readU16Value(bytes, central + 8)
+            val flags = if (efsEnabled) originalFlags or 0x0800 else originalFlags and 0x0800.inv()
+            writeU16(bytes, central + 8, flags)
+            writeU16(bytes, local + 6, flags)
+            // Replace the two ASCII bytes "ab" with an invalid UTF-8 lead byte
+            // followed by a non-continuation byte, preserving the ZIP name length.
+            bytes[central + 46 + 7] = 0xC3.toByte()
+            bytes[central + 46 + 8] = 0x28
+            bytes[local + 30 + 7] = 0xC3.toByte()
+            bytes[local + 30 + 8] = 0x28
+            apk.writeBytes(bytes)
+
+            val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+            assertTrue(error.message.orEmpty().contains("entry name is not valid UTF-8"))
+        }
+    }
+
+    @Test fun acceptsValidUtf8EntryNameWithoutEfsFlag() {
+        val apk = zip(
+            "utf8-name-without-efs.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "assets/صور/أيقونة.png" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "assets/صور/أيقونة.png")
+        val local = readU32Value(bytes, central + 42).toInt()
+        writeU16(bytes, central + 8, readU16Value(bytes, central + 8) and 0x0800.inv())
+        writeU16(bytes, local + 6, readU16Value(bytes, local + 6) and 0x0800.inv())
+        apk.writeBytes(bytes)
+
+        assertEquals(2, ApkArchivePreflight.check(apk).entries)
+    }
+
+    @Test fun rejectsMalformedUtf8EntryCommentBeforeZipFileParsing() {
+        val apk = zipWithEntryComment("malformed-utf8-comment.apk", "assets/comment.txt", "ab")
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "assets/comment.txt")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val flags = readU16Value(bytes, central + 8) or 0x0800
+        writeU16(bytes, central + 8, flags)
+        writeU16(bytes, local + 6, flags)
+        val nameLength = readU16Value(bytes, central + 28)
+        val extraLength = readU16Value(bytes, central + 30)
+        val commentLength = readU16Value(bytes, central + 32)
+        assertEquals(2, commentLength)
+        val commentOffset = central + 46 + nameLength + extraLength
+        bytes[commentOffset] = 0xC3.toByte()
+        bytes[commentOffset + 1] = 0x28
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("entry comment is not valid UTF-8"))
     }
 
     @Test fun rejectsImpossibleCompressedSizeInCentralDirectory() {
