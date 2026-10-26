@@ -444,3 +444,14 @@ Updated: 2026-10-26
 - **PASS:** [source-only CI #40392555810](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40392555810), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 50s**, 36 tasks executed.
 - Artifacts: **0**; no APK packaging/signing/upload. PR #1 remains open Draft and unmerged.
 - This is a docs-updated source/JVM+lint check, not a device test. Xiaomi Pad 5 / HyperOS, real SAF providers, Shizuku device operations, cryptographic signature authenticity and broad APK corpus remain **NOT TESTED**.
+
+
+## 2026-10-26 N34 — Ambiguous ZIP end-record preflight
+
+- Production source changed: `ApkArchivePreflight.preflightCentralDirectory` now counts every EOCD signature candidate in the bounded tail whose declared comment ends exactly at EOF and rejects multiple candidates before opening `ZipFile`. This prevents a signature-shaped byte sequence inside the arbitrary ZIP comment from creating a parser ambiguity.
+- Regression tests added: one fixture embeds a second EOCD signature in a 40-byte archive comment with a matching end-length and must fail with an explicit ambiguity error; a second fixture embeds the same signature with a nonmatching length and must remain accepted.
+- Source commit: `08593232ec5898550f83fd5093d445a74c96d24c`; source blob `38e3b0881f38a602acc7daf6c6a82755db412950`.
+- Test commit: `601f985c856ce910493901163fae5710ff6f0bf7`; test blob `3492204596a04b81bfe9e15ff52046d1d2075448`.
+- Exact source/test CI: run `40408442586` was queued/pending when first checked; do not count as PASS until completed. Docs-updated head recheck is required after this ledger update.
+- No APK build or artifact; no merge/main write/root/Device Owner. Physical device, APK signature authenticity, malware scanning, Shizuku, and broad real-world corpus remain **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** because no Google Drive/Docs connector is available in this runtime; no Drive update is claimed.
