@@ -31,3 +31,11 @@ The regression fixtures keep local and central names byte-for-byte consistent wh
 ## Status
 
 PLANNED — implementation and source-only CI pending.
+
+
+## First CI attempt — fixture expectations corrected
+
+- CI [run 40373353386](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373353386) ran 217 JVM tests and found two assertion failures, not compilation failures.
+- The overlong-path case is rejected by the earlier bounded central-name-length guard, whose diagnostic says `central metadata`; the test was relaxed to require a central-preflight diagnostic rather than the later path helper's exact wording.
+- The aliased-record fixture also creates duplicate central entry names, so the new preflight correctly rejects it earlier than the old local-range-overlap assertion. The regression now asserts this deterministic early rejection and is named accordingly.
+- **Status: rerun pending; N31 is not accepted until the corrected source-only CI passes.**

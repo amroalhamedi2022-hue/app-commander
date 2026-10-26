@@ -521,7 +521,7 @@ class ApkArchivePreflightTest {
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
 
-    @Test fun rejectsTwoCentralRecordsAliasingTheSameLocalRecord() {
+    @Test fun rejectsDuplicateNamesWhenCentralRecordsAliasTheSameLocalRecord() {
         val apk = zip("overlapping-local-records.apk",
             "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
             "a.txt" to byteArrayOf(4),
@@ -539,7 +539,9 @@ class ApkArchivePreflightTest {
         apk.writeBytes(bytes)
 
         val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
-        assertTrue(error.message.orEmpty().contains("local records overlap"))
+        // The new earlier guard catches the duplicate logical path before the
+        // overlapping local-range check can be reached.
+        assertTrue(error.message.orEmpty().contains("central directory has duplicate"))
     }
 
 
