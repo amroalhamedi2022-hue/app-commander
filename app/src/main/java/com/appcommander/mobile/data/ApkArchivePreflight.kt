@@ -192,13 +192,22 @@ internal object ApkArchivePreflight {
             input.readFully(tail)
 
             var endRecord = -1
+            var matchingEndRecords = 0
+            // A signature-shaped sequence can occur inside the arbitrary ZIP
+            // comment. Count every candidate whose declared comment ends exactly
+            // at EOF instead of blindly trusting the last matching signature;
+            // ambiguous candidates can make preflight and ZipFile parse different
+            // directory metadata, so reject before invoking the platform parser.
             for (offset in tail.size - 22 downTo 0) {
                 if (readU32(tail, offset) != 0x06054b50L) continue
                 val commentLength = readU16(tail, offset + 20)
                 if (offset + 22 + commentLength == tail.size) {
-                    endRecord = offset
-                    break
+                    matchingEndRecords++
+                    if (endRecord < 0) endRecord = offset
                 }
+            }
+            if (matchingEndRecords > 1) {
+                throw IOException("APK ZIP end record is ambiguous")
             }
             if (endRecord < 0) throw IOException("APK ZIP end record is missing or malformed")
 
