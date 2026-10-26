@@ -371,3 +371,15 @@ Updated: 2026-10-26
 - **PASS:** exact production/test SHA `59ab87a763d64fe8a0ee7f431e72d90e4b7bdf5f`, [source-only CI #40334932127](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40334932127). `:app:testDebugUnitTest` and `:app:lintDebug` succeeded; **BUILD SUCCESSFUL in 1m 41s**, 36 tasks executed. Source blob `29920f2800eed346d7b4995c896f9c2f7fa8fa26`; test blob `2e022a7f162f07366632d6e4e0008937632dc1ca`.
 - **Artifacts: 0.** No APK packaging, artifact upload, merge, main write, root, or Device Owner.
 - **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, Android installer behavior, cryptographic signature verification, malware detection. Google Drive LIVE sync remains unverified and must not be inferred from this GitHub ledger.
+
+## 2026-10-26 — N30 strict UTF-8 ZIP metadata (source acceptance PASS)
+
+- **Engineering question:** can malformed UTF-8 entry-name/comment bytes be rejected during the bounded central-directory scan, before Android's UTF-8 ZIP parser receives the archive, without breaking valid visible Unicode names?
+- **Production:** `ApkArchivePreflight` now validates raw entry-name bytes and non-empty central-directory entry comments with a strict UTF-8 decoder configured to REPORT malformed/unmappable input. Invalid bytes become a stable, sanitized `IOException` before `ZipFile` construction. No entry extraction, new dependency, or third-party implementation was added.
+- **Specification/source review:** PKWARE APPNOTE EFS bit 11 describes UTF-8 filename/comment encoding; Android libcore `ZipFile` source documents UTF-8 decoding of entry names/comments. See [PKWARE APPNOTE](https://support.pkware.com/display/PKZIP/APPNOTE) and [Android libcore ZipFile](https://android.googlesource.com/platform/libcore/+/00efa8dec72a80bb751cda0dce2683b16c9f1e1c/ojluni/src/main/java/java/util/zip/ZipFile.java).
+- **Exact source + test SHA:** `8d3be7e9d54da0ce1f411e1ae4030bf26df93732`; source blob `f37f773c7af6da4a71a4b01dd80b1fa07a87a221`; test blob `172863354ba757fc9c59c57f65088daa7d139ea9`.
+- **PASS:** [source-only CI run 40354680824](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40354680824), actual `:app:testDebugUnitTest :app:lintDebug --stacktrace`; log: **BUILD SUCCESSFUL in 1m 38s**, 36 tasks executed.
+- **PASS:** post-CI re-fetch of production and test files confirmed the strict decoder and all three N30 regressions on the PR branch.
+- **Artifacts: 0; APK not built.** No package/sign/upload/release, merge, main write, root or Device Owner.
+- **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, actual installer behavior, cryptographic signature authenticity and malware detection.
+- **Google Drive SYNC FAILED:** Google Drive/Docs connector unavailable; LIVE HANDOFF/INDEX were not read or written. This GitHub ledger is not a Drive sync.
