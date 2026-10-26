@@ -2,6 +2,7 @@ package com.appcommander.mobile.data
 
 import java.io.File
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.text.Normalizer
 import java.util.zip.CRC32
 import java.util.zip.ZipFile
@@ -19,6 +20,7 @@ internal object ApkArchivePreflight {
     const val MAX_ENTRY_NAME_LENGTH = 1_024
     const val MAX_MANIFEST_BYTES = 8L * 1024 * 1024
     const val MAX_DECLARED_UNCOMPRESSED_BYTES = 4L * 1024 * 1024 * 1024
+    const val MAX_CENTRAL_DIRECTORY_BYTES = 32L * 1024 * 1024
 
     data class Summary(val entries: Int, val declaredUncompressedBytes: Long)
 
@@ -30,7 +32,15 @@ internal object ApkArchivePreflight {
 
     @Throws(IOException::class)
     fun check(file: File): Summary {
-        if (!file.isFile || file.length() == 0L) throw IOException("APK archive is empty")
+        if (!file.isFile) throw IOException("APK archive is missing")
+        val fileLength = file.length()
+        if (fileLength == 0L) throw IOException("APK archive is empty")
+        if (fileLength > ApkCacheCopy.MAX_APK_BYTES) {
+            throw IOException("APK archive exceeds safe inspection size")
+        }
+        // Bound ZIP metadata BEFORE java.util.zip.ZipFile allocates an entry
+        // table from the untrusted central directory.
+        preflightCentralDirectory(file)
         ZipFile(file).use { zip ->
             val names = HashSet<String>()
             val filePaths = HashSet<String>()
@@ -130,4 +140,67 @@ internal object ApkArchivePreflight {
             return Summary(count, expandedBytes)
         }
     }
+
+    /**
+     * Read only the final ZIP32 EOCD window before opening ZipFile. This
+     * prevents an attacker-controlled entry count or central-directory blob
+     * from causing large allocations before MAX_ENTRIES/path limits run.
+     * APK inspection is bounded to 512 MiB, so ZIP64 and multi-disk archives
+     * are intentionally rejected rather than partially interpreted.
+     */
+    private fun preflightCentralDirectory(file: File) {
+        RandomAccessFile(file, "r").use { input ->
+            val length = input.length()
+            val maxTail = 22L + 0xffffL
+            val tailLength = minOf(length, maxTail).toInt()
+            if (tailLength < 22) throw IOException("APK ZIP end record is missing")
+            val tail = ByteArray(tailLength)
+            input.seek(length - tailLength)
+            input.readFully(tail)
+
+            var endRecord = -1
+            for (offset in tail.size - 22 downTo 0) {
+                if (readU32(tail, offset) != 0x06054b50L) continue
+                val commentLength = readU16(tail, offset + 20)
+                if (offset + 22 + commentLength == tail.size) {
+                    endRecord = offset
+                    break
+                }
+            }
+            if (endRecord < 0) throw IOException("APK ZIP end record is missing or malformed")
+
+            val disk = readU16(tail, endRecord + 4)
+            val directoryDisk = readU16(tail, endRecord + 6)
+            val diskEntries = readU16(tail, endRecord + 8)
+            val totalEntries = readU16(tail, endRecord + 10)
+            val directoryBytes = readU32(tail, endRecord + 12)
+            val directoryOffset = readU32(tail, endRecord + 16)
+            val absoluteEndRecord = length - tailLength + endRecord
+
+            if (disk != 0 || directoryDisk != 0) {
+                throw IOException("Multi-disk APK ZIP is unsupported")
+            }
+            if (diskEntries == 0xffff || totalEntries == 0xffff ||
+                directoryBytes == 0xffffffffL || directoryOffset == 0xffffffffL
+            ) throw IOException("ZIP64 APK archives are unsupported")
+            if (diskEntries != totalEntries) throw IOException("APK ZIP entry count mismatch")
+            if (totalEntries > MAX_ENTRIES) throw IOException("APK has too many ZIP entries")
+            if (totalEntries == 0) throw IOException("APK ZIP contains no entries")
+            if (directoryBytes > MAX_CENTRAL_DIRECTORY_BYTES) {
+                throw IOException("APK central directory exceeds inspection limits")
+            }
+            if (directoryOffset + directoryBytes != absoluteEndRecord ||
+                directoryOffset > absoluteEndRecord || directoryBytes > absoluteEndRecord
+            ) throw IOException("APK ZIP central directory bounds are invalid")
+        }
+    }
+
+    private fun readU16(bytes: ByteArray, offset: Int): Int {
+        if (offset < 0 || offset > bytes.size - 2) throw IOException("Truncated APK ZIP end record")
+        return (bytes[offset].toInt() and 255) or
+            ((bytes[offset + 1].toInt() and 255) shl 8)
+    }
+
+    private fun readU32(bytes: ByteArray, offset: Int): Long =
+        readU16(bytes, offset).toLong() or (readU16(bytes, offset + 2).toLong() shl 16)
 }
