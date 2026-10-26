@@ -20,8 +20,14 @@ The controller reused one ServiceConnection object for every bind attempt, and l
 
 Reviewed the official RikkaApps/Shizuku-API UserService API and its unbindUserService semantics. The app uses the public API; no third-party implementation is copied and no dependency is added. remove=false is intentional so retry cleanup does not request killing the UserService.
 
-## Status before implementation
+## Implementation and evidence
 
-- PR #1 head: c575365cafb784f83e9821097d6139c506bbc6b3.
-- Existing source CI on that head: PASS, run 40266987835.
-- Physical Xiaomi Pad 5 / HyperOS Shizuku callback ordering: NOT TESTED.
+- State helper production commit: `146dd606db517f39ef3b00d6d8621b0684e6b845`.
+- Controller production commit: `1ea2667e3cb18fd4e65dee15d112e1b57b26655f`.
+- Regression tests / exact source+test SHA: `72f64652541cd01a5b6e6805bc949c7390f03fed`.
+- Added per-attempt `ServiceConnection` objects, generation-scoped connect/failure transitions, best-effort callback removal with `remove=false`, owner-only timeout reset, and prompt exceptional completion for callers sharing a failed bind.
+- Added JVM regressions for late connect callbacks, late failure callbacks, owner-vs-joiner timeout isolation, existing stale-Binder identity checks, and controller wiring.
+- **PASS:** source-only CI run [40276487224](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40276487224) on exact source+test SHA. `:app:testDebugUnitTest` and `:app:lintDebug` passed; `BUILD SUCCESSFUL in 1m 8s`, 36 tasks executed.
+- **Artifacts: 0.** The workflow ran no APK packaging, signing, upload or release.
+- **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS Shizuku callback ordering and actual service reconnection under process death.
+- PR #1 remains open Draft. No merge, main write, root or Device Owner.
