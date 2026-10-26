@@ -25,6 +25,43 @@ class ApkArchivePreflightTest {
         return file
     }
 
+    private fun zipWithComment(name: String, comment: String, vararg entries: Pair<String, ByteArray>): File {
+        val file = temp.newFile(name)
+        ZipOutputStream(file.outputStream()).use { output ->
+            output.setComment(comment)
+            for ((path, bytes) in entries) {
+                output.putNextEntry(ZipEntry(path))
+                output.write(bytes)
+                output.closeEntry()
+            }
+        }
+        return file
+    }
+
+    private fun endRecord(bytes: ByteArray): Int {
+        for (offset in bytes.size - 22 downTo maxOf(0, bytes.size - 22 - 0xffff)) {
+            if (offset + 22 > bytes.size) continue
+            val signature = bytes[offset].toInt() and 255
+            if (signature != 0x50 || (bytes[offset + 1].toInt() and 255) != 0x4b ||
+                (bytes[offset + 2].toInt() and 255) != 0x05 ||
+                (bytes[offset + 3].toInt() and 255) != 0x06
+            ) continue
+            val commentLength = (bytes[offset + 20].toInt() and 255) or
+                ((bytes[offset + 21].toInt() and 255) shl 8)
+            if (offset + 22 + commentLength == bytes.size) return offset
+        }
+        error("ZIP end record not found")
+    }
+
+    private fun writeU16(bytes: ByteArray, offset: Int, value: Int) {
+        bytes[offset] = value.toByte()
+        bytes[offset + 1] = (value ushr 8).toByte()
+    }
+
+    private fun writeU32(bytes: ByteArray, offset: Int, value: Long) {
+        for (index in 0 until 4) bytes[offset + index] = (value ushr (index * 8)).toByte()
+    }
+
     @Test fun acceptsBoundedArchiveWithManifestWithoutClaimingSignatureValidity() {
         val apk = zip("structural.apk",
             "AndroidManifest.xml" to byteArrayOf(3, 0, 8, 0),
@@ -115,6 +152,58 @@ class ApkArchivePreflightTest {
         val empty = temp.newFile("empty.apk")
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(empty) }
     }
+
+    @Test fun acceptsOrdinaryApkZipCommentAfterBoundedEndRecordScan() {
+        val apk = zipWithComment(
+            "comment.apk", "normal APK comment",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5),
+        )
+        assertEquals(2, ApkArchivePreflight.check(apk).entries)
+    }
+
+    @Test fun rejectsExcessiveDeclaredEntryCountBeforeOpeningZipFile() {
+        val apk = zip(
+            "too-many-entries.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5),
+        )
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        writeU16(bytes, end + 8, ApkArchivePreflight.MAX_ENTRIES + 1)
+        writeU16(bytes, end + 10, ApkArchivePreflight.MAX_ENTRIES + 1)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("too many ZIP entries"))
+    }
+
+    @Test fun rejectsOversizedCentralDirectoryBeforeOpeningZipFile() {
+        val apk = zip(
+            "oversized-central-directory.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+        )
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        writeU32(bytes, end + 12, ApkArchivePreflight.MAX_CENTRAL_DIRECTORY_BYTES + 1)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("central directory exceeds inspection limits"))
+    }
+
+    @Test fun rejectsTruncatedZipEndRecordBeforeOpeningZipFile() {
+        val apk = zip(
+            "truncated-end-record.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+        )
+        val bytes = apk.readBytes()
+        apk.writeBytes(bytes.copyOf(bytes.size - 1))
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("end record is missing or malformed"))
+    }
+
     @Test fun rejectsInvisibleUnicodeSpoofingControlsInEntryPaths() {
         val unsafe = listOf(
             "assets/icon\u202Egnp", // bidirectional override
