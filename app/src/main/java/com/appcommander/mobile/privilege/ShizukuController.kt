@@ -18,28 +18,29 @@ object ShizukuController {
 
     private var args: Shizuku.UserServiceArgs? = null
     @Volatile private var appContext: Context? = null
-    @Volatile private var remote: ICommandService? = null
-    @Volatile private var binding = false
-    @Volatile private var pending = CompletableDeferred<ICommandService>()
+    private val connectionState = ShizukuConnectionState<ICommandService>()
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val connected = ICommandService.Stub.asInterface(service)
-            synchronized(ShizukuController) {
-                remote = connected
-                binding = false
-                if (!pending.isCompleted) pending.complete(connected)
-            }
+            synchronized(ShizukuController) { connectionState.connected(connected) }
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
             synchronized(ShizukuController) {
-                remote = null
-                binding = false
-                if (!pending.isCompleted) {
-                    pending.completeExceptionally(IllegalStateException("Shizuku service disconnected"))
-                }
-                pending = CompletableDeferred()
+                connectionState.failCurrent("Shizuku service disconnected")
+            }
+        }
+
+        override fun onBindingDied(name: ComponentName) {
+            synchronized(ShizukuController) {
+                connectionState.failCurrent("Shizuku binding died")
+            }
+        }
+
+        override fun onNullBinding(name: ComponentName) {
+            synchronized(ShizukuController) {
+                connectionState.failCurrent("Shizuku returned no service")
             }
         }
     }
@@ -104,18 +105,21 @@ object ShizukuController {
 
     private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult = withContext(Dispatchers.IO) {
         if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
+        var usedService: ICommandService? = null
         try {
-            val reply = obtainService().execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
+            val service = obtainService()
+            usedService = service
+            val reply = service.execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
             val firstLine = reply.lineSequence().firstOrNull().orEmpty()
             val success = firstLine == "exit=0"
             CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
         } catch (cancelled: java.util.concurrent.CancellationException) {
             // runCatching swallows coroutine cancellation and can leave
             // stale privileged work running after its UI scope is gone.
-            remote = null
+            usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
             throw cancelled
         } catch (_: Exception) {
-            remote = null
+            usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
             CommandResult(false, "Command failed")
         }
     }
@@ -127,34 +131,33 @@ object ShizukuController {
     }
 
     private suspend fun obtainService(): ICommandService {
-        remote?.let { if (it.asBinder().pingBinder()) return it }
+        val candidate = connectionState.remoteCandidate()
+        if (candidate != null) {
+            val alive = runCatching { candidate.asBinder().pingBinder() }.getOrDefault(false)
+            if (alive) return candidate
+            // A dead cached Binder must be removed before timeout recovery.
+            // Identity check prevents an old failed ping from clearing a newer
+            // ServiceConnection callback that has already installed a live Binder.
+            synchronized(this) { connectionState.discardIfSame(candidate) }
+        }
         val serviceArgs = requireNotNull(args) { "ShizukuController.initialize must be called first" }
-        val waiter: CompletableDeferred<ICommandService>
+        val request: BindingRequest<ICommandService>
         synchronized(this) {
-            if (!binding) {
-                binding = true
-                pending = CompletableDeferred()
+            request = connectionState.beginOrJoin()
+            if (request.shouldBind) {
                 try {
                     Shizuku.bindUserService(serviceArgs, connection)
-                } catch (failure: Exception) {
-                    binding = false
-                    pending.completeExceptionally(failure)
+                } catch (_: Exception) {
+                    connectionState.failIfCurrent(request.waiter, "Shizuku service bind failed")
                 }
             }
-            // Capture this attempt. Awaiting the mutable global pending could
-            // otherwise wait on a different bind after a disconnect/retry.
-            waiter = pending
         }
         try {
-            return withTimeout(8_000) { waiter.await() }
+            return withTimeout(8_000) { request.waiter.await() }
         } catch (failure: Exception) {
             synchronized(this) {
-                // A failed/timeout attempt must not leave binding=true forever.
-                // Do not reset a newer attempt or a binder that connected late.
-                if (pending === waiter && remote == null) {
-                    binding = false
-                    pending = CompletableDeferred()
-                }
+                // A timed-out waiter must not reset a newer bind attempt.
+                connectionState.resetTimedOutAttempt(request.waiter)
             }
             throw failure
         }
