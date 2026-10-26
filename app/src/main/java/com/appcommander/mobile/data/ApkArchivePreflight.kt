@@ -264,6 +264,7 @@ internal object ApkArchivePreflight {
 
                 val nameBytes = ByteArray(nameLength)
                 input.readFully(nameBytes)
+                validateExtraFields(input, input.filePointer, extraLength, "central")
                 if (nameBytes.lastOrNull() == '/'.code.toByte() && uncompressedSize != 0L) {
                     throw IOException("APK ZIP directory entry advertises uncompressed data")
                 }
@@ -295,6 +296,48 @@ internal object ApkArchivePreflight {
                     throw IOException("APK ZIP local records overlap")
                 }
             }
+        }
+    }
+
+    /**
+     * Validate ZIP extra-field TLV framing without interpreting vendor payloads.
+     * Each subrecord is a little-endian 2-byte ID, 2-byte data length, then data.
+     * ZIP64 is rejected consistently with the ZIP32-only archive preflight.
+     */
+    private fun validateExtraFields(
+        input: RandomAccessFile,
+        offset: Long,
+        length: Int,
+        headerKind: String,
+    ) {
+        val archiveLength = input.length()
+        if (length < 0 || offset < 0L || offset > archiveLength - length.toLong()) {
+            throw IOException("APK ZIP $headerKind extra field is outside archive")
+        }
+        val originalPosition = input.filePointer
+        try {
+            input.seek(offset)
+            var consumed = 0
+            while (consumed < length) {
+                val remaining = length - consumed
+                if (remaining < 4) {
+                    throw IOException("Malformed APK ZIP $headerKind extra field header")
+                }
+                val fieldHeader = ByteArray(4)
+                input.readFully(fieldHeader)
+                val fieldId = readU16(fieldHeader, 0)
+                val dataLength = readU16(fieldHeader, 2)
+                if (dataLength > remaining - 4) {
+                    throw IOException("Malformed APK ZIP $headerKind extra field length")
+                }
+                if (fieldId == 0x0001) {
+                    throw IOException("ZIP64 APK ZIP extra fields are unsupported")
+                }
+                input.seek(input.filePointer + dataLength)
+                consumed += 4 + dataLength
+            }
+        } finally {
+            input.seek(originalPosition)
         }
     }
 
@@ -348,6 +391,7 @@ internal object ApkArchivePreflight {
             if (!localName.contentEquals(centralName)) {
                 throw IOException("APK ZIP local and central filenames disagree")
             }
+            validateExtraFields(input, input.filePointer, localExtraLength, "local")
 
             val hasDescriptor = centralFlags and 0x0008 != 0
             if (!hasDescriptor) {
