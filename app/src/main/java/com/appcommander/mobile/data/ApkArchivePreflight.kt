@@ -33,6 +33,9 @@ internal object ApkArchivePreflight {
     // flags are rejected to avoid platform-parser interpretation differences.
     private const val ALLOWED_GENERAL_PURPOSE_FLAGS = 0x080e
     private const val DEFLATE_OPTION_FLAGS = 0x0006
+    private val APK_SIGNING_BLOCK_MAGIC = "APK Sig Block 42".toByteArray(StandardCharsets.US_ASCII)
+    private const val MAX_APK_SIGNING_BLOCK_BYTES = 64L * 1024 * 1024
+    private const val MAX_APK_SIGNING_BLOCK_PAIRS = 1_024
 
     data class Summary(val entries: Int, val declaredUncompressedBytes: Long)
 
@@ -225,7 +228,8 @@ internal object ApkArchivePreflight {
             // Check every bounded central-directory record before ZipFile can
             // allocate its entry table. EOCD counts alone are untrusted and do
             // not prove that the declared number of records fits the directory.
-            validateCentralDirectory(file, directoryOffset, directoryBytes, totalEntries)
+            val localRanges = validateCentralDirectory(file, directoryOffset, directoryBytes, totalEntries)
+            validateApkSigningBlock(file, directoryOffset, localRanges)
         }
     }
 
@@ -234,7 +238,7 @@ internal object ApkArchivePreflight {
         offset: Long,
         directoryBytes: Long,
         expectedEntries: Int,
-    ) {
+    ): List<Pair<Long, Long>> {
         RandomAccessFile(file, "r").use { input ->
             input.seek(offset)
             var consumed = 0L
@@ -339,7 +343,79 @@ internal object ApkArchivePreflight {
                     throw IOException("APK ZIP local records overlap")
                 }
             }
+            return ordered
         }
+    }
+
+    /**
+     * Validate the bounded APK Signing Block container when its magic is present.
+     * This checks framing only; it does not verify signer certificates or digests.
+     * V1-only APKs without the magic remain supported, and unknown pair IDs are opaque.
+     */
+    private fun validateApkSigningBlock(
+        file: File,
+        centralOffset: Long,
+        localRanges: List<Pair<Long, Long>>,
+    ) {
+        if (centralOffset < APK_SIGNING_BLOCK_MAGIC.size) return
+        RandomAccessFile(file, "r").use { input ->
+            input.seek(centralOffset - APK_SIGNING_BLOCK_MAGIC.size)
+            val magic = ByteArray(APK_SIGNING_BLOCK_MAGIC.size)
+            input.readFully(magic)
+            if (!magic.contentEquals(APK_SIGNING_BLOCK_MAGIC)) return
+            if (centralOffset < 24L) {
+                throw IOException("APK signing block footer is truncated")
+            }
+
+            input.seek(centralOffset - 24L)
+            val footerSize = readU64(input)
+            if (footerSize < 36L || footerSize > MAX_APK_SIGNING_BLOCK_BYTES - 8L) {
+                throw IOException("APK signing block size is outside inspection limits")
+            }
+            val totalSize = footerSize + 8L
+            if (totalSize > centralOffset || totalSize > MAX_APK_SIGNING_BLOCK_BYTES) {
+                throw IOException("APK signing block bounds are invalid")
+            }
+            val blockStart = centralOffset - totalSize
+            input.seek(blockStart)
+            val headerSize = readU64(input)
+            if (headerSize != footerSize) {
+                throw IOException("APK signing block header/footer sizes disagree")
+            }
+
+            val pairEnd = centralOffset - 24L
+            var cursor = blockStart + 8L
+            var pairCount = 0
+            while (cursor < pairEnd) {
+                val remaining = pairEnd - cursor
+                if (remaining < 12L) {
+                    throw IOException("APK signing block contains a truncated ID/value pair")
+                }
+                input.seek(cursor)
+                val pairSize = readU64(input)
+                if (pairSize < 4L || pairSize > remaining - 8L) {
+                    throw IOException("APK signing block ID/value pair length is invalid")
+                }
+                cursor += 8L + pairSize
+                if (++pairCount > MAX_APK_SIGNING_BLOCK_PAIRS) {
+                    throw IOException("APK signing block contains too many ID/value pairs")
+                }
+            }
+            if (cursor != pairEnd || pairCount == 0) {
+                throw IOException("APK signing block pair region is malformed")
+            }
+            if (localRanges.any { it.second > blockStart }) {
+                throw IOException("APK signing block overlaps local ZIP entry data")
+            }
+        }
+    }
+
+    private fun readU64(input: RandomAccessFile): Long {
+        var value = 0L
+        repeat(8) { index ->
+            value = value or (input.readUnsignedByte().toLong() shl (index * 8))
+        }
+        return value
     }
 
     /**
