@@ -18,7 +18,7 @@ The controller reused one ServiceConnection object for every bind attempt, and l
 
 ## Source review
 
-Reviewed the official RikkaApps/Shizuku-API UserService API and its unbindUserService semantics. The app uses the public API; no third-party implementation is copied and no dependency is added. remove=false is intentional so retry cleanup does not request killing the UserService.
+Reviewed the official RikkaApps/Shizuku-API UserService API and its unbindUserService semantics. The repository LICENSE was checked and is MIT. The app uses the public API; no third-party implementation is copied and no dependency is added. remove=false is intentional so retry cleanup does not request killing the UserService.
 
 ## Implementation and evidence
 
