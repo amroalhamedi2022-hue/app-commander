@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.ServiceConnection
 import android.os.IBinder
 import com.appcommander.mobile.BuildConfig
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
