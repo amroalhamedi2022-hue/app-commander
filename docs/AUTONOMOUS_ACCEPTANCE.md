@@ -335,3 +335,17 @@ Updated: 2026-10-23
 - **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad APK corpus, installer UI, cryptographic APK signature verification and malware scanning.
 - **Drive SYNC FAILED:** Google Drive/Docs connector tools unavailable; LIVE documents were not read or written. This GitHub record does not imply Drive synchronization.
 - PR #1 remains open Draft and unmerged. No `main` write, auto-merge, root or Device Owner.
+
+
+## 2026-10-26 — N27 central-entry semantic preflight (source acceptance PASS)
+
+- **Engineering question:** can ZIP metadata that is semantically impossible be rejected during the bounded central-directory scan, before `ZipFile` and Android's APK parser are invoked?
+- **Production changes:** reject compression methods other than STORED/DEFLATED; compressed size larger than the archive; nonempty entries with zero compressed bytes; STORED entries whose compressed and expanded sizes differ; aggregate declared expansion above 4 GiB; and directory records with nonzero expanded size.
+- **Regression tests:** unsupported method, STORED size mismatch, aggregate 3 GiB + 2 GiB expansion with matching local/central metadata, zero compressed bytes for nonempty entry, and directory payload. Existing valid empty DEFLATED directories and nested paths remain accepted.
+- **Initial CI:** [run 40303717793](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40303717793) **FAIL** on the aggregate test fixture; inspection of the job log identified the fixture's stale data descriptor. Corrected only the test fixture so local/central metadata agrees and the aggregate guard is the first expected rejection.
+- **Exact source + tests SHA:** `f4cb690853ca81963c94ce4d297b4f951f9ea810`.
+- **PASS:** [CI run 40304529587](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40304529587), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 9s**.
+- **Artifacts: 0; APK not built.** No package/sign/upload/release.
+- **NOT TESTED:** physical device / HyperOS, broad third-party APK corpus, install flow, signature authenticity, malware detection.
+- **Drive SYNC FAILED:** no Google Drive/Docs connector is available in this runtime; LIVE HANDOFF/INDEX were not read or written.
+- PR #1 remains open Draft; no merge, `main` write, auto-merge, root, or Device Owner.

@@ -24,8 +24,13 @@ Can those invariants be rejected during the already-bounded central-directory sc
 6. Add deterministic malformed ZIP regressions and preserve acceptance of ordinary DEFLATED empty directory records and valid nested paths.
 7. Run `:app:testDebugUnitTest :app:lintDebug` on the exact source+test SHA. No APK packaging/artifacts, release, merge, main write, root, or Device Owner.
 
-## Implementation status
+## Implementation and exact-SHA verification — SOURCE ACCEPTANCE PASS
 
-- Production and regression changes are committed to the existing PR branch.
-- Exact-SHA CI: PENDING.
-- Device / HyperOS behavior and broad real-world APK corpus: NOT TESTED.
+- Production: the bounded central-directory scan now rejects unsupported compression methods, impossible compressed-size metadata, nonempty entries with zero compressed bytes, STORED size mismatches, aggregate declared expansion above 4 GiB, and directory records with nonzero expanded size before `ZipFile` is opened.
+- Regression coverage: unsupported method with matching local/central headers; STORED compressed/expanded size mismatch; aggregate 3 GiB + 2 GiB declarations with matching local metadata; nonempty entry with zero compressed size; directory entry advertising payload bytes. Existing valid empty DEFLATED directory records and nested paths remain accepted.
+- First source CI attempt [run 40303717793](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40303717793) **FAILED** because the aggregate-expansion fixture still carried a stale data descriptor, so a different structural rejection occurred before the aggregate assertion. Corrected the fixture to clear bit 3 and make local metadata match the central directory; no production rollback was needed.
+- Exact production + regression source/test SHA: `f4cb690853ca81963c94ce4d297b4f951f9ea810`.
+- **PASS:** [source-only CI run 40304529587](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40304529587), `:app:testDebugUnitTest :app:lintDebug`; log reports **BUILD SUCCESSFUL in 1m 9s**.
+- **Artifacts: 0.** No APK packaging, signing, upload, or release.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, actual installer behavior, cryptographic APK signature verification, and malware detection.
+- **Drive SYNC FAILED:** Google Drive/Docs connector tools are unavailable in this runtime; LIVE documents were not read or written. This GitHub record is not a successful Drive sync.
