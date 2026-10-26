@@ -3,6 +3,10 @@ package com.appcommander.mobile.data
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
+import java.nio.charset.StandardCharsets
 import java.text.Normalizer
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -268,11 +272,21 @@ internal object ApkArchivePreflight {
 
                 val nameBytes = ByteArray(nameLength)
                 input.readFully(nameBytes)
-                validateExtraFields(input, input.filePointer, extraLength, "central")
+                // Android's ZipFile decodes entry names as UTF-8. Validate the raw
+                // bytes here so malformed sequences fail before platform parsing.
+                validateUtf8Field(nameBytes, "entry name")
+                val extraOffset = input.filePointer
+                validateExtraFields(input, extraOffset, extraLength, "central")
+                if (commentLength > 0) {
+                    input.seek(extraOffset + extraLength)
+                    val commentBytes = ByteArray(commentLength)
+                    input.readFully(commentBytes)
+                    validateUtf8Field(commentBytes, "entry comment")
+                }
                 if (nameBytes.lastOrNull() == '/'.code.toByte() && uncompressedSize != 0L) {
                     throw IOException("APK ZIP directory entry advertises uncompressed data")
                 }
-                input.seek(input.filePointer + extraLength + commentLength)
+                input.seek(extraOffset + extraLength + commentLength)
                 consumed += recordBytes
 
                 val rangeEnd = validateLocalRecord(
@@ -318,6 +332,22 @@ internal object ApkArchivePreflight {
         }
         if (method != ZipEntry.DEFLATED && (flags and DEFLATE_OPTION_FLAGS) != 0) {
             throw IOException("APK ZIP compression-option flags require DEFLATED method")
+        }
+    }
+
+    /**
+     * Android's ZipFile decodes entry names and comments as UTF-8. Strictly
+     * validate raw central-directory bytes before opening that parser so malformed
+     * sequences cannot be silently replaced or interpreted differently.
+     */
+    private fun validateUtf8Field(bytes: ByteArray, fieldName: String) {
+        try {
+            StandardCharsets.UTF_8.newDecoder()
+                .onMalformedInput(CodingErrorAction.REPORT)
+                .onUnmappableCharacter(CodingErrorAction.REPORT)
+                .decode(ByteBuffer.wrap(bytes))
+        } catch (error: CharacterCodingException) {
+            throw IOException("APK ZIP $fieldName is not valid UTF-8", error)
         }
     }
 
