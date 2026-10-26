@@ -282,3 +282,15 @@ Updated: 2026-10-23
 - **Artifacts: 0; APK not built.** This was a source/JUnit/static-lint verification question, not a packaging question.
 - Xiaomi Pad 5 / HyperOS SAF provider behavior: **NOT TESTED**. The unit tests use deterministic streams and do not establish provider-side creation/deletion behavior.
 - PR #1 remains open Draft, unmerged; no main write, root, or Device Owner.
+
+## 2026-10-26 — N23 APK central-directory preflight
+
+- **Engineering question:** EOCD counts and bounds alone do not prove that the central-directory record inventory fits the declared range. Can malformed counts/lengths and entry-level ZIP64 sentinels be rejected before `ZipFile` processes untrusted metadata?
+- **Production:** `ApkArchivePreflight` now walks the bounded central directory before `ZipFile` construction, checking each 46-byte fixed header, record count/length, name length, per-entry disk number, ZIP64 sentinel sizes/offsets, and local-header offset. Variable fields are skipped by bounded seek, not allocated into per-entry buffers.
+- **Regressions:** tests mutate a valid ZIP's EOCD count to disagree with actual records and set an entry's uncompressed-size field to the ZIP64 sentinel.
+- **Production commit:** `352a29a40144c08c2bf3ae32abf6e00e66f5d99e`.
+- **Exact source+test SHA:** `3a889a45ff72ef45d10286a59e5bd8ed56c8c22e`.
+- **PASS:** [source-only CI 40266600791](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40266600791), job `source-checks`; the actual `:app:testDebugUnitTest :app:lintDebug` step completed successfully. No APK packaging or artifacts.
+- **NOT TESTED:** physical device, broad third-party APK corpus, SAF provider behavior, Shizuku operations, signature verification. This is structural preflight, not malware scanning or APK authentication.
+- **Source/license review:** reviewed OpenJDK ZipFile source license (GPLv2 + Classpath Exception) and official Android APK Signing Block documentation; no third-party implementation copied.
+- PR #1 remains open Draft; no main write, merge, root, Device Owner, APK or release.
