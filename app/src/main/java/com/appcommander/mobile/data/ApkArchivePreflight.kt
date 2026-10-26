@@ -5,11 +5,13 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.text.Normalizer
 import java.util.zip.CRC32
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 /**
- * Cheap, bounded ZIP central-directory checks before handing untrusted SAF
- * bytes to Android's PackageManager. No entries are extracted or inflated.
+ * Cheap, bounded ZIP structure checks before handing untrusted SAF bytes to
+ * Android's PackageManager. Central and local metadata are cross-checked;
+ * no entries are extracted or inflated except the bounded manifest read.
  *
  * This is NOT an APK signature check, malware scan, or proof that ZIP entry
  * payloads match their CRCs or local ZIP headers. Platform parsing remains
@@ -209,6 +211,8 @@ internal object ApkArchivePreflight {
             input.seek(offset)
             var consumed = 0L
             val localRanges = ArrayList<Pair<Long, Long>>(expectedEntries)
+            var declaredExpandedBytes = 0L
+            val archiveLength = file.length()
             repeat(expectedEntries) {
                 if (directoryBytes - consumed < 46L) {
                     throw IOException("Truncated APK ZIP central directory entry")
@@ -241,9 +245,28 @@ internal object ApkArchivePreflight {
                 if (flags and 0x2041 != 0) {
                     throw IOException("Encrypted APK ZIP entries are unsupported")
                 }
+                // Reject semantically impossible entry metadata before ZipFile
+                // parses/allocates its entry table. The archive and entry counts
+                // are bounded, but declared expansion must be bounded here too.
+                if (method != ZipEntry.STORED && method != ZipEntry.DEFLATED) {
+                    throw IOException("Unsupported APK ZIP compression method")
+                }
+                if (compressedSize > archiveLength ||
+                    (uncompressedSize > 0L && compressedSize == 0L)
+                ) throw IOException("APK ZIP entry has impossible compressed size metadata")
+                if (method == ZipEntry.STORED && compressedSize != uncompressedSize) {
+                    throw IOException("STORED ZIP entry sizes disagree")
+                }
+                if (uncompressedSize > MAX_DECLARED_UNCOMPRESSED_BYTES - declaredExpandedBytes) {
+                    throw IOException("APK ZIP aggregate expansion exceeds inspection limits")
+                }
+                declaredExpandedBytes += uncompressedSize
 
                 val nameBytes = ByteArray(nameLength)
                 input.readFully(nameBytes)
+                if (nameBytes.lastOrNull() == '/'.code.toByte() && uncompressedSize != 0L) {
+                    throw IOException("APK ZIP directory entry advertises uncompressed data")
+                }
                 input.seek(input.filePointer + extraLength + commentLength)
                 consumed += recordBytes
 

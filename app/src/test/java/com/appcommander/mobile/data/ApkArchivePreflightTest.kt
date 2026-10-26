@@ -302,7 +302,8 @@ class ApkArchivePreflightTest {
             "AndroidManifest.xml" to byteArrayOf(1),
             "assets/" to byteArrayOf(7, 8, 9),
         )
-        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("directory entry advertises uncompressed data"))
     }
 
 
@@ -434,6 +435,76 @@ class ApkArchivePreflightTest {
         assertTrue(error.message.orEmpty().contains("local records overlap"))
     }
 
+
+    @Test fun rejectsUnsupportedCompressionMethodBeforeZipFileParsing() {
+        val apk = zip("unsupported-method.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(32) { it.toByte() },
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        writeU16(bytes, central + 10, 99)
+        writeU16(bytes, local + 8, 99)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("Unsupported APK ZIP compression method"))
+    }
+
+    @Test fun rejectsStoredEntryWithDifferentCompressedAndExpandedSizesBeforeZipFileParsing() {
+        val apk = zip("stored-size-mismatch.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(128),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        // Keep both headers in agreement while creating an impossible STORED
+        // record: STORED data cannot have different compressed/expanded sizes.
+        writeU16(bytes, central + 10, ZipEntry.STORED)
+        writeU16(bytes, local + 8, ZipEntry.STORED)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("STORED ZIP entry sizes disagree"))
+    }
+
+    @Test fun rejectsAggregateDeclaredExpansionBeforeZipFileParsing() {
+        val apk = zip("aggregate-expansion.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4),
+            "assets/payload.bin" to byteArrayOf(5),
+        )
+        val bytes = apk.readBytes()
+        listOf("classes.dex" to 3L, "assets/payload.bin" to 2L).forEach { (name, gib) ->
+            val central = centralRecordOffset(bytes, name)
+            val local = readU32Value(bytes, central + 42).toInt()
+            val expandedSize = gib * 1024L * 1024L * 1024L
+            writeU32(bytes, central + 24, expandedSize)
+            writeU32(bytes, local + 22, expandedSize)
+        }
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("aggregate expansion exceeds inspection limits"))
+    }
+
+    @Test fun rejectsNonemptyEntryWithZeroCompressedSizeBeforeZipFileParsing() {
+        val apk = zip("zero-compressed-size.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(32) { it.toByte() },
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        writeU32(bytes, central + 20, 0)
+        writeU32(bytes, local + 18, 0)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("impossible compressed size metadata"))
+    }
 
     @Test fun rejectsEncryptedEntryFlagsBeforeZipFileParsing() {
         val apk = zip("encrypted-entry.apk",

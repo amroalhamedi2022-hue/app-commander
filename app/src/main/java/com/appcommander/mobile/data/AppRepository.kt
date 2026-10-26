@@ -361,7 +361,7 @@ class AppRepository(private val context: Context) {
                     ApkCacheCopy.copyWithSha256(input, output)
                 }
             }
-            // Central-directory-only guard: never extract untrusted entries.
+            // Bounded ZIP-structure guard: never extract untrusted entries.
             // This does not verify APK signing or certify that the APK is safe.
             ApkArchivePreflight.check(cached)
             val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
