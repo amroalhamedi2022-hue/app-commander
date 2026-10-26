@@ -54,10 +54,19 @@ internal class ShizukuConnectionState<T : Any> {
         return true
     }
 
-    /** Returns true only when this timed-out attempt owned and reset the current bind. */
-    @Synchronized fun resetTimedOutAttempt(waiter: CompletableDeferred<T>): Boolean {
+    /**
+     * Only the bind owner may reset an attempt on timeout. Joiners share the
+     * same waiter, but their local timeout must not cancel somebody else's bind.
+     * Complete the shared waiter exceptionally so all joiners fail promptly.
+     */
+    @Synchronized fun resetTimedOutAttempt(request: BindingRequest<T>): Boolean {
+        if (!request.shouldBind) return false
+        val waiter = request.waiter
         if (pending === waiter && remote == null) {
             binding = false
+            if (!waiter.isCompleted) {
+                waiter.completeExceptionally(IllegalStateException("Shizuku bind attempt timed out"))
+            }
             pending = CompletableDeferred()
             return true
         }
