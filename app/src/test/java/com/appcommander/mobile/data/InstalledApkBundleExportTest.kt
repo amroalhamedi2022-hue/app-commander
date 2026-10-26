@@ -337,4 +337,33 @@ class InstalledApkBundleExportTest {
         assertFalse("Cleanup error must not replace the archive verification failure",
             thrown.message.orEmpty().contains("provider denied deletion"))
     }
+
+    @Test fun bundleVerifierFailsClosedWhenProviderRepeatedlyReturnsZeroBytes() {
+        val archive = ByteArrayOutputStream().also { output ->
+            InstalledApkBundleExport.write(
+                "com.example.app",
+                listOf(source("base.apk", byteArrayOf(1, 2, 3, 4))),
+                output,
+            )
+        }.toByteArray()
+        val delegate = ByteArrayInputStream(archive)
+        var zeroReads = 0
+        val brokenProvider = object : java.io.InputStream() {
+            override fun read(): Int = delegate.read()
+
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (length > 0 && zeroReads < 8) {
+                    zeroReads++
+                    return 0
+                }
+                return delegate.read(buffer, offset, length)
+            }
+        }
+
+        val error = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(brokenProvider)
+        }
+        assertTrue(error.message.orEmpty().contains("stalled"))
+        assertEquals("Repeated zero-progress reads must be bounded", 8, zeroReads)
+    }
 }
