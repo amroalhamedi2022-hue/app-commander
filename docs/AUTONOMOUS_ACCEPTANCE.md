@@ -302,3 +302,22 @@ Updated: 2026-10-23
 - **Artifacts: 0.** No APK packaging, upload or release.
 - **NOT TESTED:** physical device, broad third-party APK corpus, SAF provider behavior, Shizuku operations and cryptographic APK signature verification.
 - PR #1 remains open Draft. No main write, merge, root, Device Owner or release.
+
+
+## 2026-10-26 — N24 persisted SAF readback + N25 Shizuku callback generation isolation
+
+### N24 — Persisted SAF export verification
+- **PASS:** source-only CI run [40266987835](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40266987835) completed successfully on PR head `c575365cafb784f83e9821097d6139c506bbc6b3`. The workflow ran `:app:testDebugUnitTest :app:lintDebug`, which includes the current base and bundle SAF readback regressions.
+- Export now closes the newly created SAF document, reopens it, validates bundle structure/manifest and independently compares APK entry sizes and SHA-256 before success. Readback failure is fail-closed and scoped cleanup targets only the fresh CreateDocument URI.
+- **NOT TESTED:** real DocumentsUI providers, HyperOS behavior, provider deletion support and latency on Xiaomi Pad 5.
+
+### N25 — Stale Shizuku binding callback isolation
+- **Problem:** the previous singleton ServiceConnection and unscoped lifecycle transitions allowed delayed callbacks from an older binding attempt to mutate newer Binder state. Also, a joining caller shared the owner's deferred, so its timeout could reset the owner's bind attempt.
+- **Production commits:** state helper `146dd606db517f39ef3b00d6d8621b0684e6b845`; controller `1ea2667e3cb18fd4e65dee15d112e1b57b26655f`.
+- **Regression commit / exact source+test SHA:** `72f64652541cd01a5b6e6805bc949c7390f03fed`.
+- **PASS:** source-only GitHub Actions [run 40276487224](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40276487224) on exact source+test SHA. `:app:testDebugUnitTest` and `:app:lintDebug` passed; `BUILD SUCCESSFUL in 1m 8s`, 36 tasks executed.
+- New JVM tests cover stale connect callbacks, stale failure callbacks, joiner-vs-owner timeout behavior, prompt waiter failure, existing Binder identity protection and controller callback wiring.
+- **Artifacts: 0.** No APK packaging, signing, upload or release.
+- **NOT TESTED:** actual Shizuku service reconnect/process-death behavior on Xiaomi Pad 5 / HyperOS. Unit tests prove the state-machine contract, not platform callback ordering on a device.
+- PR #1 remains open Draft and unmerged. No `main` write, auto-merge, root or Device Owner.
+- **Next:** verify final docs-updated PR head CI, then continue the next App Commander milestone; alternate back to Explode Arena afterward.
