@@ -24,4 +24,13 @@ writeAndVerify() evaluated openForWrite() before write() validated the package n
 
 ## Implementation status
 
-Production refactor and regression test committed together. CI result pending; append final evidence to the acceptance ledger after checking the matching SHA.
+Production refactor and regression test committed together.
+
+## CI result — SOURCE ACCEPTANCE PASS (2026-10-26)
+
+- Exact source+test SHA: `874f6437fb5106ad584d51e9791fe2e67565874b`.
+- **PASS:** [GitHub Actions run 40261681763](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40261681763), job `source-checks`: `:app:testDebugUnitTest` and `:app:lintDebug` completed; log ends `BUILD SUCCESSFUL in 1m 40s`, 36 tasks executed.
+- **Artifacts: none.** The source-only workflow did not assemble or upload an APK.
+- Regression now proves invalid package, entry name and size are rejected before the SAF destination callback or readback callback is invoked.
+- Xiaomi Pad 5 / HyperOS SAF provider behavior remains **NOT TESTED**; these are deterministic stream/JVM tests.
+- PR #1 remains Draft and unmerged; no main write, root, or Device Owner action.

@@ -272,3 +272,13 @@ Updated: 2026-10-23
 - **NOT TESTED:** physical Xiaomi Pad 5/HyperOS APK inspection, large real-world APK compatibility and install workflow. No signature-authenticity claim.
 - **Drive SYNC FAILED:** Google Drive/Docs connector tools are unavailable in this runtime. LIVE HANDOFF/INDEX were not read or written; this GitHub ledger is only the recovery record, not a successful Drive sync.
 - **PR state:** #1 remains open Draft; no merge, main write, APK build or Device Owner provisioning.
+
+
+## 2026-10-26 — N22 SAF export validation order (source acceptance PASS)
+- Production refactor: `InstalledApkBundleExport.writeAndVerify()` now validates package name, canonical base/split names, APK count, per-entry size and aggregate size BEFORE calling `openForWrite()`. The validated size total is passed to the private write path, avoiding a duplicate validation pass.
+- Regression: invalid package, invalid archive entry name and zero-size source each fail without opening the SAF destination, readback stream, or source bytes.
+- Exact source+test SHA: `874f6437fb5106ad584d51e9791fe2e67565874b`.
+- **PASS:** [GitHub Actions 40261681763](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40261681763): `:app:testDebugUnitTest` and `:app:lintDebug`; `BUILD SUCCESSFUL in 1m 40s`, 36 tasks.
+- **Artifacts: 0; APK not built.** This was a source/JUnit/static-lint verification question, not a packaging question.
+- Xiaomi Pad 5 / HyperOS SAF provider behavior: **NOT TESTED**. The unit tests use deterministic streams and do not establish provider-side creation/deletion behavior.
+- PR #1 remains open Draft, unmerged; no main write, root, or Device Owner.
