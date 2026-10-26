@@ -305,4 +305,132 @@ class ApkArchivePreflightTest {
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
 
+
+    private fun readU16Value(bytes: ByteArray, offset: Int): Int =
+        (bytes[offset].toInt() and 255) or
+            ((bytes[offset + 1].toInt() and 255) shl 8)
+
+    private fun readU32Value(bytes: ByteArray, offset: Int): Long =
+        readU16Value(bytes, offset).toLong() or
+            (readU16Value(bytes, offset + 2).toLong() shl 16)
+
+    private fun centralRecordOffset(bytes: ByteArray, name: String): Int {
+        val end = endRecord(bytes)
+        val count = readU16Value(bytes, end + 10)
+        var cursor = readU32Value(bytes, end + 16).toInt()
+        repeat(count) {
+            assertTrue("central record header must fit", cursor >= 0 && cursor + 46 <= bytes.size)
+            assertEquals(0x02014b50L, readU32Value(bytes, cursor))
+            val nameLength = readU16Value(bytes, cursor + 28)
+            val extraLength = readU16Value(bytes, cursor + 30)
+            val commentLength = readU16Value(bytes, cursor + 32)
+            val actualName = String(bytes, cursor + 46, nameLength, Charsets.UTF_8)
+            if (actualName == name) return cursor
+            cursor += 46 + nameLength + extraLength + commentLength
+        }
+        error("Central-directory entry not found: $name")
+    }
+
+    @Test fun rejectsInvalidLocalHeaderSignatureForNonManifestEntry() {
+        val apk = zip("bad-local-signature.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        bytes[local] = 0
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsLocalFilenameThatDiffersFromCentralDirectory() {
+        val apk = zip("local-name-mismatch.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        bytes[local + 30] = 'X'.code.toByte()
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsLocalCompressionMethodThatDiffersFromCentralDirectory() {
+        val apk = zip("local-method-mismatch.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val centralMethod = readU16Value(bytes, central + 10)
+        writeU16(bytes, local + 8, if (centralMethod == 0) 8 else 0)
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsLocalSizeMismatchWhenDescriptorFlagIsCleared() {
+        val apk = zip("local-size-mismatch.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6, 7),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val flags = readU16Value(bytes, central + 8) and 0x0008.inv()
+        writeU16(bytes, central + 8, flags)
+        writeU16(bytes, local + 6, flags)
+        writeU32(bytes, local + 18, 0)
+        writeU32(bytes, local + 22, 0)
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsDataDescriptorThatDisagreesWithCentralCrc() {
+        val apk = zip("bad-data-descriptor.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(64) { (it * 7).toByte() },
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val localNameLength = readU16Value(bytes, local + 26)
+        val localExtraLength = readU16Value(bytes, local + 28)
+        val compressedSize = readU32Value(bytes, central + 20).toInt()
+        val dataEnd = local + 30 + localNameLength + localExtraLength + compressedSize
+        val hasSignature = readU32Value(bytes, dataEnd) == 0x08074b50L
+        val crcOffset = dataEnd + if (hasSignature) 4 else 0
+        bytes[crcOffset] = (bytes[crcOffset].toInt() xor 1).toByte()
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsTwoCentralRecordsAliasingTheSameLocalRecord() {
+        val apk = zip("overlapping-local-records.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "a.txt" to byteArrayOf(4),
+            "b.txt" to byteArrayOf(5),
+        )
+        val bytes = apk.readBytes()
+        val first = centralRecordOffset(bytes, "a.txt")
+        val second = centralRecordOffset(bytes, "b.txt")
+        val firstLength = 46 + readU16Value(bytes, first + 28) +
+            readU16Value(bytes, first + 30) + readU16Value(bytes, first + 32)
+        val secondLength = 46 + readU16Value(bytes, second + 28) +
+            readU16Value(bytes, second + 30) + readU16Value(bytes, second + 32)
+        assertEquals(firstLength, secondLength)
+        System.arraycopy(bytes, first, bytes, second, firstLength)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("local records overlap"))
+    }
+
 }
