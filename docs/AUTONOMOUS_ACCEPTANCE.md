@@ -8,7 +8,7 @@
 # Autonomous acceptance ledger — App Commander Android
 
 AUTOMATION_COMPLETE: NOT READY
-Updated: 2026-10-23
+Updated: 2026-10-26
 
 ## 2026-10-23 follow-up: single-pass APK SHA-256 optimization (production source: YES)
 - Production commits: `a567312d35be6865f9dbd062eb2ce90834d3d632` (`ApkCacheCopy.copyWithSha256`) and `a55b2eae7346250b5d7779b9e3c68bc49976650b` (`AppRepository.inspectApk` uses streamed hash/size). This removes a second full read of up to 512 MiB of cached APK after SAF import while preserving the 512 MiB cap, short/zero read safeguards and temporary file cleanup.
@@ -363,10 +363,11 @@ Updated: 2026-10-23
 - **Google Drive SYNC FAILED:** connector unavailable in this runtime; the LIVE handoff/index were not read or written.
 
 
-## 2026-10-26 N29 — ZIP general-purpose flag preflight (CI PENDING)
+## 2026-10-26 N29 — ZIP general-purpose flag preflight (SOURCE ACCEPTANCE PASS)
 - Engineering question: reject reserved/unsupported general-purpose ZIP flags before platform parsing without breaking standard data descriptors, UTF-8 names, or DEFLATE option metadata.
-- Production source: central-directory and local-header flag validation now allows only the documented supported subset (bits 1-3 and 11); encryption/masked-header flags remain rejected, and DEFLATE option bits are rejected for non-DEFLATED entries.
+- Production source: central-directory and local-header flag validation now allows only bits 1-3 and 11; encryption/masked-header flags remain rejected, and DEFLATE option bits are rejected for non-DEFLATED entries.
 - Regression source: byte-level tests mutate both central and local records consistently for reserved/unsupported bits (0x0010, 0x0020, 0x0080, 0x0100, 0x0200, 0x0400, 0x1000, 0x4000, 0x8000), plus DEFLATE option bits on a STORED entry.
 - Specification reviewed: PKWARE APPNOTE §4.4.4 and Library of Congress ZIP format notes. No copied implementation or new dependency.
-- **CI PENDING** on the exact production/test SHA. No APK packaging, artifact upload, merge, main write, root, or Device Owner.
-- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, Android installer behavior, cryptographic signature verification, malware detection. Google Drive LIVE sync must be separately verified; repository documentation is not a Drive sync.
+- **PASS:** exact production/test SHA `59ab87a763d64fe8a0ee7f431e72d90e4b7bdf5f`, [source-only CI #40334932127](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40334932127). `:app:testDebugUnitTest` and `:app:lintDebug` succeeded; **BUILD SUCCESSFUL in 1m 41s**, 36 tasks executed. Source blob `29920f2800eed346d7b4995c896f9c2f7fa8fa26`; test blob `2e022a7f162f07366632d6e4e0008937632dc1ca`.
+- **Artifacts: 0.** No APK packaging, artifact upload, merge, main write, root, or Device Owner.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, Android installer behavior, cryptographic signature verification, malware detection. Google Drive LIVE sync remains unverified and must not be inferred from this GitHub ledger.

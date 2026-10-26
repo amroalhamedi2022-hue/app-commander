@@ -28,6 +28,10 @@ Can the preflight reject unsupported flag combinations before `ZipFile`, while r
 
 The regression fixtures mutate both local and central headers while keeping them mutually consistent, so they exercise the flag policy itself rather than merely triggering the existing header-mismatch guard. The Gradle CI must run the actual repository JUnit tests and Android lint; source inspection alone cannot establish the byte-level behavior.
 
-## Status — CI PENDING
+## Status — SOURCE ACCEPTANCE PASS
 
-Implementation, tests and acceptance ledger are committed together. Await the exact-SHA source-only CI result before marking this milestone PASS. Device/HyperOS and real-world APK corpus validation remain separate acceptance gates.
+- Exact production + regression-test SHA: `59ab87a763d64fe8a0ee7f431e72d90e4b7bdf5f`.
+- **PASS:** source-only GitHub Actions run [#40334932127](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40334932127) on the exact SHA. Both `:app:testDebugUnitTest` and `:app:lintDebug` succeeded; log: **BUILD SUCCESSFUL in 1m 41s**, 36 tasks executed.
+- Post-CI source recheck: production blob `29920f2800eed346d7b4995c896f9c2f7fa8fa26`; regression-test blob `2e022a7f162f07366632d6e4e0008937632dc1ca`.
+- **Artifacts: 0.** No APK packaging, signing or upload.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, Android installer behavior, cryptographic APK signature verification, and malware detection. This is source/JVM acceptance, not device acceptance.
