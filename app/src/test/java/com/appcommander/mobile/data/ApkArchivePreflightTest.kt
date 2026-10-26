@@ -571,4 +571,73 @@ class ApkArchivePreflightTest {
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
 
+
+    @Test fun acceptsWellFormedUnknownExtraFieldsWithoutInterpretingTheirPayloads() {
+        val apk = temp.newFile("unknown-extra-field.apk")
+        ZipOutputStream(apk.outputStream()).use { output ->
+            val manifest = ZipEntry("AndroidManifest.xml")
+            // Vendor/private extra-field ID 0x1234, two opaque data bytes.
+            manifest.extra = byteArrayOf(0x34, 0x12, 0x02, 0x00, 0x01, 0x02)
+            output.putNextEntry(manifest)
+            output.write(byteArrayOf(1, 2, 3))
+            output.closeEntry()
+        }
+
+        assertEquals(1, ApkArchivePreflight.check(apk).entries)
+    }
+
+    @Test fun rejectsTruncatedLocalExtraFieldHeader() {
+        val apk = zip("truncated-local-extra.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        // Claim one local extra-field byte although a TLV header needs four.
+        writeU16(bytes, local + 28, 1)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("extra field header"))
+    }
+
+    @Test fun rejectsTruncatedCentralExtraFieldHeader() {
+        val apk = zip("truncated-central-extra.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "AndroidManifest.xml")
+        // The next central record follows immediately, so one claimed byte
+        // cannot form a complete extra-field TLV header.
+        writeU16(bytes, central + 30, 1)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("extra field header"))
+    }
+
+    @Test fun rejectsZip64ExtraFieldEvenWhenZip32SizeFieldsAreNotSentinels() {
+        val apk = temp.newFile("zip64-extra-field.apk")
+        ZipOutputStream(apk.outputStream()).use { output ->
+            val manifest = ZipEntry("AndroidManifest.xml")
+            manifest.extra = byteArrayOf(0x34, 0x12, 0x00, 0x00)
+            output.putNextEntry(manifest)
+            output.write(byteArrayOf(1, 2, 3))
+            output.closeEntry()
+        }
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "AndroidManifest.xml")
+        val nameLength = readU16Value(bytes, central + 28)
+        val extraOffset = central + 46 + nameLength
+        // Replace only the extra-field ID with ZIP64 (0x0001), leaving the
+        // ordinary ZIP32 size fields and a well-framed zero-length payload.
+        writeU16(bytes, extraOffset, 0x0001)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("ZIP64"))
+    }
+
 }
