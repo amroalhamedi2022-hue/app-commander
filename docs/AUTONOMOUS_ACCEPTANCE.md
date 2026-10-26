@@ -397,3 +397,18 @@ Updated: 2026-10-26
 - **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, actual installer behavior, cryptographic signature authenticity, malware detection.
 - **Google Drive SYNC FAILED:** no Google Drive/Docs connector is available in this runtime; LIVE HANDOFF/INDEX were not read or written.
 - PR #1 remains open Draft and unmerged. No `main` write, auto-merge, root or Device Owner.
+
+## 2026-10-26 — N32 SAF zero-progress bundle stream guard (SOURCE ACCEPTANCE PASS)
+
+- **Engineering gap:** the bundle verifier's outer stream wrapper delegated positive-length reads directly to a provider. A broken SAF/InputStream implementation returning repeated zero-byte reads could make `ZipInputStream` loop while parsing the first local header, before the per-entry copy guard or central-directory checks ran.
+- **Production change:** `ZipBundleStructure.TrackingStream` now counts consecutive zero-progress bulk reads and throws a stable `IOException("APK bundle stream stalled")` after eight. A zero-length request remains a legal no-op; successful byte reads and EOF reset the counter. Existing raw-size and rolling-tail limits are unchanged.
+- **Integration regressions:** a valid generated bundle is verified through a provider-like stream that returns eight zero-progress reads during header parsing; the verifier fails promptly. Additional tests wrap bundle write/readback in the same cleanup boundary used by the repository and verify readback denial deletes the new document exactly once, while cleanup denial cannot replace the original archive verification failure.
+- Production commit: `d965ce76dc11f32408802d78823624c766300b11`; source blob `e0e014c1b5a2cd577b27787e2b5d6a2e7fbd23b6`.
+- Exact production + tests SHA: `975dc372a67dae0b1921bc27c73b1e4a5eb0aeee`; test blob `3347e657afaf6e8428dc86fb2765a616f6045ce7`.
+- **PASS:** source-only [CI #40375961761](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40375961761) on the exact production+test SHA. `:app:testDebugUnitTest :app:lintDebug` succeeded; log **BUILD SUCCESSFUL in 1m 3s**, 36 tasks executed.
+- **Artifacts: 0.** No APK packaging/signing/upload, release, merge, `main` write, root, Device Owner or auto-merge.
+- **Related SAF acceptance:** the existing bundle readback, hash/manifest/central-directory, package-snapshot and cleanup tests ran in the same JUnit suite. N31's exact corrected source/test SHA `07d0e27e28be5f500a15782769299c8aec6339c4` passed [CI #40373884980](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373884980); docs-updated head `163068a12ab0f2db2c0105b85fd985d807897815` passed [CI #40374576894](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40374576894).
+- **NOT TESTED:** real Xiaomi Pad 5 / HyperOS SAF provider behavior, provider-side deletion refusal, broad real-world APK corpus, cryptographic signer authenticity, malware detection, Shizuku device behavior and visual UI acceptance. Source/JVM PASS is not device PASS.
+- **Google Drive SYNC FAILED:** Google Drive/Docs connector unavailable in this runtime; LIVE HANDOFF/INDEX were not read or written. This GitHub ledger is not a Drive sync.
+- **Next:** independently verify the docs-updated PR head in CI, then continue device acceptance and remaining app requirements without merging or building routine APKs.
+
