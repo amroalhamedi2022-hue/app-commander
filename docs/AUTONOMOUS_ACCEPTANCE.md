@@ -383,3 +383,17 @@ Updated: 2026-10-26
 - **Artifacts: 0; APK not built.** No package/sign/upload/release, merge, main write, root or Device Owner.
 - **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, actual installer behavior, cryptographic signature authenticity and malware detection.
 - **Google Drive SYNC FAILED:** Google Drive/Docs connector unavailable; LIVE HANDOFF/INDEX were not read or written. This GitHub ledger is not a Drive sync.
+
+
+## 2026-10-26 — N31 central-directory path collision preflight (SOURCE ACCEPTANCE PASS)
+
+- **Engineering question:** path-policy checks previously ran after `ZipFile` constructed its entry inventory. Can duplicate/canonically equivalent names, unsafe paths, file/directory aliases, and parent-under-file collisions be rejected during the bounded raw central-directory scan first?
+- **Production:** introduced one `PathRegistry`/`registerPath` implementation used both during central-directory preflight and again after `ZipFile` enumeration. It applies NFC collision detection, bounded name length, absolute/backslash/dot-segment/control/bidi checks, duplicate-name rejection, parent-under-file checks, and file/directory collision checks before platform ZIP parsing.
+- **Regressions:** exact duplicate logical names with local/central bytes kept consistent; traversal and unsafe paths; file/directory collisions in both entry orders; canonically equivalent Unicode names; Unicode alias of an implicit directory. Existing nested-directory and visible Arabic path acceptance tests remain in the suite.
+- **Source/spec review:** reused the project's existing path policy and JDK `Normalizer`/UTF-8 APIs; no dependency or copied third-party implementation. The repository's research notes already identify Android libcore `ZipFile` as the downstream parser. This remains structural preflight, not APK signature verification or malware scanning.
+- **Initial CI FAIL:** [run 40373353386](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373353386) exposed two test-expectation issues. The overlong name was rejected earlier by the bounded central metadata check; a fixture that aliased a local record also created duplicate names, which the new earlier guard correctly rejected. Both assertions were corrected to test the actual preflight contract.
+- **PASS:** exact corrected PR head `07d0e27e28be5f500a15782769299c8aec6339c4`, [source-only CI #40373884980](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373884980). `:app:testDebugUnitTest :app:lintDebug` succeeded; log **BUILD SUCCESSFUL in 1m 19s**, 36 tasks executed.
+- Source blob `99c601feb203bca4150c66f4c956a9a01d49dc35`; test blob `3340eea3f2bc83aef39ac28a2470a17d5bf42546`. CI run had zero APK artifacts; no APK packaging.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, actual installer behavior, cryptographic signature authenticity, malware detection.
+- **Google Drive SYNC FAILED:** no Google Drive/Docs connector is available in this runtime; LIVE HANDOFF/INDEX were not read or written.
+- PR #1 remains open Draft and unmerged. No `main` write, auto-merge, root or Device Owner.

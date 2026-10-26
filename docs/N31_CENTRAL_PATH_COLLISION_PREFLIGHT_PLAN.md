@@ -28,14 +28,21 @@ Can the same bounded path policy be applied while the central directory is scann
 
 The regression fixtures keep local and central names byte-for-byte consistent while changing the archive's logical entry inventory. They assert the explicit central-preflight rejection reason, proving the path-collision guard executes before `ZipFile` rather than relying on a later parser exception.
 
-## Status
+## Status — SOURCE ACCEPTANCE PASS (2026-10-26)
 
-PLANNED — implementation and source-only CI pending.
+- Production source commit: `05ff9044748a8b32dc417c6af6b8429b29e3c731`.
+- Exact corrected source/test + acceptance-note PR head: `07d0e27e28be5f500a15782769299c8aec6339c4`.
+- Production blob: `99c601feb203bca4150c66f4c956a9a01d49dc35`; regression-test blob: `3340eea3f2bc83aef39ac28a2470a17d5bf42546`.
+- **PASS:** [source-only CI #40373884980](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373884980), actual `:app:testDebugUnitTest :app:lintDebug`, log **BUILD SUCCESSFUL in 1m 19s**, 36 tasks executed.
+- The test suite passed after correction; lint passed. No APK packaging/artifact upload.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, real third-party APK corpus, installer behavior, signature authenticity, malware detection.
+- Google Drive LIVE sync remains unverified because the Drive/Docs connector is unavailable in this runtime.
 
 
-## First CI attempt — fixture expectations corrected
+## First CI attempt — resolved
 
-- CI [run 40373353386](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373353386) ran 217 JVM tests and found two assertion failures, not compilation failures.
-- The overlong-path case is rejected by the earlier bounded central-name-length guard, whose diagnostic says `central metadata`; the test was relaxed to require a central-preflight diagnostic rather than the later path helper's exact wording.
+- Initial CI [run 40373353386](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373353386) ran 217 JVM tests and found two assertion failures, not compilation failures.
+- The overlong-path case is rejected by the earlier bounded central-name-length guard, whose diagnostic says `central metadata`; the regression now requires a central-preflight diagnostic rather than one exact downstream helper message.
 - The aliased-record fixture also creates duplicate central entry names, so the new preflight correctly rejects it earlier than the old local-range-overlap assertion. The regression now asserts this deterministic early rejection and is named accordingly.
-- **Status: rerun pending; N31 is not accepted until the corrected source-only CI passes.**
+- Corrected source/test CI [run 40373884980](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40373884980) **PASS** on exact PR head `07d0e27e28be5f500a15782769299c8aec6339c4`.
+- **Status: SOURCE ACCEPTANCE PASS** on the corrected run.
