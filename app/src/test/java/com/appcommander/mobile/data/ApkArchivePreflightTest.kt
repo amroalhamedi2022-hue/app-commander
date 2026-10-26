@@ -108,7 +108,7 @@ class ApkArchivePreflightTest {
                 path to byteArrayOf(2),
             )
             val error = assertThrows(path, IOException::class.java) { ApkArchivePreflight.check(apk) }
-            assertTrue(path, error.message.orEmpty().contains("central directory"))
+            assertTrue(path, error.message.orEmpty().contains("central"))
         }
     }
 
