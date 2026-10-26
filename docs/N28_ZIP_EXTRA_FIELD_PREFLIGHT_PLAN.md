@@ -29,6 +29,13 @@ Can the existing bounded preflight validate every local and central extra-field 
 
 The requirement is to reject concrete byte layouts before the runtime ZIP parser is invoked. Source inspection can show that the check exists, but only malformed byte-level fixtures can establish that both local and central offsets are interpreted correctly and that valid unknown fields remain compatible. The planned CI is source/JVM validation only; it is not a device test or an APK build.
 
-## Status
+## Status — SOURCE ACCEPTANCE PASS
 
-PLAN RECORDED BEFORE IMPLEMENTATION. Results will be appended after the exact-SHA test run.
+- Production implementation commit: `79f2497e9fce8f70027eaffda9609a38459c7731`.
+- Regression test commit / exact source+test SHA: `453035caf44a72e2e8da8129a6b9d83f6391604e`.
+- Added four JVM regressions: accepts a well-formed unknown extra field; rejects truncated local extra framing; rejects truncated central extra framing; rejects ZIP64 extra-field ID.
+- **PASS:** source-only GitHub Actions run [40317867029](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40317867029) on exact SHA `453035caf44a72e2e8da8129a6b9d83f6391604e`. `:app:testDebugUnitTest` and `:app:lintDebug` both completed successfully; log: **BUILD SUCCESSFUL in 1m 10s**, 36 tasks executed.
+- Post-CI source recheck: production blob `e3a200fc367c137c6f75a5aba92e8a4095111642` includes both local and central validation calls; test blob `f2de47ff6eabcdceba1cae7422f539d6aba63636` contains all four new regressions.
+- **Artifacts: 0.** Workflow performs no APK packaging, signing or upload.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, a broad corpus of real-world APKs, Android installer behavior, cryptographic APK signature verification, and malware detection.
+- **Google Drive SYNC FAILED:** no Google Drive/Docs connector is available in this runtime; LIVE documents were not read or written. This GitHub record is not a successful Drive sync.
