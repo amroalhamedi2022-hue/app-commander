@@ -28,6 +28,12 @@ Can the inspector reject malformed UTF-8 entry names and central-directory entry
 
 The tests mutate ZIP header/name/comment bytes while preserving local/central structural agreement. This demonstrates that the UTF-8 gate itself rejects malformed sequences rather than merely relying on a later local-header mismatch or platform parser exception. The test suite runs against the actual repository checkout.
 
-## Status — CI PENDING
+## Status — SOURCE ACCEPTANCE PASS
 
-Implementation and regression tests are being added to the existing PR branch. Exact source/test SHA and CI results will be recorded after the source-only workflow completes. Physical-device and broad APK-corpus validation remain separate acceptance gates.
+- Production commit: `720727e6ac8481aa1c411f1a329d0505f0ef5df2`; production blob `f37f773c7af6da4a71a4b01dd80b1fa07a87a221`.
+- Exact source + regression-test SHA: `8d3be7e9d54da0ce1f411e1ae4030bf26df93732`; test blob `172863354ba757fc9c59c57f65088daa7d139ea9`.
+- **PASS:** source-only GitHub Actions run [40354680824](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40354680824) on the exact source/test SHA. `:app:testDebugUnitTest` and `:app:lintDebug` passed; log reports **BUILD SUCCESSFUL in 1m 38s**, 36 tasks executed.
+- Regression coverage: malformed UTF-8 entry names with EFS set and clear; valid non-Latin UTF-8 name without EFS; malformed central-directory entry comment. The existing valid non-Latin path test remains in the same suite.
+- **Artifacts: 0.** No APK packaging, signing, upload, release, merge or main write.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad third-party APK corpus, actual PackageManager/installer behavior, signature authenticity and malware detection. This is source/JVM acceptance, not device acceptance.
+- **Google Drive SYNC FAILED:** connector unavailable in this runtime; LIVE documents were not read or written.
