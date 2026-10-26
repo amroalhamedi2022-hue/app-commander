@@ -294,3 +294,11 @@ Updated: 2026-10-23
 - **NOT TESTED:** physical device, broad third-party APK corpus, SAF provider behavior, Shizuku operations, signature verification. This is structural preflight, not malware scanning or APK authentication.
 - **Source/license review:** reviewed OpenJDK ZipFile source license (GPLv2 + Classpath Exception) and official Android APK Signing Block documentation; no third-party implementation copied.
 - PR #1 remains open Draft; no main write, merge, root, Device Owner, APK or release.
+
+### N23 exact-SHA source CI RESOLVED — 2026-10-26
+
+- **PASS:** source-only workflow [run 40266772466](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40266772466) completed SUCCESS on latest PR head `cfd517ade5be37f48cd8b4eb6e1d9045f9d87fef`, which includes production+regression source/test SHA `3a889a45ff72ef45d10286a59e5bd8ed56c8c22e`. The actual `:app:testDebugUnitTest :app:lintDebug` step passed.
+- The earlier exact source+test commit also passed the same source-only workflow at run 40266600791.
+- **Artifacts: 0.** No APK packaging, upload or release.
+- **NOT TESTED:** physical device, broad third-party APK corpus, SAF provider behavior, Shizuku operations and cryptographic APK signature verification.
+- PR #1 remains open Draft. No main write, merge, root, Device Owner or release.
