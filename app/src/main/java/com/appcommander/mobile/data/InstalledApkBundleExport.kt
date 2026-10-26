@@ -44,7 +44,10 @@ internal object InstalledApkBundleExport {
     ): Result {
         // write() closes its output, making provider-side commit visible before
         // the independent read. verify() closes its input on every exit path.
-        val written = write(packageName, sources, openForWrite())
+        // Validate all caller-controlled metadata BEFORE opening a SAF document;
+        // opening a document may create or truncate provider-side content.
+        val declaredTotal = validateSources(packageName, sources)
+        val written = writeValidated(packageName, sources, openForWrite(), declaredTotal)
         val verified = InstalledApkBundleVerifier.verify(openForRead())
         if (verified.packageName != written.packageName ||
             verified.totalApkBytes != written.totalApkBytes ||
@@ -61,8 +64,12 @@ internal object InstalledApkBundleExport {
      * touching the SAF destination. A caller must delete the new document on
      * any failure (InstalledApkExport.withPartialDocumentCleanup).
      */
+    /**
+     * Validate metadata before opening a provider destination. SAF document
+     * creation is an external side effect and must not happen for invalid input.
+     */
     @Throws(IOException::class)
-    fun write(packageName: String, sources: List<Source>, destination: OutputStream): Result {
+    private fun validateSources(packageName: String, sources: List<Source>): Long {
         if (!packagePattern.matches(packageName)) throw IOException("Invalid package name")
         if (sources.isEmpty() || sources.size > MAX_APK_COUNT) {
             throw IOException("Unsupported installed APK count")
@@ -77,7 +84,22 @@ internal object InstalledApkBundleExport {
             ) throw IOException("Installed APK bundle exceeds export limits")
             declaredTotal += source.expectedBytes
         }
+        return declaredTotal
+    }
 
+    @Throws(IOException::class)
+    fun write(packageName: String, sources: List<Source>, destination: OutputStream): Result {
+        val declaredTotal = validateSources(packageName, sources)
+        return writeValidated(packageName, sources, destination, declaredTotal)
+    }
+
+    @Throws(IOException::class)
+    private fun writeValidated(
+        packageName: String,
+        sources: List<Source>,
+        destination: OutputStream,
+        declaredTotal: Long,
+    ): Result {
         val digests = ArrayList<EntryDigest>(sources.size)
         ZipOutputStream(destination).use { zip ->
             // APKs are already ZIP-compressed; level zero avoids wasted CPU.

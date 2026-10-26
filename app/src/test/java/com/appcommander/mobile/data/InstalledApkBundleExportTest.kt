@@ -259,4 +259,35 @@ class InstalledApkBundleExportTest {
         assertFalse(readback)
     }
 
+
+    @Test fun rejectsInvalidBundleMetadataBeforeOpeningSafDestination() {
+        val invalidInputs = listOf(
+            "bad/package" to listOf(source("base.apk", byteArrayOf(1))),
+            "com.example.app" to listOf(source("../base.apk", byteArrayOf(1))),
+            "com.example.app" to listOf(
+                InstalledApkBundleExport.Source("base.apk", 0) { ByteArrayInputStream(byteArrayOf()) },
+            ),
+        )
+        for ((packageName, sources) in invalidInputs) {
+            var writes = 0
+            var reads = 0
+            assertThrows(IOException::class.java) {
+                InstalledApkBundleExport.writeAndVerify(
+                    packageName,
+                    sources,
+                    openForWrite = {
+                        writes++
+                        ByteArrayOutputStream()
+                    },
+                    openForRead = {
+                        reads++
+                        ByteArrayInputStream(byteArrayOf())
+                    },
+                )
+            }
+            assertEquals("invalid metadata must not create/truncate a SAF document", 0, writes)
+            assertEquals("invalid metadata must not trigger readback", 0, reads)
+        }
+    }
+
 }
