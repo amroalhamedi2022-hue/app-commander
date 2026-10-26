@@ -257,3 +257,18 @@ Updated: 2026-10-23
 - **Drive SYNC FAILED:** Google Drive/Docs tools are not exposed in this runtime, so LIVE handoff/index were not read or written back. See `docs/N20_SHIZUKU_BINDER_RECOVERY_PLAN.md`; no Drive sync is claimed.
 - PR #1 remains open Draft; no merge/main write, APK packaging, or Device Owner provisioning.
 
+
+
+## 2026-10-26 — N21 APK ZIP metadata preflight (source acceptance: PASS)
+
+- **Engineering question:** `ZipFile(file)` parsed an untrusted central directory before `ApkArchivePreflight` could enforce its own `MAX_ENTRIES` and path limits.
+- **Production source changed:** before constructing `ZipFile`, the inspector now rejects files above the existing 512 MiB inspection cap, scans only the final ZIP32 EOCD/comment window with `RandomAccessFile`, validates single-disk layout and entry counts, rejects ZIP64 sentinels, enforces a 32 MiB central-directory limit, and checks central-directory bounds. Normal ZIP comments are supported. This is structural preflight, not APK signature verification or a malware scan.
+- **Production commit:** `3b692c18c6583de6a1c3c22eb14f334f532bb5c3`.
+- **Regression source commit:** `13a12d1fd1f858e4bc4d7cecbde002fe786942c5`; tests cover valid commented ZIPs, early entry-count rejection, central-directory budget rejection and truncated EOCD.
+- **Initial CI FAIL:** run [40256820024](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40256820024) caught a missing JUnit `assertTrue` import in the new tests. Fixed in `c978642a1509f2be60a2dcd76852a248940c780b`; no production behavior was weakened.
+- **PASS on exact fixed source+test SHA `c978642a1509f2be60a2dcd76852a248940c780b`:** [run 40257037990](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40257037990) completed `:app:testDebugUnitTest` and `:app:lintDebug`; log reports `BUILD SUCCESSFUL in 1m 39s`.
+- **Artifacts:** none. No APK packaging/build/upload.
+- **License/source review:** inspected Apache Commons Compress `ZipFile.java` and Apache-2.0 license metadata; no code copied or dependency added.
+- **NOT TESTED:** physical Xiaomi Pad 5/HyperOS APK inspection, large real-world APK compatibility and install workflow. No signature-authenticity claim.
+- **Drive SYNC FAILED:** Google Drive/Docs connector tools are unavailable in this runtime. LIVE HANDOFF/INDEX were not read or written; this GitHub ledger is only the recovery record, not a successful Drive sync.
+- **PR state:** #1 remains open Draft; no merge, main write, APK build or Device Owner provisioning.
