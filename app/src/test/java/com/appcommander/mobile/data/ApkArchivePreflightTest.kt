@@ -531,6 +531,55 @@ class ApkArchivePreflightTest {
         assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
     }
 
+
+    @Test fun rejectsReservedAndUnsupportedGeneralPurposeFlagsBeforeZipFileParsing() {
+        // Bits 4/5 are reserved or patched-data modes; bits 7-10, 12, 14 and
+        // 15 are unused/reserved in the ZIP32 subset accepted by this inspector.
+        val unsupportedFlags = listOf(
+            0x0010, 0x0020, 0x0080, 0x0100, 0x0200,
+            0x0400, 0x1000, 0x4000, 0x8000,
+        )
+        unsupportedFlags.forEachIndexed { index, flag ->
+            val apk = zip("unsupported-flags-$index.apk",
+                "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+                "classes.dex" to byteArrayOf(4, 5, 6),
+            )
+            val bytes = apk.readBytes()
+            val central = centralRecordOffset(bytes, "classes.dex")
+            val local = readU32Value(bytes, central + 42).toInt()
+            writeU16(bytes, central + 8, readU16Value(bytes, central + 8) or flag)
+            writeU16(bytes, local + 6, readU16Value(bytes, local + 6) or flag)
+            apk.writeBytes(bytes)
+
+            val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+            assertTrue(
+                "flag 0x\${flag.toString(16)} should be rejected as unsupported",
+                error.message.orEmpty().contains("Unsupported APK ZIP central general-purpose flags"),
+            )
+        }
+    }
+
+    @Test fun rejectsDeflateCompressionOptionsOnStoredEntries() {
+        val apk = zip("stored-deflate-option.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(32) { it.toByte() },
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        // Keep both headers consistent while declaring DEFLATE-only option bits
+        // on a STORED entry. The flags check must fail before size parsing.
+        writeU16(bytes, central + 10, ZipEntry.STORED)
+        writeU16(bytes, local + 8, ZipEntry.STORED)
+        val flags = readU16Value(bytes, central + 8) or 0x0002
+        writeU16(bytes, central + 8, flags)
+        writeU16(bytes, local + 6, flags)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("compression-option flags require DEFLATED method"))
+    }
+
     @Test fun rejectsEntryPayloadThatCrossesTheCentralDirectoryBoundary() {
         val apk = zip("entry-crosses-central-directory.apk",
             "AndroidManifest.xml" to byteArrayOf(1, 2, 3),

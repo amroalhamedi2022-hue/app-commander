@@ -361,3 +361,12 @@ Updated: 2026-10-23
 - **Artifacts: 0.** No APK packaging/build artifact, signing, release, merge or main write.
 - **NOT TESTED:** physical-device/HyperOS behavior, broad third-party APK corpus, actual installer behavior, APK signature authenticity and malware detection.
 - **Google Drive SYNC FAILED:** connector unavailable in this runtime; the LIVE handoff/index were not read or written.
+
+
+## 2026-10-26 N29 — ZIP general-purpose flag preflight (CI PENDING)
+- Engineering question: reject reserved/unsupported general-purpose ZIP flags before platform parsing without breaking standard data descriptors, UTF-8 names, or DEFLATE option metadata.
+- Production source: central-directory and local-header flag validation now allows only the documented supported subset (bits 1-3 and 11); encryption/masked-header flags remain rejected, and DEFLATE option bits are rejected for non-DEFLATED entries.
+- Regression source: byte-level tests mutate both central and local records consistently for reserved/unsupported bits (0x0010, 0x0020, 0x0080, 0x0100, 0x0200, 0x0400, 0x1000, 0x4000, 0x8000), plus DEFLATE option bits on a STORED entry.
+- Specification reviewed: PKWARE APPNOTE §4.4.4 and Library of Congress ZIP format notes. No copied implementation or new dependency.
+- **CI PENDING** on the exact production/test SHA. No APK packaging, artifact upload, merge, main write, root, or Device Owner.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad real-world APK corpus, Android installer behavior, cryptographic signature verification, malware detection. Google Drive LIVE sync must be separately verified; repository documentation is not a Drive sync.

@@ -24,6 +24,12 @@ internal object ApkArchivePreflight {
     const val MAX_DECLARED_UNCOMPRESSED_BYTES = 4L * 1024 * 1024 * 1024
     const val MAX_CENTRAL_DIRECTORY_BYTES = 32L * 1024 * 1024
 
+    // APK inspection supports only ZIP32 STORED/DEFLATED entries, standard
+    // data descriptors, UTF-8 names, and DEFLATE option bits. Unknown/reserved
+    // flags are rejected to avoid platform-parser interpretation differences.
+    private const val ALLOWED_GENERAL_PURPOSE_FLAGS = 0x080e
+    private const val DEFLATE_OPTION_FLAGS = 0x0006
+
     data class Summary(val entries: Int, val declaredUncompressedBytes: Long)
 
     /** Reject invisible direction overrides and controls that can disguise ZIP paths in UI. */
@@ -242,9 +248,7 @@ internal object ApkArchivePreflight {
                     localHeaderOffset >= offset ||
                     recordBytes > directoryBytes - consumed
                 ) throw IOException("Unsupported or inconsistent APK ZIP central metadata")
-                if (flags and 0x2041 != 0) {
-                    throw IOException("Encrypted APK ZIP entries are unsupported")
-                }
+                validateGeneralPurposeFlags(flags, method, "central")
                 // Reject semantically impossible entry metadata before ZipFile
                 // parses/allocates its entry table. The archive and entry counts
                 // are bounded, but declared expansion must be bounded here too.
@@ -296,6 +300,24 @@ internal object ApkArchivePreflight {
                     throw IOException("APK ZIP local records overlap")
                 }
             }
+        }
+    }
+
+    /**
+     * Reject ZIP general-purpose flags outside the deliberately supported APK
+     * subset. Bits 1-2 describe compression options only for DEFLATED entries;
+     * bit 3 is the optional data descriptor and bit 11 marks UTF-8 names.
+     * Encryption/masked-header flags fail with a specific diagnostic.
+     */
+    private fun validateGeneralPurposeFlags(flags: Int, method: Int, headerKind: String) {
+        if ((flags and 0x2041) != 0) {
+            throw IOException("Encrypted APK ZIP entries are unsupported")
+        }
+        if ((flags and ALLOWED_GENERAL_PURPOSE_FLAGS.inv()) != 0) {
+            throw IOException("Unsupported APK ZIP $headerKind general-purpose flags")
+        }
+        if (method != ZipEntry.DEFLATED && (flags and DEFLATE_OPTION_FLAGS) != 0) {
+            throw IOException("APK ZIP compression-option flags require DEFLATED method")
         }
     }
 
@@ -378,9 +400,9 @@ internal object ApkArchivePreflight {
             if (localNameLength !in 1..MAX_ENTRY_NAME_LENGTH ||
                 localNameLength != centralName.size ||
                 localFlags != centralFlags ||
-                localMethod != centralMethod ||
-                localFlags and 0x2041 != 0
+                localMethod != centralMethod
             ) throw IOException("APK ZIP local and central headers disagree")
+            validateGeneralPurposeFlags(localFlags, localMethod, "local")
 
             val dataStart = localOffset + 30L + localNameLength + localExtraLength
             if (dataStart > centralOffset) {
