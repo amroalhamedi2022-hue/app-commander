@@ -290,4 +290,51 @@ class InstalledApkBundleExportTest {
         }
     }
 
+
+    @Test fun bundleReadbackFailureTriggersCleanupAndPreservesReadbackError() {
+        val saved = ByteArrayOutputStream()
+        var deletes = 0
+        val thrown = assertThrows(IOException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { deletes++ },
+                write = {
+                    InstalledApkBundleExport.writeAndVerify(
+                        "com.example.app",
+                        listOf(source("base.apk", byteArrayOf(1, 2, 3))),
+                        openForWrite = { saved },
+                        openForRead = { throw IOException("SAF provider denied readback") },
+                    )
+                },
+            )
+        }
+        assertEquals("SAF provider denied readback", thrown.message)
+        assertEquals("The newly created SAF document must be cleaned exactly once", 1, deletes)
+    }
+
+    @Test fun bundleReadbackMismatchStillReportsIntegrityFailureWhenCleanupIsDenied() {
+        val saved = ByteArrayOutputStream()
+        var deletes = 0
+        val thrown = assertThrows(IOException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = {
+                    deletes++
+                    throw SecurityException("provider denied deletion")
+                },
+                write = {
+                    InstalledApkBundleExport.writeAndVerify(
+                        "com.example.app",
+                        listOf(source("base.apk", byteArrayOf(1, 2, 3))),
+                        openForWrite = { saved },
+                        openForRead = {
+                            val bytes = saved.toByteArray()
+                            ByteArrayInputStream(bytes.copyOf(bytes.size - 22))
+                        },
+                    )
+                },
+            )
+        }
+        assertEquals("Cleanup is best-effort and must run exactly once", 1, deletes)
+        assertFalse("Cleanup error must not replace the archive verification failure",
+            thrown.message.orEmpty().contains("provider denied deletion"))
+    }
 }
