@@ -24,17 +24,30 @@ internal object ZipBundleStructure {
         private val tail = ByteArray(TAIL_BYTES)
         private var next = 0
         private var filled = 0
+        private var consecutiveZeroReads = 0
         var bytesRead: Long = 0
             private set
 
         override fun read(): Int {
             val value = source.read()
+            consecutiveZeroReads = 0
             if (value >= 0) append(value)
             return value
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            // InputStream must make progress for a positive length, but some
+            // SAF providers violate that contract. ZipInputStream's header
+            // reader can otherwise spin forever before entry-level bounds run.
+            if (length == 0) return 0
             val count = source.read(buffer, offset, length)
+            if (count == 0) {
+                if (++consecutiveZeroReads >= 8) {
+                    throw IOException("APK bundle stream stalled")
+                }
+                return 0
+            }
+            consecutiveZeroReads = 0
             if (count > 0) {
                 if (bytesRead > MAX_RAW_BYTES - count) throw IOException("APK bundle ZIP exceeds safe raw size")
                 for (index in offset until offset + count) appendByte(buffer[index])
@@ -58,12 +71,12 @@ internal object ZipBundleStructure {
         /** ZipInputStream stops at the central directory; consume the rest to validate it. */
         fun drain() {
             val buffer = ByteArray(8192)
-            var stalled = 0
             while (true) {
                 val count = read(buffer)
                 if (count < 0) return
-                if (count == 0 && ++stalled >= 8) throw IOException("APK bundle stream stalled")
-                if (count > 0) stalled = 0
+                // TrackingStream owns the repeated-zero-read limit so both
+                // ZipInputStream parsing and the trailing central-directory
+                // drain fail closed with the same bounded behavior.
             }
         }
 
