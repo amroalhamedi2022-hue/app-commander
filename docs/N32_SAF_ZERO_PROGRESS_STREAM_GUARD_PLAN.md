@@ -36,8 +36,13 @@ Can the outer tracking stream bound repeated zero-progress reads, fail closed wi
 - **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS SAF providers, provider deletion behavior on device, broad third-party ZIP/APK corpus, APK signature authenticity, malware detection, Shizuku device operations, and UI visual parity.
 - **Google Drive SYNC FAILED:** no Google Drive/Docs connector is available in this runtime; LIVE handoff/index were not read or written.
 
+## Docs-updated head recheck and next gate
+
+- The docs-updated PR head `c603fde5d6222bebec4914bc69aee74211cd50b2` passed [source-only CI #40376337051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40376337051). The JVM test and Android lint task completed successfully; **BUILD SUCCESSFUL in 1m 41s**, 36 tasks executed, zero artifacts.
+- PR #1 remains open and Draft; no merge or APK packaging occurred.
+
 ## Next acceptance gate
 
-1. Verify CI on the docs-updated PR head.
-2. Keep the real-device SAF provider test explicitly NOT TESTED until an authorized Xiaomi Pad 5/HyperOS run is available.
-3. Continue the remaining App Commander acceptance gates; do not mark the PR ready or merge based on JVM CI alone.
+1. Exercise base-APK and base+split ZIP export/readback against authorized physical Xiaomi Pad 5 / HyperOS SAF providers, including a provider that refuses readback or deletion.
+2. Validate Shizuku permission/recovery and protected-package safeguards on device without root, Device Owner provisioning, or destructive operations.
+3. Independently recheck remaining acceptance criteria; source CI alone does not authorize merge or final delivery.
