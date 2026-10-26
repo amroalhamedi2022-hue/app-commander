@@ -238,7 +238,7 @@ internal object ApkArchivePreflight {
                     localHeaderOffset >= offset ||
                     recordBytes > directoryBytes - consumed
                 ) throw IOException("Unsupported or inconsistent APK ZIP central metadata")
-                if (flags and 0x0041 != 0) {
+                if (flags and 0x2041 != 0) {
                     throw IOException("Encrypted APK ZIP entries are unsupported")
                 }
 
@@ -313,7 +313,7 @@ internal object ApkArchivePreflight {
                 localNameLength != centralName.size ||
                 localFlags != centralFlags ||
                 localMethod != centralMethod ||
-                localFlags and 0x0041 != 0
+                localFlags and 0x2041 != 0
             ) throw IOException("APK ZIP local and central headers disagree")
 
             val dataStart = localOffset + 30L + localNameLength + localExtraLength
