@@ -235,3 +235,13 @@ Updated: 2026-10-23
 - **Artifacts: []** no APK built/uploaded. Real Android PackageManager behavior, Xiaomi Pad 5/HyperOS, SAF, Shizuku and Liquid UI/device flow remain **NOT TESTED**. PR #1 stays Draft; no merge/main write.
 - **Drive SYNC FAILED:** Google Drive/Docs connector tools are not available in this runtime, so LIVE HANDOFF/INDEX could not be read or written. GitHub plan `docs/N18_PERMISSION_NAME_INTEGRITY_PLAN.md` is the recovery record; no Drive sync is claimed.
 - **Next:** return to Explode Arena and continue from N17; later do purposeful device acceptance for both projects.
+
+
+## 2026-10-26 — N19 bounded Shizuku process-pipe cleanup
+- **Engineering question:** PrivilegedProcessRunner could return after its bounded join while a daemon stdout/stderr reader remained blocked on a pipe. That could leak a reader thread across privileged Binder calls and make output completeness ambiguous.
+- **Production:** after the bounded drain join, still-live readers are marked incomplete and their streams are closed to unblock reads; the cleanup path repeats this on exit/timeout. A stalled capture cannot be reported as exit=0, and underlying stream exception text remains hidden.
+- **Regression:** a blocking InputStream released by close verifies exit=1, explicit incomplete-output status, sanitized errors and no surviving privileged-stdout thread. Existing timeout, bounded capture, zero-length read, successful exit-code and I/O-failure cases remain in the same suite.
+- **PASS exact source+test SHA 8cf5fe00b3e1423ce54ffc094f3f01df862383dc:** GitHub Actions [run 40247055115](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40247055115), exact head_sha; :app:testDebugUnitTest + :app:lintDebug, BUILD SUCCESSFUL (36 tasks executed).
+- **Artifacts: []** No APK packaging/upload. Xiaomi Pad 5/HyperOS, real Shizuku Binder behavior, SAF and visual UI remain **NOT TESTED**.
+- **Drive SYNC FAILED:** Google Drive/Docs connector tools unavailable in this runtime; LIVE handoff/index were not written/read back.
+- PR #1 remains open Draft; no merge or main write. Next: continue Explode Arena after this App Commander round.
