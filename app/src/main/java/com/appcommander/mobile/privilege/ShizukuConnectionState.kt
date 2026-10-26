@@ -10,7 +10,8 @@ internal data class BindingRequest<T : Any>(
 
 /**
  * Keeps Binder liveness, bind-in-progress state and the waiter for the current
- * attempt consistent. A timed-out older waiter must never reset a newer bind.
+ * attempt consistent. Every callback must present its attempt's waiter so a
+ * delayed callback cannot mutate a newer bind attempt.
  */
 internal class ShizukuConnectionState<T : Any> {
     @Volatile private var remote: T? = null
@@ -31,35 +32,36 @@ internal class ShizukuConnectionState<T : Any> {
         return BindingRequest(pending, shouldBind = true)
     }
 
-    @Synchronized fun connected(service: T) {
+    /**
+     * Accept a connection only while its exact bind attempt is still current.
+     * Returns false for callbacks delivered after timeout, failure or retry.
+     */
+    @Synchronized fun connectedIfCurrent(waiter: CompletableDeferred<T>, service: T): Boolean {
+        if (pending !== waiter) return false
         remote = service
         binding = false
-        if (!pending.isCompleted) pending.complete(service)
+        if (!waiter.isCompleted) waiter.complete(service)
+        return true
     }
 
-    /** Used for disconnect, binding death, and a null service binding. */
-    @Synchronized fun failCurrent(reason: String) {
-        remote = null
-        binding = false
-        val failed = pending
-        if (!failed.isCompleted) failed.completeExceptionally(IllegalStateException(reason))
-        pending = CompletableDeferred()
-    }
-
-    @Synchronized fun failIfCurrent(waiter: CompletableDeferred<T>, reason: String) {
-        if (pending !== waiter) return
+    /** Used for disconnect, binding death, null binding and stale callback isolation. */
+    @Synchronized fun failIfCurrent(waiter: CompletableDeferred<T>, reason: String): Boolean {
+        if (pending !== waiter) return false
         remote = null
         binding = false
         if (!waiter.isCompleted) waiter.completeExceptionally(IllegalStateException(reason))
         pending = CompletableDeferred()
+        return true
     }
 
-    /** A stale timeout is allowed to reset only its own still-current attempt. */
-    @Synchronized fun resetTimedOutAttempt(waiter: CompletableDeferred<T>) {
+    /** Returns true only when this timed-out attempt owned and reset the current bind. */
+    @Synchronized fun resetTimedOutAttempt(waiter: CompletableDeferred<T>): Boolean {
         if (pending === waiter && remote == null) {
             binding = false
             pending = CompletableDeferred()
+            return true
         }
+        return false
     }
 
     @Synchronized fun isBinding(): Boolean = binding
