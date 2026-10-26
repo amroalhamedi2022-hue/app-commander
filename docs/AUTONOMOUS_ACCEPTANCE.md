@@ -421,3 +421,18 @@ Updated: 2026-10-26
 - **NOT TESTED:** actual Xiaomi Pad 5 / HyperOS SAF provider readback/deletion, Shizuku operations, installer behavior, broad real-world APK corpus, signature authenticity and visual UI acceptance.
 - **Next:** authorized physical-device acceptance; no merge or routine APK build.
 
+
+
+## 2026-10-26 — N33 APK Signing Block structural preflight (SOURCE/JVM CI PASS)
+
+- **Engineering question:** the existing ZIP preflight checked central/local metadata but treated the bytes before the central directory as an unexamined gap. APK v2/v3 signing blocks occupy that exact region; malformed 64-bit sizes or ID/value pair lengths and a local entry overlapping the block should fail before Android's `ZipFile` parser is invoked.
+- **Official format reviewed:** AOSP's [APK Signature Scheme v2 specification](https://source.android.com/docs/security/features/apksigning/v2). No third-party code or dependency was added. The preflight validates container framing only; it does not verify cryptographic signatures, signer trust, or malware status.
+- **Production change:** detect exact `APK Sig Block 42` magic; validate matching 64-bit header/footer size, bounds, 64 MiB maximum block size, non-empty pair region, each uint64-prefixed pair length, and a 1,024-pair limit; reject any referenced local ZIP record that crosses into the signing block. Unknown pair IDs remain opaque. Archives without the magic retain existing v1-only behavior.
+- **Regression coverage:** valid unknown-ID block; header/footer mismatch; malformed pair length; local payload overlap; oversize block; excessive pair count. Existing ordinary ZIP/v1-only and local-header/central-directory cases remain in the same JUnit suite.
+- Source commit: `123172535e4de89afd66cb6b69126594e6a211e7`; source blob `dc487d55446111595557cc3db7c70b161c29bf66`.
+- Exact source+test head: `87e4ffea6b71caeafa154c956deb8b0ea9c2b9cc`; test blob `537f37087ae51165aa495836c31adf2d8b3991e1`.
+- **PASS:** source-only [CI #40391960259](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40391960259). `:app:testDebugUnitTest` and `:app:lintDebug` passed; log **BUILD SUCCESSFUL in 1m 46s**, 36 tasks; zero APK artifacts. The earlier run #40391722855 was cancelled by concurrency and is not counted.
+- No APK packaging, signing/upload, release, merge, `main` write, root, Device Owner, or auto-merge.
+- **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS SAF providers, broad third-party APK corpus, cryptographic signature authenticity, malware detection, Shizuku device behavior and visual UI acceptance.
+- **Google Drive SYNC FAILED:** Drive/Docs connector unavailable in this runtime; LIVE handoff/index were not read or written. GitHub docs are not claimed as Drive sync.
+- **Next:** verify CI on the docs-updated PR head, then continue independent device acceptance and the remaining App Commander requirements.
