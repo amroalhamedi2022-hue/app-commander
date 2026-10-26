@@ -7,15 +7,16 @@ import org.junit.Test
 class ShizukuConnectionStateTest {
     @Test fun staleBinderIsDiscardedAndTimeoutCanBeRetried() {
         val state = ShizukuConnectionState<Any>()
+        val first = state.beginOrJoin()
         val stale = Any()
-        state.connected(stale)
+        assertTrue(state.connectedIfCurrent(first.waiter, stale))
         assertSame(stale, state.remoteCandidate())
 
         state.discardIfSame(stale)
         assertNull(state.remoteCandidate())
         val timedOut = state.beginOrJoin()
         assertTrue(timedOut.shouldBind)
-        state.resetTimedOutAttempt(timedOut.waiter)
+        assertTrue(state.resetTimedOutAttempt(timedOut))
         assertFalse(state.isBinding())
 
         val retry = state.beginOrJoin()
@@ -25,10 +26,13 @@ class ShizukuConnectionStateTest {
 
     @Test fun stalePingCannotClearANewerLiveBinder() {
         val state = ShizukuConnectionState<Any>()
+        val first = state.beginOrJoin()
         val stale = Any()
+        assertTrue(state.connectedIfCurrent(first.waiter, stale))
+        assertTrue(state.failIfCurrent(first.waiter, "binder died"))
+        val retry = state.beginOrJoin()
         val live = Any()
-        state.connected(stale)
-        state.connected(live)
+        assertTrue(state.connectedIfCurrent(retry.waiter, live))
 
         state.discardIfSame(stale)
 
@@ -37,14 +41,10 @@ class ShizukuConnectionStateTest {
     }
 
     @Test fun disconnectBindingDeathAndNullBindingFailWaitersAndAllowRetry() {
-        for (fail in listOf<(ShizukuConnectionState<String>, BindingRequest<String>) -> Unit>(
-            { state, _ -> state.failCurrent("disconnected") },
-            { state, request -> state.failIfCurrent(request.waiter, "binding died") },
-            { state, request -> state.failIfCurrent(request.waiter, "null binding") },
-        )) {
+        for (reason in listOf("disconnected", "binding died", "null binding")) {
             val state = ShizukuConnectionState<String>()
             val request = state.beginOrJoin()
-            fail(state, request)
+            assertTrue(state.failIfCurrent(request.waiter, reason))
             assertTrue("The current wait must be completed on a failed bind", request.waiter.isCompleted)
             assertFalse(state.isBinding())
             assertTrue("A failed bind must permit an immediate retry", state.beginOrJoin().shouldBind)
@@ -54,36 +54,88 @@ class ShizukuConnectionStateTest {
     @Test fun oldTimeoutCannotResetANewerBindingAttempt() {
         val state = ShizukuConnectionState<String>()
         val old = state.beginOrJoin()
-        state.resetTimedOutAttempt(old.waiter)
+        assertTrue(state.resetTimedOutAttempt(old))
 
         val current = state.beginOrJoin()
         assertTrue(current.shouldBind)
-        state.resetTimedOutAttempt(old.waiter)
+        assertFalse(state.resetTimedOutAttempt(old))
 
         assertTrue(state.isBinding())
         assertTrue(state.isCurrent(current.waiter))
-        state.connected("live-service")
+        assertTrue(state.connectedIfCurrent(current.waiter, "live-service"))
         assertEquals("live-service", runBlocking { current.waiter.await() })
     }
 
     @Test fun successfulConnectionCompletesTheCurrentWaiter() {
         val state = ShizukuConnectionState<String>()
         val request = state.beginOrJoin()
-        state.connected("service")
+        assertTrue(state.connectedIfCurrent(request.waiter, "service"))
         assertTrue(request.waiter.isCompleted)
         assertEquals("service", runBlocking { request.waiter.await() })
         assertFalse(state.isBinding())
     }
 
-    @Test fun controllerWiresPlatformBindingFailuresIntoRecoveryState() {
+    @Test fun lateConnectedCallbackFromOldAttemptCannotReplaceNewBinder() {
+        val state = ShizukuConnectionState<String>()
+        val old = state.beginOrJoin()
+        assertTrue(state.connectedIfCurrent(old.waiter, "old-service"))
+        assertTrue(state.failIfCurrent(old.waiter, "old service disconnected"))
+
+        val current = state.beginOrJoin()
+        assertFalse(state.connectedIfCurrent(old.waiter, "late-old-service"))
+        assertTrue(state.isBinding())
+        assertFalse(current.waiter.isCompleted)
+
+        assertTrue(state.connectedIfCurrent(current.waiter, "new-service"))
+        assertFalse(state.connectedIfCurrent(old.waiter, "duplicate-old-service"))
+        assertEquals("new-service", state.remoteCandidate())
+    }
+
+    @Test fun lateFailureCallbackFromOldAttemptCannotFailNewWaiter() {
+        val state = ShizukuConnectionState<String>()
+        val old = state.beginOrJoin()
+        assertTrue(state.failIfCurrent(old.waiter, "old bind failed"))
+        val current = state.beginOrJoin()
+
+        assertFalse(state.failIfCurrent(old.waiter, "late old binding death"))
+        assertTrue(state.isCurrent(current.waiter))
+        assertTrue(state.isBinding())
+        assertFalse("Late callback must not complete the new waiter", current.waiter.isCompleted)
+
+        assertTrue(state.connectedIfCurrent(current.waiter, "new-service"))
+        assertEquals("new-service", runBlocking { current.waiter.await() })
+    }
+
+    @Test fun joinerTimeoutCannotResetOwnerBindAndOwnerTimeoutWakesJoiners() {
+        val state = ShizukuConnectionState<String>()
+        val owner = state.beginOrJoin()
+        val joiner = state.beginOrJoin()
+        assertTrue(owner.shouldBind)
+        assertFalse(joiner.shouldBind)
+        assertSame(owner.waiter, joiner.waiter)
+
+        assertFalse("A joiner must not cancel the owner's shared binding",
+            state.resetTimedOutAttempt(joiner))
+        assertTrue(state.isBinding())
+        assertTrue(state.isCurrent(owner.waiter))
+
+        assertTrue("The bind owner may reset its own timed-out attempt",
+            state.resetTimedOutAttempt(owner))
+        assertFalse(state.isBinding())
+        assertTrue("All callers sharing the failed attempt must wake promptly",
+            joiner.waiter.isCompleted)
+        assertFalse(state.isCurrent(owner.waiter))
+    }
+
+    @Test fun controllerScopesPlatformCallbacksToOneAttemptAndUnbindsOnlyThatConnection() {
         val source = java.io.File(
             "src/main/java/com/appcommander/mobile/privilege/ShizukuController.kt",
         ).readText()
-        assertTrue(source.contains("override fun onBindingDied"))
-        assertTrue(source.contains("override fun onNullBinding"))
-        assertTrue(source.contains("connectionState.failCurrent(\"Shizuku binding died\")"))
-        assertTrue(source.contains("connectionState.failCurrent(\"Shizuku returned no service\")"))
-        assertTrue(source.contains("connectionState.discardIfSame(candidate)"))
-        assertTrue(source.contains("connectionState.resetTimedOutAttempt(request.waiter)"))
+        assertTrue(source.contains("connectionFor(request.waiter, serviceArgs)"))
+        assertTrue(source.contains("connectionState.connectedIfCurrent(waiter, connected)"))
+        assertTrue(source.contains("connectionState.failIfCurrent(waiter, \"Shizuku binding died\")"))
+        assertTrue(source.contains("connectionState.failIfCurrent(waiter, \"Shizuku returned no service\")"))
+        assertTrue(source.contains("Shizuku.unbindUserService(serviceArgs, connection, false)"))
+        assertTrue(source.contains("connectionState.resetTimedOutAttempt(request)"))
     }
 }
