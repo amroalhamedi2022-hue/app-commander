@@ -970,4 +970,61 @@ class ApkArchivePreflightTest {
         }
         assertTrue(error.message.orEmpty().contains("too many ID/value pairs"))
     }
+
+    @Test fun rejectsAmbiguousEndRecordSignaturesInsideArchiveComment() {
+        val apk = zipWithComment(
+            "ambiguous-eocd.apk",
+            "A".repeat(40),
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val realEnd = endRecord(bytes)
+        val commentStart = realEnd + 22
+        val commentLength = readU16Value(bytes, realEnd + 20)
+        assertTrue("fixture comment must fit a complete false EOCD", commentLength >= 22)
+
+        // Embed a second signature in the comment and make its own comment-length
+        // field end exactly at EOF. Both candidates are byte-plausible, so reject
+        // the archive before ZipFile can choose a different interpretation.
+        val fake = commentStart
+        System.arraycopy(byteArrayOf(0x50, 0x4b, 0x05, 0x06), 0, bytes, fake, 4)
+        writeU16(bytes, fake + 4, 0)
+        writeU16(bytes, fake + 6, 0)
+        writeU16(bytes, fake + 8, 0)
+        writeU16(bytes, fake + 10, 0)
+        writeU32(bytes, fake + 12, 0)
+        writeU32(bytes, fake + 16, 0)
+        writeU16(bytes, fake + 20, commentLength - 22)
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("end record is ambiguous"))
+    }
+
+    @Test fun ignoresEocdSignatureInCommentWhenItsLengthDoesNotReachEof() {
+        val apk = zipWithComment(
+            "nonmatching-eocd-comment.apk",
+            "A".repeat(40),
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val realEnd = endRecord(bytes)
+        val commentStart = realEnd + 22
+        val commentLength = readU16Value(bytes, realEnd + 20)
+        val fake = commentStart
+        System.arraycopy(byteArrayOf(0x50, 0x4b, 0x05, 0x06), 0, bytes, fake, 4)
+        writeU16(bytes, fake + 4, 0)
+        writeU16(bytes, fake + 6, 0)
+        writeU16(bytes, fake + 8, 0)
+        writeU16(bytes, fake + 10, 0)
+        writeU32(bytes, fake + 12, 0)
+        writeU32(bytes, fake + 16, 0)
+        writeU16(bytes, fake + 20, commentLength - 21)
+        apk.writeBytes(bytes)
+
+        assertEquals(2, ApkArchivePreflight.check(apk).entries)
+    }
+
 }
