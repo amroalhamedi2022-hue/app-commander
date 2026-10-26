@@ -192,6 +192,54 @@ internal object ApkArchivePreflight {
             if (directoryOffset + directoryBytes != absoluteEndRecord ||
                 directoryOffset > absoluteEndRecord || directoryBytes > absoluteEndRecord
             ) throw IOException("APK ZIP central directory bounds are invalid")
+            // Check every bounded central-directory record before ZipFile can
+            // allocate its entry table. EOCD counts alone are untrusted and do
+            // not prove that the declared number of records fits the directory.
+            validateCentralDirectory(file, directoryOffset, directoryBytes, totalEntries)
+        }
+    }
+
+    private fun validateCentralDirectory(
+        file: File,
+        offset: Long,
+        directoryBytes: Long,
+        expectedEntries: Int,
+    ) {
+        RandomAccessFile(file, "r").use { input ->
+            input.seek(offset)
+            var consumed = 0L
+            repeat(expectedEntries) {
+                if (directoryBytes - consumed < 46L) {
+                    throw IOException("Truncated APK ZIP central directory entry")
+                }
+                val header = ByteArray(46)
+                input.readFully(header)
+                if (readU32(header, 0) != 0x02014b50L) {
+                    throw IOException("Invalid APK ZIP central directory signature")
+                }
+                val compressedSize = readU32(header, 20)
+                val uncompressedSize = readU32(header, 24)
+                val nameLength = readU16(header, 28)
+                val extraLength = readU16(header, 30)
+                val commentLength = readU16(header, 32)
+                val startDisk = readU16(header, 34)
+                val localHeaderOffset = readU32(header, 42)
+                val variableBytes = nameLength.toLong() + extraLength + commentLength
+                val recordBytes = 46L + variableBytes
+                if (nameLength !in 1..MAX_ENTRY_NAME_LENGTH ||
+                    startDisk != 0 ||
+                    compressedSize == 0xffffffffL ||
+                    uncompressedSize == 0xffffffffL ||
+                    localHeaderOffset == 0xffffffffL ||
+                    localHeaderOffset >= offset ||
+                    recordBytes > directoryBytes - consumed
+                ) throw IOException("Unsupported or inconsistent APK ZIP central metadata")
+                input.seek(input.filePointer + variableBytes)
+                consumed += recordBytes
+            }
+            if (consumed != directoryBytes) {
+                throw IOException("APK ZIP central directory record count/size mismatch")
+            }
         }
     }
 
