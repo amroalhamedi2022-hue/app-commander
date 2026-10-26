@@ -385,6 +385,7 @@ class ApkArchivePreflightTest {
         val flags = readU16Value(bytes, central + 8) and 0x0008.inv()
         writeU16(bytes, central + 8, flags)
         writeU16(bytes, local + 6, flags)
+        writeU32(bytes, local + 14, readU32Value(bytes, central + 16))
         writeU32(bytes, local + 18, 0)
         writeU32(bytes, local + 22, 0)
         apk.writeBytes(bytes)
