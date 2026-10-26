@@ -193,6 +193,36 @@ class ApkArchivePreflightTest {
         assertTrue(error.message.orEmpty().contains("central directory exceeds inspection limits"))
     }
 
+    @Test fun rejectsCentralDirectoryCountThatDoesNotMatchActualRecords() {
+        val apk = zip(
+            "central-count-mismatch.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5),
+        )
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        val entries = (bytes[end + 10].toInt() and 255) or
+            ((bytes[end + 11].toInt() and 255) shl 8)
+        writeU16(bytes, end + 8, entries + 1)
+        writeU16(bytes, end + 10, entries + 1)
+        apk.writeBytes(bytes)
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsZip64SentinelInCentralEntryBeforeOpeningZipFile() {
+        val apk = zip("zip64-entry.apk", "AndroidManifest.xml" to byteArrayOf(1, 2, 3))
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        val centralOffset = (0..3).fold(0L) { value, index ->
+            value or ((bytes[end + 16 + index].toLong() and 255L) shl (index * 8))
+        }.toInt()
+        // ZIP32 file size is small; an entry-level ZIP64 sentinel must not
+        // bypass the archive-level ZIP64 check and reach ZipFile allocation.
+        writeU32(bytes, centralOffset + 24, 0xffffffffL)
+        apk.writeBytes(bytes)
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
     @Test fun rejectsTruncatedZipEndRecordBeforeOpeningZipFile() {
         val apk = zip(
             "truncated-end-record.apk",
