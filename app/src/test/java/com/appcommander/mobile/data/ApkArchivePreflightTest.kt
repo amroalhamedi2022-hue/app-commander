@@ -107,7 +107,8 @@ class ApkArchivePreflightTest {
                 "AndroidManifest.xml" to byteArrayOf(1),
                 path to byteArrayOf(2),
             )
-            assertThrows(path, IOException::class.java) { ApkArchivePreflight.check(apk) }
+            val error = assertThrows(path, IOException::class.java) { ApkArchivePreflight.check(apk) }
+            assertTrue(path, error.message.orEmpty().contains("central directory"))
         }
     }
 
@@ -121,7 +122,8 @@ class ApkArchivePreflightTest {
         )
         collisions.forEachIndexed { index, entries ->
             val apk = zip("collision-${index}.apk", manifest, *entries)
-            assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+            val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+            assertTrue(error.message.orEmpty().contains("central directory"))
         }
     }
 
@@ -268,13 +270,39 @@ class ApkArchivePreflightTest {
         }
     }
 
+
+    @Test fun rejectsDuplicateCentralNamesBeforeZipFileConstruction() {
+        val apk = zip("duplicate-central-names.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "assets/a" to byteArrayOf(4),
+            "assets/b" to byteArrayOf(5),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "assets/b")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val centralNameLength = readU16Value(bytes, central + 28)
+        val localNameLength = readU16Value(bytes, local + 26)
+        assertEquals(8, centralNameLength)
+        assertEquals(8, localNameLength)
+        // Keep local/central metadata consistent while aliasing the second
+        // record to the first logical path. The preflight must reject it
+        // before java.util.zip.ZipFile constructs its entry table.
+        bytes[central + 46 + centralNameLength - 1] = 'a'.code.toByte()
+        bytes[local + 30 + localNameLength - 1] = 'a'.code.toByte()
+        apk.writeBytes(bytes)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("central directory has duplicate"))
+    }
+
     @Test fun rejectsCanonicallyEquivalentUnicodeZipPaths() {
         val apk = zip("unicode-alias.apk",
             "AndroidManifest.xml" to byteArrayOf(1),
             "assets/caf\u00E9.png" to byteArrayOf(2),
             "assets/cafe\u0301.png" to byteArrayOf(3),
         )
-        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("central directory"))
     }
 
     @Test fun rejectsUnicodeAliasOfImplicitDirectory() {
@@ -283,7 +311,8 @@ class ApkArchivePreflightTest {
             "assets/caf\u00E9/icon.png" to byteArrayOf(2),
             "assets/cafe\u0301" to byteArrayOf(3),
         )
-        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("central directory"))
     }
 
     @Test fun acceptsVisibleNonLatinZipPaths() {

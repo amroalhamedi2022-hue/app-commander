@@ -36,11 +36,61 @@ internal object ApkArchivePreflight {
 
     data class Summary(val entries: Int, val declaredUncompressedBytes: Long)
 
+    private class PathRegistry {
+        val names = HashSet<String>()
+        val filePaths = HashSet<String>()
+        // Includes explicit directories and implicit parents of entries.
+        val directoryPaths = HashSet<String>()
+    }
+
     /** Reject invisible direction overrides and controls that can disguise ZIP paths in UI. */
     private fun unsafeDisplayCodePoint(code: Int): Boolean =
         code < 32 || code in 0x7f..0x9f || code == 0x00ad || code == 0x061c ||
             code in 0x200b..0x200f || code in 0x202a..0x202e ||
             code in 0x2060..0x2069 || code == 0xfeff
+
+    /**
+     * Apply path safety and collision rules to a bounded entry name. Called
+     * during central-directory preflight and again after ZipFile enumeration.
+     */
+    private fun registerPath(
+        name: String,
+        isDirectory: Boolean,
+        registry: PathRegistry,
+        location: String,
+    ) {
+        val canonicalName = Normalizer.normalize(name, Normalizer.Form.NFC)
+        val path = if (isDirectory) canonicalName.dropLast(1) else canonicalName
+        if (name.length > MAX_ENTRY_NAME_LENGTH ||
+            path.isEmpty() || name.startsWith('/') || name.contains('\\') ||
+            name.any { unsafeDisplayCodePoint(it.code) } ||
+            path.split('/').any { it.isEmpty() || it == "." || it == ".." }
+        ) throw IOException("APK $location has an unsafe ZIP entry path")
+
+        if (!registry.names.add(canonicalName)) {
+            throw IOException("APK $location has duplicate or canonically equivalent ZIP entry names")
+        }
+        val segments = path.split('/')
+        var parent = ""
+        for (i in 0 until segments.lastIndex) {
+            parent = if (i == 0) segments[i] else "${parent}/${segments[i]}"
+            if (parent in registry.filePaths) {
+                throw IOException("APK $location ZIP entry is nested under a file")
+            }
+            registry.directoryPaths.add(parent)
+        }
+        if (isDirectory) {
+            if (path in registry.filePaths) {
+                throw IOException("APK $location has a ZIP file/directory collision")
+            }
+            registry.directoryPaths.add(path)
+        } else {
+            if (path in registry.directoryPaths) {
+                throw IOException("APK $location has a ZIP file/directory collision")
+            }
+            registry.filePaths.add(path)
+        }
+    }
 
     @Throws(IOException::class)
     fun check(file: File): Summary {
@@ -54,11 +104,7 @@ internal object ApkArchivePreflight {
         // table from the untrusted central directory.
         preflightCentralDirectory(file)
         ZipFile(file).use { zip ->
-            val names = HashSet<String>()
-            val filePaths = HashSet<String>()
-            // Includes explicit directories and implicit parents of entries.
-            // A ZIP file must never masquerade as another entry's directory.
-            val directoryPaths = HashSet<String>()
+            val paths = PathRegistry()
             val entries = zip.entries()
             var count = 0
             var expandedBytes = 0L
@@ -67,35 +113,7 @@ internal object ApkArchivePreflight {
                 val entry = entries.nextElement()
                 if (++count > MAX_ENTRIES) throw IOException("APK has too many ZIP entries")
                 val name = entry.name
-                // Distinct ZIP spellings may render as the same path in a UI
-                // or filesystem (e.g. precomposed vs decomposed accents).
-                // Normalize for collision checks, never rewrite the archive.
-                val canonicalName = Normalizer.normalize(name, Normalizer.Form.NFC)
-                // Directory entries legitimately end in '/', but an empty
-                // segment *inside* a path is ambiguous across ZIP readers.
-                val path = if (entry.isDirectory) canonicalName.dropLast(1) else canonicalName
-                if (name.length > MAX_ENTRY_NAME_LENGTH ||
-                    path.isEmpty() || name.startsWith('/') || name.contains('\\') ||
-                    name.any { unsafeDisplayCodePoint(it.code) } ||
-                    path.split('/').any { it.isEmpty() || it == "." || it == ".." }
-                ) throw IOException("APK has an unsafe ZIP entry path")
-                if (!names.add(canonicalName)) throw IOException("APK has duplicate or canonically equivalent ZIP entry names")
-                val segments = path.split('/')
-                var parent = ""
-                for (i in 0 until segments.lastIndex) {
-                    parent = if (i == 0) segments[i] else "${parent}/${segments[i]}"
-                    if (parent in filePaths) {
-                        throw IOException("APK ZIP entry is nested under a file")
-                    }
-                    directoryPaths.add(parent)
-                }
-                if (entry.isDirectory) {
-                    if (path in filePaths) throw IOException("APK ZIP file/directory collision")
-                    directoryPaths.add(path)
-                } else {
-                    if (path in directoryPaths) throw IOException("APK ZIP file/directory collision")
-                    filePaths.add(path)
-                }
+                registerPath(name, entry.isDirectory, paths, "ZIP entry inventory")
                 val size = entry.size
                 val compressedSize = entry.compressedSize
                 // Never trust central-directory lengths blindly. Reject
@@ -222,6 +240,7 @@ internal object ApkArchivePreflight {
             var consumed = 0L
             val localRanges = ArrayList<Pair<Long, Long>>(expectedEntries)
             var declaredExpandedBytes = 0L
+            val paths = PathRegistry()
             val archiveLength = file.length()
             repeat(expectedEntries) {
                 if (directoryBytes - consumed < 46L) {
@@ -275,6 +294,12 @@ internal object ApkArchivePreflight {
                 // Android's ZipFile decodes entry names as UTF-8. Validate the raw
                 // bytes here so malformed sequences fail before platform parsing.
                 validateUtf8Field(nameBytes, "entry name")
+                registerPath(
+                    name = String(nameBytes, StandardCharsets.UTF_8),
+                    isDirectory = nameBytes.lastOrNull() == '/'.code.toByte(),
+                    registry = paths,
+                    location = "central directory",
+                )
                 val extraOffset = input.filePointer
                 validateExtraFields(input, extraOffset, extraLength, "central")
                 if (commentLength > 0) {
