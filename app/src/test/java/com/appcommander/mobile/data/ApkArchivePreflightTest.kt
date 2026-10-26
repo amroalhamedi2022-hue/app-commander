@@ -97,14 +97,20 @@ class ApkArchivePreflightTest {
         val sizeField: Long,
     )
 
-    private fun withSigningBlock(original: ByteArray): SigningBlockFixture {
+    private fun withSigningBlock(original: ByteArray, pairCount: Int = 1): SigningBlockFixture {
         val oldEnd = endRecord(original)
         val oldCentralOffset = readU32(original, oldEnd + 16).toInt()
-        val pairValue = byteArrayOf(0x41, 0x42, 0x43)
         val pairBytes = java.io.ByteArrayOutputStream().apply {
-            write(littleEndian64(4L + pairValue.size))
-            write(byteArrayOf(0x78, 0x56, 0x34, 0x12)) // unknown ID 0x12345678
-            write(pairValue)
+            repeat(pairCount) { index ->
+                write(littleEndian64(4L))
+                val id = 0x12345678L + index
+                write(byteArrayOf(
+                    id.toByte(),
+                    (id ushr 8).toByte(),
+                    (id ushr 16).toByte(),
+                    (id ushr 24).toByte(),
+                )) // opaque ID; the preflight validates framing only
+            }
         }.toByteArray()
         val sizeField = pairBytes.size.toLong() + 24L
         val magic = "APK Sig Block 42".toByteArray(Charsets.US_ASCII)
@@ -935,5 +941,33 @@ class ApkArchivePreflightTest {
             ApkArchivePreflight.check(temp.newFile("signed-block-overlap-forged.apk").apply { writeBytes(bytes) })
         }
         assertTrue(error.message.orEmpty().contains("overlaps local ZIP entry data"))
+    }
+
+    @Test fun rejectsSigningBlockAboveTheConfiguredSizeLimit() {
+        val original = zip(
+            "signed-block-source-oversize.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        ).readBytes()
+        val fixture = withSigningBlock(original)
+        val oversized = fixture.bytes.copyOf()
+        writeU64(oversized, fixture.centralOffset - 24, 64L * 1024 * 1024 - 7L)
+        val error = assertThrows(IOException::class.java) {
+            ApkArchivePreflight.check(temp.newFile("signed-block-oversized.apk").apply { writeBytes(oversized) })
+        }
+        assertTrue(error.message.orEmpty().contains("size is outside inspection limits"))
+    }
+
+    @Test fun rejectsSigningBlockWithTooManyPairs() {
+        val original = zip(
+            "signed-block-source-many-pairs.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        ).readBytes()
+        val fixture = withSigningBlock(original, pairCount = 1_025)
+        val error = assertThrows(IOException::class.java) {
+            ApkArchivePreflight.check(temp.newFile("signed-block-many-pairs.apk").apply { writeBytes(fixture.bytes) })
+        }
+        assertTrue(error.message.orEmpty().contains("too many ID/value pairs"))
     }
 }
