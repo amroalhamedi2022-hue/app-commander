@@ -1,6 +1,5 @@
 package com.appcommander.mobile.privilege
 
-import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
@@ -38,20 +37,14 @@ class ShizukuConnectionStateTest {
     }
 
     @Test fun disconnectBindingDeathAndNullBindingFailWaitersAndAllowRetry() {
-        for (fail in listOf<(ShizukuConnectionState<String>) -> Unit>(
-            { it.failCurrent("disconnected") },
-            { state ->
-                val request = state.beginOrJoin()
-                state.failIfCurrent(request.waiter, "binding died")
-            },
-            { state ->
-                val request = state.beginOrJoin()
-                state.failIfCurrent(request.waiter, "null binding")
-            },
+        for (fail in listOf<(ShizukuConnectionState<String>, BindingRequest<String>) -> Unit>(
+            { state, _ -> state.failCurrent("disconnected") },
+            { state, request -> state.failIfCurrent(request.waiter, "binding died") },
+            { state, request -> state.failIfCurrent(request.waiter, "null binding") },
         )) {
             val state = ShizukuConnectionState<String>()
             val request = state.beginOrJoin()
-            fail(state)
+            fail(state, request)
             assertTrue("The current wait must be completed on a failed bind", request.waiter.isCompleted)
             assertFalse(state.isBinding())
             assertTrue("A failed bind must permit an immediate retry", state.beginOrJoin().shouldBind)
