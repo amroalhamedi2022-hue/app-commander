@@ -2,6 +2,7 @@ package com.appcommander.mobile.data
 
 import java.io.File
 import java.io.IOException
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import org.junit.Assert.assertEquals
@@ -75,6 +76,73 @@ class ApkArchivePreflightTest {
 
     private fun writeU32(bytes: ByteArray, offset: Int, value: Long) {
         for (index in 0 until 4) bytes[offset + index] = (value ushr (index * 8)).toByte()
+    }
+
+    private fun readU32(bytes: ByteArray, offset: Int): Long =
+        (0 until 4).fold(0L) { value, index ->
+            value or ((bytes[offset + index].toLong() and 255L) shl (index * 8))
+        }
+
+    private fun writeU64(bytes: ByteArray, offset: Int, value: Long) {
+        for (index in 0 until 8) bytes[offset + index] = (value ushr (index * 8)).toByte()
+    }
+
+    private fun littleEndian64(value: Long): ByteArray =
+        ByteArray(8) { index -> (value ushr (index * 8)).toByte() }
+
+    private data class SigningBlockFixture(
+        val bytes: ByteArray,
+        val blockStart: Int,
+        val centralOffset: Int,
+        val sizeField: Long,
+    )
+
+    private fun withSigningBlock(original: ByteArray): SigningBlockFixture {
+        val oldEnd = endRecord(original)
+        val oldCentralOffset = readU32(original, oldEnd + 16).toInt()
+        val pairValue = byteArrayOf(0x41, 0x42, 0x43)
+        val pairBytes = java.io.ByteArrayOutputStream().apply {
+            write(littleEndian64(4L + pairValue.size))
+            write(byteArrayOf(0x78, 0x56, 0x34, 0x12)) // unknown ID 0x12345678
+            write(pairValue)
+        }.toByteArray()
+        val sizeField = pairBytes.size.toLong() + 24L
+        val magic = "APK Sig Block 42".toByteArray(Charsets.US_ASCII)
+        val block = java.io.ByteArrayOutputStream().apply {
+            write(littleEndian64(sizeField))
+            write(pairBytes)
+            write(littleEndian64(sizeField))
+            write(magic)
+        }.toByteArray()
+        val output = ByteArray(original.size + block.size)
+        System.arraycopy(original, 0, output, 0, oldCentralOffset)
+        System.arraycopy(block, 0, output, oldCentralOffset, block.size)
+        System.arraycopy(
+            original, oldCentralOffset, output, oldCentralOffset + block.size,
+            original.size - oldCentralOffset,
+        )
+        val newEnd = oldEnd + block.size
+        val newCentralOffset = oldCentralOffset + block.size
+        writeU32(output, newEnd + 16, newCentralOffset.toLong())
+        return SigningBlockFixture(output, oldCentralOffset, newCentralOffset, sizeField)
+    }
+
+    private fun storedZip(name: String, vararg entries: Pair<String, ByteArray>): File {
+        val file = temp.newFile(name)
+        ZipOutputStream(file.outputStream()).use { output ->
+            for ((path, bytes) in entries) {
+                val crc = CRC32().apply { update(bytes) }.value
+                output.putNextEntry(ZipEntry(path).apply {
+                    method = ZipEntry.STORED
+                    size = bytes.size.toLong()
+                    compressedSize = bytes.size.toLong()
+                    this.crc = crc
+                })
+                output.write(bytes)
+                output.closeEntry()
+            }
+        }
+        return file
     }
 
     @Test fun acceptsBoundedArchiveWithManifestWithoutClaimingSignatureValidity() {
@@ -798,4 +866,74 @@ class ApkArchivePreflightTest {
         assertTrue(error.message.orEmpty().contains("ZIP64"))
     }
 
+
+    @Test fun acceptsWellFormedSigningBlockWithUnknownId() {
+        val original = zip(
+            "signed-block-source.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        ).readBytes()
+        val fixture = withSigningBlock(original)
+        val apk = temp.newFile("signed-block-valid.apk").apply { writeBytes(fixture.bytes) }
+        val result = ApkArchivePreflight.check(apk)
+        assertEquals(2, result.entries)
+    }
+
+    @Test fun rejectsSigningBlockHeaderFooterMismatchAndInvalidPairLength() {
+        val original = zip(
+            "signed-block-source-2.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        ).readBytes()
+        val fixture = withSigningBlock(original)
+
+        val badHeader = fixture.bytes.copyOf()
+        writeU64(badHeader, fixture.blockStart, fixture.sizeField + 1)
+        val headerError = assertThrows(IOException::class.java) {
+            ApkArchivePreflight.check(temp.newFile("signed-block-bad-header.apk").apply { writeBytes(badHeader) })
+        }
+        assertTrue(headerError.message.orEmpty().contains("APK signing block"))
+
+        val badFooter = fixture.bytes.copyOf()
+        writeU64(badFooter, fixture.centralOffset - 24, fixture.sizeField + 1)
+        val footerError = assertThrows(IOException::class.java) {
+            ApkArchivePreflight.check(temp.newFile("signed-block-bad-footer.apk").apply { writeBytes(badFooter) })
+        }
+        assertTrue(footerError.message.orEmpty().contains("APK signing block"))
+
+        val badPair = fixture.bytes.copyOf()
+        writeU64(badPair, fixture.blockStart + 8, Long.MAX_VALUE)
+        val pairError = assertThrows(IOException::class.java) {
+            ApkArchivePreflight.check(temp.newFile("signed-block-bad-pair.apk").apply { writeBytes(badPair) })
+        }
+        assertTrue(pairError.message.orEmpty().contains("APK signing block"))
+    }
+
+    @Test fun rejectsSigningBlockThatOverlapsReferencedLocalEntryData() {
+        val classes = ByteArray(256) { (it * 13).toByte() }
+        val apk = storedZip(
+            "signed-block-overlap.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to classes,
+        )
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        val centralOffset = readU32(bytes, end + 16).toInt()
+        val sizeField = 48L // 24-byte pair region plus 24-byte footer
+        val totalSize = sizeField + 8L
+        val blockStart = centralOffset - totalSize.toInt()
+        assertTrue("Fixture must overlap the stored classes.dex payload", blockStart > 0)
+        writeU64(bytes, blockStart, sizeField)
+        writeU64(bytes, blockStart + 8, 16L)
+        writeU32(bytes, blockStart + 16, 0x12345678L)
+        java.util.Arrays.fill(bytes, blockStart + 20, centralOffset - 24, 0x55.toByte())
+        writeU64(bytes, centralOffset - 24, sizeField)
+        val magic = "APK Sig Block 42".toByteArray(Charsets.US_ASCII)
+        System.arraycopy(magic, 0, bytes, centralOffset - 16, magic.size)
+
+        val error = assertThrows(IOException::class.java) {
+            ApkArchivePreflight.check(temp.newFile("signed-block-overlap-forged.apk").apply { writeBytes(bytes) })
+        }
+        assertTrue(error.message.orEmpty().contains("overlaps local ZIP entry data"))
+    }
 }
