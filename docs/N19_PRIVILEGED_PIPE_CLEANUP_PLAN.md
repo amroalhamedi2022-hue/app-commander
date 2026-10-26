@@ -24,8 +24,14 @@ Reviewed the official RikkaApps/Shizuku repository metadata and LICENSE (Apache-
 - Xiaomi Pad 5/HyperOS, real Shizuku binder, SAF and visual UI remain NOT TESTED.
 - Google Drive LIVE sync unavailable in this runtime; do not claim Drive sync without read-back verification.
 
-## Result
-Pending source changes and exact-SHA CI verification.
+## Result — N19 SOURCE ACCEPTANCE PASS (2026-10-26)
+- Production runner commit: 3b7f1a98c7bd50414b7b3ea4006f92fe14fd9df0. Stalled stdout/stderr drains are marked incomplete, streams are closed after the bounded join, and cleanup retries release without exposing exception details.
+- Regression test commit: 8cf5fe00b3e1423ce54ffc094f3f01df862383dc (exact source+test SHA).
+- **PASS:** GitHub Actions [run 40247055115](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40247055115) on exact SHA; actual tasks :app:testDebugUnitTest and :app:lintDebug completed, BUILD SUCCESSFUL (36 tasks executed).
+- Regression blocks stdout until close, asserts result is exit=1/incomplete, confirms pipe exception text is not leaked, and verifies no live privileged-stdout reader remains. Existing timeout, truncation, zero-read and I/O-failure regressions also pass within the same suite.
+- Workflow artifacts: [] (zero). No APK packaged or uploaded.
+- Xiaomi Pad 5/HyperOS and real Shizuku Binder process behavior remain **NOT TESTED**.
+- Google Drive LIVE handoff/index remain **SYNC FAILED** because the Drive/Docs connector is unavailable in this runtime; no Drive sync is claimed.
 
 ## Next
 Continue from latest PR #1 head; no merge, main write, APK or release.
