@@ -40,6 +40,6 @@ The acceptance question is about binary offsets and untrusted length fields. Tes
 
 - **PASS — implementation/JVM regressions:** source commit `123172535e4de89afd66cb6b69126594e6a211e7` (source blob `dc487d55446111595557cc3db7c70b161c29bf66`); latest test commit `87e4ffea6b71caeafa154c956deb8b0ea9c2b9cc` (test blob `537f37087ae51165aa495836c31adf2d8b3991e1`).
 - **PASS — exact source/test CI:** [run #40391960259](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40391960259), `./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace`, **BUILD SUCCESSFUL in 1m 46s**, 36 tasks executed, zero artifacts. An earlier run #40391722855 was cancelled by PR concurrency and is not counted as PASS.
-- **PENDING — docs-updated PR-head recheck:** rerun the same source-only gate after this plan/ledger update.
+- **PASS — docs-updated PR-head recheck:** [CI #40392555810](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40392555810) on head `8430bf8957766e0d2405e34ca12c6c582f1bcc35`; `:app:testDebugUnitTest :app:lintDebug` passed, **BUILD SUCCESSFUL in 1m 50s**, 36 tasks executed, zero artifacts.
 - **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS provider behavior, broad real-world APK corpus, cryptographic signature verification, malware detection, Shizuku device operations, and UI visual acceptance.
 - **Google Drive LIVE sync: SYNC FAILED** — no Google Drive/Docs connector is available in this runtime; LIVE docs were not read or written.
