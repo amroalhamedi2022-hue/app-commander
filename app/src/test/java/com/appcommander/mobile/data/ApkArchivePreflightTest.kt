@@ -434,4 +434,60 @@ class ApkArchivePreflightTest {
         assertTrue(error.message.orEmpty().contains("local records overlap"))
     }
 
+
+    @Test fun rejectsEncryptedEntryFlagsBeforeZipFileParsing() {
+        val apk = zip("encrypted-entry.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        val bytes = apk.readBytes()
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        writeU16(bytes, central + 8, readU16Value(bytes, central + 8) or 0x0001)
+        writeU16(bytes, local + 6, readU16Value(bytes, local + 6) or 0x0001)
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsEntryPayloadThatCrossesTheCentralDirectoryBoundary() {
+        val apk = zip("entry-crosses-central-directory.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(32) { (it * 3).toByte() },
+        )
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        val centralOffset = readU32Value(bytes, end + 16)
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val dataStart = local.toLong() + 30L +
+            readU16Value(bytes, local + 26) + readU16Value(bytes, local + 28)
+        writeU32(bytes, central + 20, centralOffset - dataStart + 1L)
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
+    @Test fun rejectsDataDescriptorTruncatedByCentralDirectoryBoundary() {
+        val apk = zip("descriptor-crosses-central-directory.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to ByteArray(32) { (it * 5).toByte() },
+        )
+        val bytes = apk.readBytes()
+        val end = endRecord(bytes)
+        val centralOffset = readU32Value(bytes, end + 16)
+        val central = centralRecordOffset(bytes, "classes.dex")
+        val local = readU32Value(bytes, central + 42).toInt()
+        val dataStart = local.toLong() + 30L +
+            readU16Value(bytes, local + 26) + readU16Value(bytes, local + 28)
+        val originalCompressedSize = readU32Value(bytes, central + 20)
+        val dataEnd = dataStart + originalCompressedSize
+        val descriptorLength = (centralOffset - dataEnd).toInt()
+        assertTrue("last entry must have a complete ZIP32 descriptor", descriptorLength in 12..16)
+        writeU32(bytes, central + 20, originalCompressedSize + descriptorLength - 8L)
+        apk.writeBytes(bytes)
+
+        assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+    }
+
 }
