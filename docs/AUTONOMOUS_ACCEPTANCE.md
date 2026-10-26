@@ -321,3 +321,17 @@ Updated: 2026-10-23
 - **NOT TESTED:** actual Shizuku service reconnect/process-death behavior on Xiaomi Pad 5 / HyperOS. Unit tests prove the state-machine contract, not platform callback ordering on a device.
 - PR #1 remains open Draft and unmerged. No `main` write, auto-merge, root or Device Owner.
 - **Next:** verify final docs-updated PR head CI, then continue the next App Commander milestone; alternate back to Explode Arena afterward.
+
+
+## 2026-10-26 — N26 APK local-header cross-check (source acceptance PASS)
+
+- **Engineering question:** can the inspector reject a structurally inconsistent local ZIP header/data descriptor even when the central directory is internally bounded, before Android's APK parser sees the archive?
+- **Production:** `ApkArchivePreflight` now verifies local-header signature, raw local/central filename agreement, flags/method agreement, local CRC/sizes, optional signed or unsigned ZIP32 data descriptors, payload/descriptor bounds, and non-overlapping local record ranges. It rejects encrypted or masked-header flags. It still does not extract entries or claim signature authenticity.
+- **Production commits:** `89aeed8b458b6d0789d6c5db63e559362530dba9` and `04d00423ea17c400f12c55ec2b0e8459a6c497f6`.
+- **Regression commits:** `6d4133cbc3c085ae57da83f244200607da971f39`, `1a63072d1700744838e98a846bee55792431cb72`, and final exact source/test SHA `8c3b7f791a53b8041f0ba916112c6805dd39a18f`.
+- **PASS on exact SHA:** [GitHub Actions run 40290864869](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40290864869), job 121465337746. `:app:testDebugUnitTest` and `:app:lintDebug` passed; log reports **BUILD SUCCESSFUL in 1m 43s**, 36 tasks executed.
+- Regressions now cover local signature/name/method/size mismatches, descriptor CRC mismatch, local-record aliasing/overlap, encrypted flags, payload boundary overflow and truncated descriptors. Existing valid ZIPs and descriptor cases passed.
+- **Artifacts: 0; APK not built.** No packaging, signing, upload or release.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, broad APK corpus, installer UI, cryptographic APK signature verification and malware scanning.
+- **Drive SYNC FAILED:** Google Drive/Docs connector tools unavailable; LIVE documents were not read or written. This GitHub record does not imply Drive synchronization.
+- PR #1 remains open Draft and unmerged. No `main` write, auto-merge, root or Device Owner.

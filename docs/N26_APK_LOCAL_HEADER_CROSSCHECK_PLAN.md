@@ -23,6 +23,16 @@ Can the inspector reject those structural inconsistencies before Android's APK p
 5. Add deterministic JVM regressions for invalid local signature, filename/method mismatch, local size mismatch, invalid data descriptor, and overlapping/aliased local records. Keep valid normal ZIPs (including data descriptors) accepted.
 6. Run :app:testDebugUnitTest :app:lintDebug on the exact source+test SHA. No APK packaging, artifact upload, release, merge, main write, root, or Device Owner.
 
-## Implementation evidence
+## Implementation and exact-SHA verification — SOURCE ACCEPTANCE PASS
 
-Pending implementation and exact-SHA source CI. Physical Xiaomi Pad 5 / HyperOS and broad third-party APK corpus remain separate NOT TESTED gates.
+- Production: ApkArchivePreflight now cross-checks every bounded central-directory entry against its local header: signature, raw filename bytes, flags, compression method, CRC/sizes when bit 3 is clear, zero-or-matching placeholders plus descriptor CRC/sizes when bit 3 is set, and the data/descriptor boundary. Encrypted or masked-header flags are rejected. Local header/data/descriptor ranges are sorted and overlap/aliasing is rejected before ZipFile is opened.
+- No entry payload is extracted or inflated except the existing bounded AndroidManifest.xml read; no dependency was added.
+- Production commits: initial cross-check `89aeed8b458b6d0789d6c5db63e559362530dba9`; encrypted/masked-flag hardening `04d00423ea17c400f12c55ec2b0e8459a6c497f6`.
+- Regression commits: malformed local-header tests `6d4133cbc3c085ae57da83f244200607da971f39`, isolated local-size mismatch assertion `1a63072d1700744838e98a846bee55792431cb72`, and encryption/boundary regressions `8c3b7f791a53b8041f0ba916112c6805dd39a18f`.
+- Exact production + regression source/test SHA: `8c3b7f791a53b8041f0ba916112c6805dd39a18f`.
+- **PASS:** [source-only CI run 40290864869](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40290864869), job 121465337746. `:app:testDebugUnitTest` and `:app:lintDebug` both passed; log: **BUILD SUCCESSFUL in 1m 43s**, 36 tasks executed.
+- New regressions cover invalid local signature, local/central filename mismatch, method mismatch, size mismatch with descriptor flag cleared, invalid data-descriptor CRC, aliased/overlapping local records, encrypted entry flags, entry data crossing the central directory, and truncated descriptor at the central-directory boundary. Existing valid ZIP/data-descriptor and 41+ other archive-safety regressions remained green.
+- **Artifacts: 0.** Workflow did not package/sign/upload an APK.
+- **NOT TESTED:** physical Xiaomi Pad 5 / HyperOS, broad real-world third-party APK corpus, cryptographic APK signature verification, malware detection, and installer behavior. Structural ZIP checks are not authenticity or safety certification.
+- PR #1 remains open Draft; no merge, main write, root, Device Owner or release.
+- **Google Drive SYNC FAILED:** Drive/Docs connector tools are unavailable in this runtime. LIVE HANDOFF/INDEX were not read or written; this GitHub ledger is not a successful Drive sync.
