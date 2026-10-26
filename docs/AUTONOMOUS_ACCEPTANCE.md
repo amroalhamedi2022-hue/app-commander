@@ -349,3 +349,15 @@ Updated: 2026-10-23
 - **NOT TESTED:** physical device / HyperOS, broad third-party APK corpus, install flow, signature authenticity, malware detection.
 - **Drive SYNC FAILED:** no Google Drive/Docs connector is available in this runtime; LIVE HANDOFF/INDEX were not read or written.
 - PR #1 remains open Draft; no merge, `main` write, auto-merge, root, or Device Owner.
+
+
+## 2026-10-26 N28 — ZIP extra-field framing preflight (SOURCE ACCEPTANCE PASS)
+
+- Engineering question and acceptance criteria were recorded before implementation in [N28 plan](N28_ZIP_EXTRA_FIELD_PREFLIGHT_PLAN.md).
+- Production commit: `79f2497e9fce8f70027eaffda9609a38459c7731`. `ApkArchivePreflight` now walks every local and central extra-field TLV, requires a complete 4-byte ID/length header and a data length contained by that field's declared region, and rejects ZIP64 extra-field ID `0x0001` consistently with the ZIP32-only policy. Unknown well-formed fields remain accepted without parsing their payload.
+- Regression test commit / exact source+test SHA: `453035caf44a72e2e8da8129a6b9d83f6391604e`; four tests cover valid unknown fields, malformed local/central framing and ZIP64 extra rejection.
+- **PASS:** source-only [GitHub Actions run 40317867029](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40317867029) on exact SHA `453035caf44a72e2e8da8129a6b9d83f6391604e`: `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 10s**, 36 tasks executed.
+- **PASS:** post-CI source/test re-fetch confirmed both call sites and all four regression names on the PR branch.
+- **Artifacts: 0.** No APK packaging/build artifact, signing, release, merge or main write.
+- **NOT TESTED:** physical-device/HyperOS behavior, broad third-party APK corpus, actual installer behavior, APK signature authenticity and malware detection.
+- **Google Drive SYNC FAILED:** connector unavailable in this runtime; the LIVE handoff/index were not read or written.
