@@ -412,3 +412,12 @@ Updated: 2026-10-26
 - **Google Drive SYNC FAILED:** Google Drive/Docs connector unavailable in this runtime; LIVE HANDOFF/INDEX were not read or written. This GitHub ledger is not a Drive sync.
 - **Next:** independently verify the docs-updated PR head in CI, then continue device acceptance and remaining app requirements without merging or building routine APKs.
 
+## 2026-10-26 — docs-updated PR-head recheck (PASS)
+
+- Latest docs-updated PR head at this verification: `c603fde5d6222bebec4914bc69aee74211cd50b2`.
+- **PASS:** [source-only CI #40376337051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40376337051); `:app:testDebugUnitTest :app:lintDebug` succeeded on that head. Log: **BUILD SUCCESSFUL in 1m 41s**, 36 tasks executed.
+- Artifacts: **0**. No APK packaging/signing/upload.
+- PR #1 remains open and Draft. This is still source/JVM+lint acceptance, not device acceptance.
+- **NOT TESTED:** actual Xiaomi Pad 5 / HyperOS SAF provider readback/deletion, Shizuku operations, installer behavior, broad real-world APK corpus, signature authenticity and visual UI acceptance.
+- **Next:** authorized physical-device acceptance; no merge or routine APK build.
+
