@@ -33,5 +33,6 @@ The bounded ZIP32 preflight scans the last 65,557 bytes for an EOCD signature wh
 - Source change: `08593232ec5898550f83fd5093d445a74c96d24c`; source blob `38e3b0881f38a602acc7daf6c6a82755db412950`.
 - Regression-test commit: `601f985c856ce910493901163fae5710ff6f0bf7`; test blob `3492204596a04b81bfe9e15ff52046d1d2075448`.
 - **PASS — source/test + plan CI:** [run #40408619247](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40408619247) on head `4b3570f0648af93e9f9c5fc72aae25c4e5605abf`; `:app:testDebugUnitTest` and `:app:lintDebug` passed, `BUILD SUCCESSFUL in 1m 19s`, zero artifacts. The earlier run `40408442586` was cancelled by PR concurrency and is not counted as PASS.
+- **PASS — post-ledger PR-head recheck:** [run #40408973395](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40408973395) on head `e9f99a58039cc44547a0a3f9cb9a8372ec635b2c`; `:app:testDebugUnitTest` and `:app:lintDebug` passed, `BUILD SUCCESSFUL in 1m 20s`, zero artifacts. A final recheck will run after this evidence update.
 - Device testing, signature verification, malware detection, Shizuku operations: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** in this runtime because no Drive/Docs connector is available; no Drive write is claimed.
