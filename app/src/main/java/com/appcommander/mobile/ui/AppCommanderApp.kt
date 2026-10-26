@@ -130,18 +130,31 @@ private fun AppCommanderRoot(palette: LiquidPalette, onCyclePalette: () -> Unit)
     }
     val scope = rememberCoroutineScope()
     var currentTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
-    var apps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
+    var inventory by remember { mutableStateOf(InventoryRefreshState()) }
     var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false)) }
-    var loading by remember { mutableStateOf(true) }
     var selected by remember { mutableStateOf<AppEntry?>(null) }
 
     fun refresh() {
+        val started = inventory.begin()
+        inventory = started
+        val requestGeneration = started.generation
         scope.launch {
-            loading = true
-            val loaded = withContext(Dispatchers.IO) { repository.loadApps() }
-            apps = loaded
-            capabilities = repository.capabilities()
-            loading = false
+            try {
+                val loaded = withContext(Dispatchers.IO) { repository.loadApps() }
+                inventory = inventory.complete(requestGeneration, loaded)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                inventory = inventory.cancel(requestGeneration)
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep the last successful inventory and avoid exposing raw provider/package errors.
+                inventory = inventory.fail(
+                    requestGeneration,
+                    "تعذّر تحديث قائمة التطبيقات. جرّب مرة أخرى.",
+                )
+            }
+            if (inventory.generation == requestGeneration) {
+                capabilities = runCatching { repository.capabilities() }.getOrDefault(capabilities)
+            }
         }
     }
     LaunchedEffect(Unit) { refresh() }
@@ -186,8 +199,13 @@ private fun AppCommanderRoot(palette: LiquidPalette, onCyclePalette: () -> Unit)
         ) { padding ->
             AnimatedContent(currentTab, label = "tabs") { tab ->
                 when (tab) {
-                    MainTab.HOME -> DashboardScreen(padding, apps, capabilities, loading, repository)
-                    MainTab.APPS -> AppsScreen(padding, apps, loading) { selected = it }
+                    MainTab.HOME -> DashboardScreen(
+                        padding, inventory.apps, capabilities, inventory.loading,
+                        inventory.error, ::refresh, repository,
+                    )
+                    MainTab.APPS -> AppsScreen(
+                        padding, inventory.apps, inventory.loading, inventory.error, ::refresh,
+                    ) { selected = it }
                     MainTab.INSPECT -> InspectorScreen(padding, repository)
                     MainTab.ROUTINES -> RoutinesScreen(padding, capabilities)
                 }
@@ -240,6 +258,8 @@ private fun DashboardScreen(
     apps: List<AppEntry>,
     capabilities: CapabilityState,
     loading: Boolean,
+    loadError: String?,
+    onRetry: () -> Unit,
     repository: AppRepository,
 ) {
     val context = LocalContext.current
@@ -248,6 +268,9 @@ private fun DashboardScreen(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        if (loadError != null) {
+            item { InventoryErrorCard(loadError, onRetry) }
+        }
         item {
             GlassBox(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp)) {
@@ -267,9 +290,22 @@ private fun DashboardScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("التطبيقات", if (loading) "…" else apps.size.toString(), Modifier.weight(1f))
-                MetricCard("تطبيقاتك", apps.count { !it.isSystem }.toString(), Modifier.weight(1f))
-                MetricCard("معطّلة", apps.count { !it.enabled }.toString(), Modifier.weight(1f))
+                val unavailable = !loading && loadError != null && apps.isEmpty()
+                MetricCard(
+                    "التطبيقات",
+                    if (loading) "…" else if (unavailable) "—" else apps.size.toString(),
+                    Modifier.weight(1f),
+                )
+                MetricCard(
+                    "تطبيقاتك",
+                    if (unavailable) "—" else apps.count { !it.isSystem }.toString(),
+                    Modifier.weight(1f),
+                )
+                MetricCard(
+                    "معطّلة",
+                    if (unavailable) "—" else apps.count { !it.enabled }.toString(),
+                    Modifier.weight(1f),
+                )
             }
         }
         item { SectionTitle("اختصارات ذكية") }
@@ -320,6 +356,8 @@ private fun AppsScreen(
     padding: PaddingValues,
     apps: List<AppEntry>,
     loading: Boolean,
+    loadError: String?,
+    onRetry: () -> Unit,
     onSelect: (AppEntry) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -337,6 +375,10 @@ private fun AppsScreen(
         }
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+        if (loadError != null) {
+            InventoryErrorCard(loadError, onRetry)
+            Spacer(Modifier.height(8.dp))
+        }
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -354,6 +396,9 @@ private fun AppsScreen(
         Spacer(Modifier.height(8.dp))
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            filtered.isEmpty() && loadError != null -> Box(
+                Modifier.fillMaxSize(), contentAlignment = Alignment.Center,
+            ) { Text("تعذّر تحميل قائمة التطبيقات") }
             filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("ما لقينا تطبيقات مطابقة") }
             else -> LazyColumn(
                 contentPadding = PaddingValues(bottom = 18.dp),
@@ -1105,6 +1150,21 @@ private fun QuickAction(emoji: String, title: String, subtitle: String, onClick:
                 Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("‹", fontSize = 26.sp)
+        }
+    }
+}
+
+@Composable
+private fun InventoryErrorCard(message: String, onRetry: () -> Unit) {
+    GlassBox(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "تعذّر تحديث قائمة التطبيقات",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onRetry) { Text("إعادة المحاولة") }
         }
     }
 }
