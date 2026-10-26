@@ -481,6 +481,16 @@ class ApkArchivePreflightTest {
             val central = centralRecordOffset(bytes, name)
             val local = readU32Value(bytes, central + 42).toInt()
             val expandedSize = gib * 1024L * 1024L * 1024L
+            // Remove the data-descriptor flag and make the local metadata agree
+            // so the regression reaches the aggregate guard before any later
+            // descriptor/payload mismatch can reject the archive for another reason.
+            val flags = readU16Value(bytes, central + 8) and 0x0008.inv()
+            val crc = readU32Value(bytes, central + 16)
+            val compressedSize = readU32Value(bytes, central + 20)
+            writeU16(bytes, central + 8, flags)
+            writeU16(bytes, local + 6, flags)
+            writeU32(bytes, local + 14, crc)
+            writeU32(bytes, local + 18, compressedSize)
             writeU32(bytes, central + 24, expandedSize)
             writeU32(bytes, local + 22, expandedSize)
         }
