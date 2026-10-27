@@ -32,3 +32,11 @@ Pending source/test CI and independent PR-head recheck. Xiaomi Pad 5 and real SA
 - Base APK and bundle export UI now distinguishes confirmed deletion from unconfirmed cleanup and recommends manual inspection/removal only when necessary.
 - Added JVM regressions for false delete, thrown delete, original-error preservation, and fail-closed URI confirmation.
 - Source/test CI and the docs-updated PR-head recheck are **PENDING**. Xiaomi Pad 5 and real SAF provider behavior remain **NOT TESTED**.
+
+## Verification update — 2026-10-27
+
+- **Source/test head after fixture correction:** `6173145507847dcbe33839c0077ab24bcf0e49f4`.
+- **PASS — JVM tests + Android Lint:** [CI #40516604932](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40516604932), `:app:testDebugUnitTest :app:lintDebug`, `BUILD SUCCESSFUL in 1m 40s`.
+- The first validation attempt [CI #40511432761](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40511432761) exposed three test-fixture lambdas returning `Int`/`Unit` after cleanup became Boolean. Fixtures now return explicit `true`; the passing run includes the correction.
+- No APK packaging/signing/upload; zero artifacts expected by workflow. Source/test behavior is validated on JVM only.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS and real SAF provider delete/readback behavior. The docs-updated PR-head recheck is pending.
