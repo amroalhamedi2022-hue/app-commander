@@ -731,3 +731,16 @@ Updated: 2026-10-26
 - OpenJDK 21 local probe confirmed the expected 9-byte UT extra field; Android libcore source reviewed. Device/SAF and signer authenticity remain **NOT TESTED**.
 - Final docs-updated PR-head results will be posted in the PR conversation after CI completes.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 N58 — DOS ZIP entry-type consistency
+
+- Production/source + tests: shared `ZipEntryTypeSafety` now rejects a DOS/FAT central-directory record when the DOS directory bit (`0x10`) is set on a path that is not directory-shaped. Slash-only directory entries remain compatible when writers omit the bit; Unix mode checks are unchanged.
+- Regression coverage: unit tests for DOS attribute/path combinations plus a crafted canonical bundle whose central record marks `base.apk` as a directory.
+- Source review: PKWARE ZIP APPNOTE's host-dependent external-attribute mapping and Apache Commons Compress ZIP docs/source (Apache-2.0) were reviewed; no code copied, no dependency added.
+- **FAIL, superseded:** [CI #40572924157](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40572924157) exposed five compatibility regressions because the first version required a DOS directory bit for every slash path. Fixed by checking only contradictory set bits.
+- **PASS — corrected source/test SHA:** `a0afdc0b3d8ef0bd0b251c2fb5d2a51389d8fbcd`; JVM tests + Android Lint [CI #40573621884](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40573621884).
+- Docs-updated PR-head recheck pending; results will be posted in PR #1 after CI finishes. APK artifacts: **0**.
+- Xiaomi Pad 5 / HyperOS, real SAF provider behavior, APK authenticity and malware detection: **NOT TESTED**.
+- No APK packaging, merge, main write, root, Device Owner or auto-merge. Google Drive LIVE sync remains **SYNC FAILED** because no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
+
