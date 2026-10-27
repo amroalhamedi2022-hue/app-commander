@@ -772,3 +772,14 @@ Updated: 2026-10-26
 - Workflow artifact query returned **0 artifacts**; no APK packaging/signing/upload occurred.
 - This follow-up append creates a new PR head. Its final-head CI result is reported in PR #1 conversation; no further ledger edit is made solely to chase the new head.
 - Xiaomi Pad 5 / HyperOS Shizuku and real SAF provider behavior: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
+
+## 2026-10-28 — N61 cooperative SAF export cancellation
+
+- Production source changed: ApkCacheCopy, base APK export/readback, Base+Splits ZIP export/verification, ZIP tracking stream, and repository export entry points now accept cooperative cancellation checks between bounded reads.
+- UI changed: an Arabic cancel control is shown while a base or bundle export coroutine is active; cancellation is propagated into IO work, and existing fresh-document cleanup remains the caller's responsibility.
+- APK SHA readback now rethrows CancellationException rather than treating it as an ordinary integrity mismatch.
+- Regressions added for mid-copy cancellation, base export cleanup, bundle cancellation/no-readback, and user-facing cancellation messages.
+- Source/JVM/Lint: pending CI on exact source/test SHA and docs-updated head.
+- APK artifacts/build: 0; no packaging was requested or run.
+- Real SAF providers / Xiaomi Pad 5 / HyperOS: NOT TESTED. A provider blocked inside a single non-returning read() cannot be interrupted until that call returns; cancellation is cooperative between returned chunks.
+- Drive LIVE sync: SYNC FAILED if no Google Drive/Docs connector is available in this runtime; no sync claim without read-back verification.
