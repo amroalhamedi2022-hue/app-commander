@@ -206,3 +206,11 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - **PASS on PR head `30938366aed255507756d5578ea79c4e383337f4`:** [CI #40591001051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40591001051), `:app:testDebugUnitTest` + `:app:lintDebug`, BUILD SUCCESSFUL in 1m 26s.
 - Artifact query returned 0. The verification-log append creates a new head; final-head recheck is tracked in PR #1 conversation.
 - Device/HyperOS/Shizuku/real SAF: **NOT TESTED**; Google Drive LIVE sync **SYNC FAILED** because no Drive/Docs connector is exposed.
+
+## 2026-10-28 — N61 cooperative SAF export cancellation
+
+- Implemented cancellable streaming checkpoints for Base APK and Base+Splits ZIP exports, including readback validation and central-directory scanning.
+- Added a visible Arabic cancel action while an export job is active. Cancellation remains distinct from ordinary I/O/integrity failures, and fresh-document cleanup stays scoped to the new CreateDocument URI.
+- JVM regression tests cover cancellation between chunks and cleanup/readback behavior.
+- CI status: pending for the exact source/test commit; device/HyperOS/real SAF provider behavior remains NOT TESTED.
+- No APK packaging/artifacts, root, Device Owner, merge, or main write.
