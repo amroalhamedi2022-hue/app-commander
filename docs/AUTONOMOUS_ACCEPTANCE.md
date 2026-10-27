@@ -695,8 +695,9 @@ Updated: 2026-10-26
 
 - Production change: the streaming verifier now captures raw local-header flags, compression method, strict UTF-8 filename bytes, extra fields and logical offset, then compares them with the central-directory record before accepting a bundle.
 - Regression `rejectsLocalAndCentralGeneralPurposeFlagMismatch` toggles only the local UTF-8 flag while keeping central metadata and APK payload bytes intact; acceptance is prohibited unless both header views agree.
-- Source/test SHA: `326c96a42840f3d1980c5d8d7c6f01ccfee72fa3`.
-- **CI pending at documentation preparation**; final status must be updated after the exact source/test SHA and documentation-updated head finish.
+- Source/test SHA: `7cdd8f925b4592b516eace5b4fd8eca2cbe157f4`.
+- **PASS — exact source/JVM/Lint:** [CI #40556511097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40556511097), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; source-only workflow, no APK packaging.
+- Docs-updated PR-head recheck: pending after this evidence update.
 - Source basis: OpenJDK `ZipInputStream` reads local headers without central-directory metadata; ZIP APPNOTE defines separate local and central records. No third-party code or dependency copied.
 - Xiaomi Pad 5 / HyperOS and real SAF provider: **NOT TESTED**. APK artifacts: **0 expected**.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
