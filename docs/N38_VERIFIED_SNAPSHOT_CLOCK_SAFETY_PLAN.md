@@ -26,8 +26,9 @@ Can verified-install cache cleanup remain fail-safe when the device wall clock i
 
 This is a small hardening change to the project's own cache lifecycle. No third-party implementation, dependency, permission, network access, or paid service was added.
 
-## Status
+## Verified result
 
-- Source/JVM/lint CI: pending exact updated PR-head run.
-- SAF provider and Android installer behavior on Xiaomi Pad 5/HyperOS: NOT TESTED.
-- APK artifacts: none permitted for this milestone.
+- **PASS — exact source/test/PR head:** `34feb808b7bee907147d4ad4c6082214d8f4dbc0`.
+- **PASS — source/JVM/lint CI:** [run #40441604406](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40441604406), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 41s, 36 actionable tasks.
+- **Artifacts: 0** confirmed; no APK packaging, signing or upload occurred.
+- SAF provider and Android installer behavior on Xiaomi Pad 5/HyperOS: **NOT TESTED**.
