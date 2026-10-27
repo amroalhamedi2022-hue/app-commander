@@ -23,10 +23,12 @@ internal object ZipEntryTypeSafety {
         val directoryPath = name.endsWith("/")
         if (hostSystem != UNIX_HOST_SYSTEM) {
             // PKWARE ZIP APPNOTE maps the low byte to DOS attributes for
-            // DOS/FAT host records. Reject file/directory metadata conflicts.
+            // DOS/FAT host records. A set directory bit on a file path is a
+            // contradiction. Do not require the bit for a directory path:
+            // common ZIP writers mark directories by the trailing slash alone.
             val dosAttributes = (externalAttributes and 0xffL).toInt()
             val hasDosDirectoryBit = (dosAttributes and DOS_DIRECTORY) != 0
-            if (hasDosDirectoryBit != directoryPath) {
+            if (hasDosDirectoryBit && !directoryPath) {
                 throw IOException("ZIP DOS directory attribute disagrees with path")
             }
             return
