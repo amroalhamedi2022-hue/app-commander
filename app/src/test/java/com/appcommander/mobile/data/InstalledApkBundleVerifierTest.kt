@@ -119,6 +119,31 @@ class InstalledApkBundleVerifierTest {
             ((bytes[offset + 2].toInt() and 255) shl 16) or
             ((bytes[offset + 3].toInt() and 255) shl 24)
 
+    private fun writeU16(bytes: ByteArray, offset: Int, value: Int) {
+        bytes[offset] = (value and 255).toByte()
+        bytes[offset + 1] = ((value ushr 8) and 255).toByte()
+    }
+
+    private fun writeU32(bytes: ByteArray, offset: Int, value: Long) {
+        repeat(4) { index ->
+            bytes[offset + index] = ((value ushr (index * 8)) and 255L).toByte()
+        }
+    }
+
+    private fun exportedWithFirstCentralUnixType(mode: Int): ByteArray {
+        val bytes = exported()
+        val centralOffset = readU32(bytes, bytes.size - 22 + 16)
+        val nameLength = (bytes[centralOffset + 28].toInt() and 255) or
+            ((bytes[centralOffset + 29].toInt() and 255) shl 8)
+        val name = String(bytes, centralOffset + 46, nameLength, Charsets.UTF_8)
+        assertEquals("base.apk", name)
+        val versionMadeBy = (bytes[centralOffset + 4].toInt() and 255) or
+            ((bytes[centralOffset + 5].toInt() and 255) shl 8)
+        writeU16(bytes, centralOffset + 4, (versionMadeBy and 255) or (3 shl 8))
+        writeU32(bytes, centralOffset + 38, (mode.toLong() and 0xffffL) shl 16)
+        return bytes
+    }
+
     @Test fun rejectsTruncatedCentralDirectoryEvenWhenLocalApkHashesMatch() {
         val valid = exported()
         val centralOffset = readU32(valid, valid.size - 22 + 16)
@@ -181,6 +206,38 @@ class InstalledApkBundleVerifierTest {
             InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
         }
         assertTrue(failure.message.orEmpty().contains("extra fields differ"))
+    }
+
+    @Test fun acceptsUnixRegularFileTypeInCanonicalBundle() {
+        val result = InstalledApkBundleVerifier.verify(
+            ByteArrayInputStream(exportedWithFirstCentralUnixType(0x8000 or 0x01a4)),
+        )
+        assertEquals("com.example.sample", result.packageName)
+    }
+
+    @Test fun rejectsUnixSymlinkAndSpecialTypeInCentralDirectory() {
+        val symlink = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(
+                ByteArrayInputStream(exportedWithFirstCentralUnixType(0xa000 or 0x01ff)),
+            )
+        }
+        assertTrue(symlink.message.orEmpty().contains("symbolic-link"))
+
+        val fifo = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(
+                ByteArrayInputStream(exportedWithFirstCentralUnixType(0x1000 or 0x01a4)),
+            )
+        }
+        assertTrue(fifo.message.orEmpty().contains("special filesystem"))
+    }
+
+    @Test fun rejectsUnixDirectoryTypeForBaseApkPath() {
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(
+                ByteArrayInputStream(exportedWithFirstCentralUnixType(0x4000 or 0x01ed)),
+            )
+        }
+        assertTrue(failure.message.orEmpty().contains("directory type lacks directory path"))
     }
 
     @Test fun rejectsCentralDirectoryEntryNameCrcAndLocalOffsetTampering() {
