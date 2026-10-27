@@ -2,6 +2,7 @@ package com.appcommander.mobile.data
 
 import java.io.InputStream
 import java.io.OutputStream
+import java.util.concurrent.CancellationException
 
 /**
  * Recheck the original SAF stream before handing its URI to Android's installer.
@@ -17,15 +18,23 @@ internal object ApkInstallIntegrity {
         override fun write(b: ByteArray, off: Int, len: Int) = Unit
     }
 
-    fun matches(input: InputStream, expectedSize: Long, expectedSha256: String): Boolean {
+    fun matches(
+        input: InputStream,
+        expectedSize: Long,
+        expectedSha256: String,
+        checkCancelled: () -> Unit = {},
+    ): Boolean {
+        checkCancelled()
         if (expectedSize !in 1..ApkCacheCopy.MAX_APK_BYTES ||
             !sha256Pattern.matches(expectedSha256)) return false
-        // An empty, stalled or failing provider is an integrity mismatch,
-        // not a recoverable reason to open the installer.
-        return runCatching {
-            val actual = ApkCacheCopy.copyWithSha256(input, discard)
+        return try {
+            val actual = ApkCacheCopy.copyWithSha256(input, discard, checkCancelled = checkCancelled)
             actual.sizeBytes == expectedSize &&
                 actual.sha256.equals(expectedSha256, ignoreCase = true)
-        }.getOrDefault(false)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            false
+        }
     }
 }
