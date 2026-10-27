@@ -538,3 +538,13 @@ Updated: 2026-10-26
 - Docs-updated PR-head recheck will be verified separately and recorded in the PR discussion.
 - **Device / HyperOS / signature verification:** NOT TESTED.
 - **Google Drive LIVE sync:** SYNC FAILED — no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 N42 — Unix ZIP entry type preflight
+
+- Engineering question and acceptance criteria recorded in `docs/N42_UNIX_ZIP_ENTRY_TYPE_PREFLIGHT_PLAN.md` before CI.
+- Production change: inspect central-directory host-system/external-attributes fields for Unix-created entries; reject symbolic links and special filesystem types; reject POSIX regular-file/directory type mismatches with trailing-slash paths; allow zero/unspecified modes and non-Unix hosts.
+- Regression tests: valid Unix regular files/directories, symlink, FIFO and regular-file/directory mismatch.
+- Exact source/test SHA and CI result will be recorded after the source-only workflow and independent PR-head recheck.
+- No APK build, signing, upload, release, merge or main write. Device/HyperOS remains **NOT TESTED**.
+- Google Drive LIVE handoff/index: **SYNC FAILED** unless a Drive/Docs connector is available and both read-back and folder metadata are verified.
