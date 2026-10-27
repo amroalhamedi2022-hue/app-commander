@@ -35,3 +35,13 @@ N55/N56 already compare local and central ZIP metadata and reject unsafe Unix en
 - Xiaomi Pad 5 / HyperOS, real SAF provider behavior, APK signer authenticity and malware detection: **NOT TESTED**.
 - APK artifacts: **0 expected**; this workflow tests and lints only.
 
+
+
+## Follow-up correction — 2026-10-27
+
+- The first source/test attempt `e3dc1e9a1a7ab68a6be0b224d594fede2031acef` **FAILED** CI #40563943994 because the older generic ZIP fixture used the current wall-clock timestamp and therefore failed the new canonical-extra check before reaching the malformed-manifest assertion. This was a fixture-ordering failure, not a production regression.
+- Corrected the shared test archive helper to set `ZipEntry.time = 0L`, matching the actual exporter. This keeps fixtures canonical so each negative test reaches the behavior it intends to exercise.
+- **PASS — corrected source + tests:** `dd4fc2ce63dfe6a0139c2ea2726694312e2cec30`, [CI #40564471753](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40564471753), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
+- Verified on a local OpenJDK 21 probe that `ZipEntry.time = 0L` serializes identical 9-byte local and central extra fields: `55 54 05 00 01 00 00 00 00`. Android libcore's ZIP implementation also documents the extended timestamp path for times before 1980: [Android 35 ZipOutputStream source](https://android.googlesource.com/platform/prebuilts/fullsdk/sources/%2B/refs/heads/main/android-35/java/util/zip/ZipOutputStream.java).
+- Artifacts: **0**. The workflow does not package an APK.
+- Final docs-updated PR-head recheck remains required and will be recorded in the PR conversation.
