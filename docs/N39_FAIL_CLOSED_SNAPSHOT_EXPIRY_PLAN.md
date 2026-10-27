@@ -28,7 +28,8 @@ This hardens the repository's own Kotlin lifecycle logic using the existing JDK/
 
 ## Verification ledger
 
-- Source/test SHA: **PENDING**
-- Source/JVM/Lint CI: **PENDING**
-- Artifacts: expected **0**; source-only workflow, no APK.
+- **PASS — exact source/test head:** `676454c507e057a42adc8460265a0ea85debb5c8`.
+- **PASS — source/JVM/Lint CI:** [run #40446325452](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40446325452), `:app:testDebugUnitTest :app:lintDebug`, job `source-checks` completed successfully.
+- **Artifacts: 0 confirmed** from the run artifact listing; no APK packaging/signing/upload.
 - Xiaomi Pad 5 / HyperOS and actual installer handoff: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — this runtime exposes no Google Drive/Docs connector; no LIVE document read/write or folder metadata verification is claimed.
