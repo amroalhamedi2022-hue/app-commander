@@ -41,6 +41,7 @@ internal object InstalledApkBundleExport {
         sources: List<Source>,
         openForWrite: () -> OutputStream,
         openForRead: () -> InputStream,
+        checkCancelled: () -> Unit = {},
     ): Result {
         // write() closes its output, making provider-side commit visible before
         // the independent read. verify() closes its input on every exit path.
@@ -50,10 +51,13 @@ internal object InstalledApkBundleExport {
         // provider callback. A mutable list must not change between the preflight
         // size/name checks and the actual archive write.
         val sourceSnapshot = sources.toList()
+        checkCancelled()
         val declaredTotal = validateSources(packageName, sourceSnapshot)
+        checkCancelled()
         val destination = openForWrite()
-        val written = writeValidated(packageName, sourceSnapshot, destination, declaredTotal)
-        val verified = InstalledApkBundleVerifier.verify(openForRead())
+        val written = writeValidated(packageName, sourceSnapshot, destination, declaredTotal, checkCancelled)
+        checkCancelled()
+        val verified = InstalledApkBundleVerifier.verify(openForRead(), checkCancelled)
         if (verified.packageName != written.packageName ||
             verified.totalApkBytes != written.totalApkBytes ||
             verified.entries != written.entries
@@ -93,12 +97,18 @@ internal object InstalledApkBundleExport {
     }
 
     @Throws(IOException::class)
-    fun write(packageName: String, sources: List<Source>, destination: OutputStream): Result {
+    fun write(
+        packageName: String,
+        sources: List<Source>,
+        destination: OutputStream,
+        checkCancelled: () -> Unit = {},
+    ): Result {
         // OutputStream callbacks can be provider-backed too; use the same
         // validated snapshot throughout the whole write operation.
         val sourceSnapshot = sources.toList()
+        checkCancelled()
         val declaredTotal = validateSources(packageName, sourceSnapshot)
-        return writeValidated(packageName, sourceSnapshot, destination, declaredTotal)
+        return writeValidated(packageName, sourceSnapshot, destination, declaredTotal, checkCancelled)
     }
 
     @Throws(IOException::class)
@@ -107,15 +117,18 @@ internal object InstalledApkBundleExport {
         sources: List<Source>,
         destination: OutputStream,
         declaredTotal: Long,
+        checkCancelled: () -> Unit,
     ): Result {
         val digests = ArrayList<EntryDigest>(sources.size)
+        checkCancelled()
         ZipOutputStream(destination).use { zip ->
             // APKs are already ZIP-compressed; level zero avoids wasted CPU.
             zip.setLevel(0)
             for (source in sources) {
+                checkCancelled()
                 zip.putNextEntry(ZipEntry(source.name).apply { time = 0L })
                 val copied = source.open().use { input ->
-                    ApkCacheCopy.copyWithSha256(input, zip, source.expectedBytes)
+                    ApkCacheCopy.copyWithSha256(input, zip, source.expectedBytes, checkCancelled)
                 }
                 if (copied.sizeBytes != source.expectedBytes) {
                     throw IOException("Installed APK changed or was truncated during export")
@@ -123,6 +136,7 @@ internal object InstalledApkBundleExport {
                 digests.add(EntryDigest(source.name, copied.sizeBytes, copied.sha256))
                 zip.closeEntry()
             }
+            checkCancelled()
             val manifest = buildString {
                 append("{\"format\":\"app-commander-apk-bundle-v1\",")
                 append("\"packageName\":\"").append(packageName).append("\",")
