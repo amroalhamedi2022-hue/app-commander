@@ -63,16 +63,38 @@ internal object ApkInstallSnapshot {
         maxAgeMillis: Long = MAX_AGE_MILLIS,
     ): Int {
         require(maxAgeMillis > 0)
-        if (!directory.isDirectory) return 0
         // A pre-epoch clock can underflow here and wrap the cutoff into the
         // future, deleting valid snapshots. Cache cleanup is best-effort:
         // when wall-clock age cannot be represented safely, fail closed.
         if (nowMillis < 0L || nowMillis < maxAgeMillis) return 0
         val cutoff = nowMillis - maxAgeMillis
-        return directory.listFiles().orEmpty().count { file ->
-            file.isFile && file.name.startsWith(PREFIX) &&
-                file.name.endsWith(SUFFIX) &&
-                file.lastModified() < cutoff && file.delete()
+
+        // Cache housekeeping must never abort a verified install merely because
+        // the filesystem denies metadata access. A zero mtime is ambiguous
+        // (epoch timestamp or unavailable metadata), so preserve it as unknown.
+        val isDirectory = try {
+            directory.isDirectory
+        } catch (_: SecurityException) {
+            return 0
+        }
+        if (!isDirectory) return 0
+        val files = try {
+            directory.listFiles().orEmpty()
+        } catch (_: SecurityException) {
+            return 0
+        }
+        return files.count { file ->
+            try {
+                if (!file.isFile || !file.name.startsWith(PREFIX) || !file.name.endsWith(SUFFIX)) {
+                    false
+                } else {
+                    val modifiedAt = file.lastModified()
+                    modifiedAt > 0L && modifiedAt < cutoff && file.delete()
+                }
+            } catch (_: SecurityException) {
+                // Skip only the inaccessible entry; continue cleaning others.
+                false
+            }
         }
     }
 }
