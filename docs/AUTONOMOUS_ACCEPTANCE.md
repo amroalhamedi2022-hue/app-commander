@@ -765,3 +765,10 @@ Updated: 2026-10-26
 - JVM tests + Android Lint on the final docs-updated PR head: **PENDING**; no CI-PASS claim until completed.
 - Xiaomi Pad 5 / HyperOS Shizuku, actual package-manager actions and SAF provider behavior: **NOT TESTED**. APK artifacts: **0**. No new permission/dependency, root, Device Owner, merge, main write, or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
+
+## 2026-10-27 — N60 verification follow-up
+
+- **PASS — source, JVM regression, and current docs-updated PR head `30938366aed255507756d5578ea79c4e383337f4`:** [CI #40591001051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40591001051) completed `:app:testDebugUnitTest` and `:app:lintDebug`; log reports **BUILD SUCCESSFUL in 1m 26s**.
+- Workflow artifact query returned **0 artifacts**; no APK packaging/signing/upload occurred.
+- This follow-up append creates a new PR head. Its final-head CI result is reported in PR #1 conversation; no further ledger edit is made solely to chase the new head.
+- Xiaomi Pad 5 / HyperOS Shizuku and real SAF provider behavior: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
