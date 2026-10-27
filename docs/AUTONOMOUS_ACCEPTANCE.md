@@ -569,3 +569,12 @@ Updated: 2026-10-26
 - Source/JVM/Lint CI and docs-updated PR-head recheck: **PENDING**.
 - Artifacts: 0 expected; no APK build/sign/upload. Xiaomi Pad 5 / HyperOS remains **NOT TESTED**.
 - Drive LIVE sync: **SYNC FAILED** if connector unavailable; no Drive read/write or folder metadata verification is claimed.
+
+## 2026-10-27 N44 validation update — PASS
+
+- Exact production/test SHA `f9bc35f77a71f9350cc0a6a2f04f5443185dca99`: **PASS** — [source/JVM/Lint run #40467321993, attempt 2](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40467321993), `:app:testDebugUnitTest :app:lintDebug`.
+- Docs-updated head `c2c9b6e547f3229d187786eb7d9265b750c22ce3`: **PASS** — [run #40467473913](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40467473913), `:app:testDebugUnitTest :app:lintDebug`.
+- Unicode regression proves composed/decomposed `Café` labels use a stable package-name tie-break under reversed provider order while the original display strings remain intact.
+- **Artifacts: 0** confirmed; workflow executes JVM tests and Android lint only, with no APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS inventory UI, SAF and Shizuku device behavior remain **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no Drive document or folder metadata was read or written.
