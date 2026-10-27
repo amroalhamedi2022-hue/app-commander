@@ -104,7 +104,7 @@ internal object InstalledApkBundleVerifier {
                         }
                         output.write(buffer, 0, count)
                     }
-                    manifest = output.toString(Charsets.UTF_8.name())
+                    manifest = decodeStrictUtf8(output.toByteArray(), "APK bundle manifest")
                 } else {
                     if (actual.size >= InstalledApkBundleExport.MAX_APK_COUNT) {
                         throw IOException("Too many APK bundle entries")

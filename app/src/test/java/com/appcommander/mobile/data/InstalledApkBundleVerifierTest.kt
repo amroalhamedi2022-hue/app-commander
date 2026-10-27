@@ -158,4 +158,22 @@ class InstalledApkBundleVerifierTest {
             }
         }
     }
+    @Test fun rejectsMalformedUtf8ManifestInsteadOfSilentlyReplacingBytes() {
+        val malformed = archive(
+            "base.apk" to ByteArray(64) { (it * 13).toByte() },
+            "manifest.json" to byteArrayOf(0xC3.toByte(), 0x28),
+        )
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(malformed))
+        }
+        assertTrue(failure.message.orEmpty().contains("UTF-8"))
+    }
+
+    @Test fun strictUtf8DecoderRejectsMalformedZipNameBytes() {
+        val failure = assertThrows(IOException::class.java) {
+            decodeStrictUtf8(byteArrayOf(0xC3.toByte(), 0x28), "ZIP entry name")
+        }
+        assertTrue(failure.message.orEmpty().contains("UTF-8"))
+    }
+
 }

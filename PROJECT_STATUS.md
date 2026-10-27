@@ -147,3 +147,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - ApkCacheCopy.withTemporaryApk now verifies temp-file absence; if inspection succeeded but cleanup failed it throws a typed diagnostic, while an existing parser/cancellation failure remains primary with cleanup detail suppressed.
 - Three new deterministic JVM regressions passed. **Artifacts: 0**, no APK packaging/signing/upload.
 - Xiaomi Pad 5/HyperOS remains **NOT TESTED**. Google Drive LIVE sync **SYNC FAILED** because no Drive/Docs connector is exposed.
+
+
+## 2026-10-27 — N53 strict UTF-8 APK-bundle metadata (verification pending)
+
+- InstalledApkBundleVerifier and ZipBundleStructure now reject malformed/unmappable UTF-8 in the canonical bundle manifest and ZIP central-directory entry names instead of accepting decoder replacement characters.
+- Added deterministic JVM regressions for malformed manifest bytes and malformed ZIP-name bytes.
+- Exact source/test SHA and source/JVM/Lint CI: PENDING. No APK packaging or artifacts.
+- Xiaomi Pad 5 / HyperOS and real SAF provider behavior: NOT TESTED. No merge, main write, root, or Device Owner.
+- Google Drive LIVE sync: SYNC FAILED — Drive/Docs connector unavailable; no LIVE read/write is claimed.

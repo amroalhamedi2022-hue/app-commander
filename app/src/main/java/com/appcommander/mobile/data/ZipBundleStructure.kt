@@ -2,6 +2,36 @@ package com.appcommander.mobile.data
 
 import java.io.IOException
 import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.charset.CharacterCodingException
+import java.nio.charset.CodingErrorAction
+
+/**
+ * Decode untrusted ZIP metadata as strict UTF-8. The default String constructor
+ * silently replaces malformed sequences, so canonical metadata must fail closed.
+ */
+internal fun decodeStrictUtf8(bytes: ByteArray, description: String): String =
+    decodeStrictUtf8(bytes, 0, bytes.size, description)
+
+internal fun decodeStrictUtf8(
+    bytes: ByteArray,
+    offset: Int,
+    length: Int,
+    description: String,
+): String {
+    if (offset < 0 || length < 0 || offset > bytes.size - length) {
+        throw IOException("Invalid UTF-8 byte range for $description")
+    }
+    return try {
+        Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes, offset, length))
+            .toString()
+    } catch (failure: CharacterCodingException) {
+        throw IOException("Invalid UTF-8 in $description", failure)
+    }
+}
 
 /**
  * Bounded, seek-free verification of the central directory for App Commander
@@ -140,7 +170,7 @@ internal object ZipBundleStructure {
                 // canonical backups, even if its SHA manifest is valid.
                 compressed < size
             ) throw IOException("Unsupported ZIP central directory metadata")
-            val name = String(rawTail, cursor + 46, nameLength, Charsets.UTF_8)
+            val name = decodeStrictUtf8(rawTail, cursor + 46, nameLength, "ZIP entry name")
             if (name != expected.name || size != expected.size ||
                 compressed != expected.compressedSize || crc != expected.crc
             ) throw IOException("ZIP central directory differs from local entries")

@@ -668,3 +668,12 @@ Updated: 2026-10-26
 - Production cleanup now checks File.delete() and confirms absence; successful inspection fails closed if the temp APK remains, while parser/cancellation failures remain primary with a typed suppressed cleanup diagnostic.
 - Three regressions cover false delete after success, preserved original exception identity, and thrown cleanup cause. **Artifacts: 0**; no APK packaging/signing/upload.
 - Xiaomi Pad 5 / HyperOS: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is exposed; no sync is claimed.
+
+
+## 2026-10-27 N53 — strict UTF-8 for APK-bundle metadata (verification pending)
+
+- Bundle manifest and central-directory entry names now use a UTF-8 decoder configured to REPORT malformed/unmappable input rather than silently replacing invalid bytes. Canonical ASCII manifest and entry names are unchanged.
+- Added integration coverage for a malformed UTF-8 manifest and a malformed ZIP-name byte sequence; existing archive, digest, CRC, central-directory, and size-limit tests remain in the suite.
+- Source/test SHA and CI: **PENDING**.
+- Xiaomi Pad 5 / HyperOS and real SAF provider behavior: **NOT TESTED**. Artifacts: **0 expected**; no APK packaging.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE read/write or folder metadata verification is claimed.
