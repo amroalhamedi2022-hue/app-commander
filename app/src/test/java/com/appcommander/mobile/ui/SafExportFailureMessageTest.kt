@@ -22,7 +22,8 @@ class SafExportFailureMessageTest {
             .contains("لم يتأكد حذف الملف الجزئي"))
 
         val cleanCancellation = CancellationException("cancelled before a partial file existed")
-        assertNull(SafExportFailureMessage.baseApkCancellation(cleanCancellation))
+        assertTrue(requireNotNull(SafExportFailureMessage.baseApkCancellation(cleanCancellation))
+            .contains("لم يُعتمد الملف كنسخة مكتملة"))
     }
 
     @Test fun bundleCancellationKeepsCancellationAndReportsUnconfirmedZipCleanup() {
@@ -62,4 +63,17 @@ class SafExportFailureMessageTest {
         assertTrue(SafExportFailureMessage.baseApkFailure(confirmedThrown).contains("تم تأكيد حذف"))
         assertTrue(SafExportFailureMessage.bundleFailure(confirmedThrown).contains("تم تأكيد حذف"))
     }
+
+    @Test fun confirmedBundleCancellationStillExplainsThatNoCompleteArchiveWasReported() {
+        val cancelled = CancellationException("cancelled")
+        val thrown = assertThrows(CancellationException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { true },
+                write = { throw cancelled },
+            )
+        }
+        assertTrue(SafExportFailureMessage.bundleCancellation(thrown)
+            .contains("لم يُعتمد ملف ZIP كنسخة مكتملة"))
+    }
+
 }
