@@ -227,9 +227,7 @@ internal object ZipBundleStructure {
             val nextCursor = cursor.toLong() + 46 + nameLength + extraLength + commentLength
             if (nextCursor > end || (flags != 8 && flags != 0x808) ||
                 method != 8 || startDisk != 0 || commentLength != 0 ||
-                localOffset != expectedLocalOffset || localOffset != expected.offset ||
-                flags != expected.flags || method != expected.method ||
-                localOffset >= centralOffset ||
+                localOffset != expectedLocalOffset || localOffset >= centralOffset ||
                 nameLength !in 1..64 || extraLength > 64 ||
                 size == 0xffffffffL || compressed == 0xffffffffL ||
                 // The exporter uses DEFLATE level zero for every entry.
@@ -237,6 +235,9 @@ internal object ZipBundleStructure {
                 // canonical backups, even if its SHA manifest is valid.
                 compressed < size
             ) throw IOException("Unsupported ZIP central directory metadata")
+            if (flags != expected.flags || method != expected.method ||
+                localOffset != expected.offset
+            ) throw IOException("ZIP local/central header metadata mismatch")
             val centralNameBytes = rawTail.copyOfRange(cursor + 46, cursor + 46 + nameLength)
             val name = decodeStrictUtf8(centralNameBytes, "ZIP entry name")
             if (!centralNameBytes.contentEquals(expected.rawName)) {
