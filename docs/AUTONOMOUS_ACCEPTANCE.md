@@ -755,3 +755,13 @@ Updated: 2026-10-26
 - Documentation updates create a new PR head; final-head CI recheck is tracked in the PR conversation.
 - Xiaomi Pad 5 / HyperOS SAF behavior, APK signer authenticity and malware detection: **NOT TESTED**. APK artifacts: **0**. No permission/dependency/root/Device Owner change, merge, main write, or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is available in this runtime; no Drive read/write or folder metadata verification is claimed.
+
+## 2026-10-27 — N60 fail-closed Shizuku operation policy (CI pending)
+
+- **Production:** `PrivilegedCommandPolicy.allows` now requires membership in the explicit supported-operation set before applying destructive-operation and protected-package rules. Unknown opcodes no longer appear allowed to ordinary packages.
+- **Regression:** `PrivilegedCommandPolicyTest.unknownOperationCodesFailClosedForEveryPackageClass` checks `Int.MIN_VALUE`, zero, 14, and `Int.MAX_VALUE` against ordinary and protected package targets.
+- Production commit: `2b9b3600d77284083b16018722d29831bcc17b4b`; test commit: `ad8a56404bc4b21ae181c662271058d81b7b1e4d`.
+- Plan: `docs/N60_SHIZUKU_UNKNOWN_OPERATION_FAIL_CLOSED_PLAN.md`.
+- JVM tests + Android Lint on the final docs-updated PR head: **PENDING**; no CI-PASS claim until completed.
+- Xiaomi Pad 5 / HyperOS Shizuku, actual package-manager actions and SAF provider behavior: **NOT TESTED**. APK artifacts: **0**. No new permission/dependency, root, Device Owner, merge, main write, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
