@@ -64,6 +64,10 @@ internal object ApkInstallSnapshot {
     ): Int {
         require(maxAgeMillis > 0)
         if (!directory.isDirectory) return 0
+        // A pre-epoch clock can underflow here and wrap the cutoff into the
+        // future, deleting valid snapshots. Cache cleanup is best-effort:
+        // when wall-clock age cannot be represented safely, fail closed.
+        if (nowMillis < 0L || nowMillis < maxAgeMillis) return 0
         val cutoff = nowMillis - maxAgeMillis
         return directory.listFiles().orEmpty().count { file ->
             file.isFile && file.name.startsWith(PREFIX) &&
