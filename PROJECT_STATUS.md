@@ -169,3 +169,14 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Exact source/JVM/Lint checks passed. Do not treat the final documentation-updated PR head as verified until its own CI run succeeds.
 - Xiaomi Pad 5 / HyperOS, SAF providers, signature authenticity and malware detection: **NOT TESTED**. No APK artifact expected.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
+
+## 2026-10-27 — N56 shared ZIP entry-type safety (source/JVM/Lint PASS)
+
+- **Production/source + regression-test SHA:** `263c3a13303c6608046c54cba6d03085e5d62efa`.
+- Shared the host-aware Unix POSIX entry-type policy between APK preflight and the exported SAF bundle verifier. The bundle verifier now reads central-directory host-system and external-attribute fields and rejects Unix symlinks/special objects or file/directory path mismatches.
+- Tests cover accepted Unix regular-file metadata, rejected symlink/FIFO/directory mismatch, and direct policy behavior for regular files, directories, unknown type bits and non-Unix hosts.
+- **PASS:** [source/JVM/Lint CI #40559296718](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559296718), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
+- **Artifacts: 0.** No APK packaging, signing or upload.
+- Docs-updated PR-head recheck pending. Xiaomi Pad 5 / HyperOS and actual SAF provider behavior: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
+
