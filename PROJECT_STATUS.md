@@ -45,3 +45,13 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - A docs-only head recheck is pending and will be reported in the PR thread without further source edits.
 - Xiaomi Pad 5/HyperOS, Shizuku, SAF provider behavior, and UI interaction: NOT TESTED.
 - No APK packaging/artifacts, merge, main write, root, or Device Owner.
+
+
+## 2026-10-27 — N37 optional UsageStats failure isolation (source/test PASS)
+
+- Production source/test head: a450c404ac7f7570d23bcd7b93b5a073803aabcb.
+- Usage access/AppOps and UsageStats provider failures now degrade only optional usage metadata; installed-app inventory remains independently loadable.
+- Six JVM regressions cover denied/throwing access, throwing/null provider results, successful 24-hour snapshot, and invalid clock boundaries.
+- **PASS:** [source-only CI #40434828097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40434828097), :app:testDebugUnitTest + :app:lintDebug, BUILD SUCCESSFUL in 1m 41s; 0 artifacts.
+- Xiaomi Pad 5/HyperOS, SAF, Shizuku and UI interaction: NOT TESTED. No APK packaging, merge, main write, root, or Device Owner.
+- Google Drive LIVE handoff/index: SYNC FAILED — connector unavailable; no Drive sync claimed.
