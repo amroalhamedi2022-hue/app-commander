@@ -122,3 +122,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - SAF provider behavior on Xiaomi Pad 5/HyperOS and Shizuku device operations remain **NOT TESTED**.
 - Google Drive LIVE handoff/index: **SYNC FAILED** because the Drive/Docs connector is unavailable in this runtime; no sync is claimed.
 - PR #1 remains Draft/open, unmerged; no main write, root, Device Owner or auto-merge.
+
+
+## 2026-10-27 — N51 SAF cancellation cleanup reporting
+
+- Implemented in the PR branch: base-APK and bundle export paths now expose a manual-removal warning when cancellation carries an unconfirmed partial-document cleanup diagnostic, while rethrowing the same cancellation.
+- Source/test SHA: `b3a5a45f90dd4da7d90a15f5da66912c0ec51692`; source/JVM/Lint CI [#40521536855](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40521536855) **PASS**.
+- Three new JVM tests cover cancellation cleanup, provider deletion denial, and ordinary error-message mapping. No APK packaging or artifacts.
+- Current documentation-head recheck is pending; device/HyperOS and real SAF provider behavior remain **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable in this runtime; no Drive write is claimed.
