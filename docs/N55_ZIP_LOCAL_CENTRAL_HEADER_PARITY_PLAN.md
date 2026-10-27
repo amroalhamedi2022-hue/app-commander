@@ -32,8 +32,9 @@ No third-party ZIP implementation was copied and no dependency was added.
 
 ## Verification ledger
 
-- **Source + regression-test SHA:** `326c96a42840f3d1980c5d8d7c6f01ccfee72fa3`.
-- **CI:** pending at plan creation; update this ledger and PR comment only after the exact SHA and docs-updated head have completed.
+- **Source + regression-test SHA:** `7cdd8f925b4592b516eace5b4fd8eca2cbe157f4`.
+- **PASS — exact source/test SHA:** `7cdd8f925b4592b516eace5b4fd8eca2cbe157f4`; [CI #40556511097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40556511097), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
+- **Docs-updated PR-head recheck:** pending after this evidence update.
 - Xiaomi Pad 5 / HyperOS and real SAF provider behavior: **NOT TESTED**.
 - APK artifacts: **0 expected**.
 - Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is exposed; no sync claim without verified read-after-write.
