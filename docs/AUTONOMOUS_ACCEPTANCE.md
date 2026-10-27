@@ -578,3 +578,14 @@ Updated: 2026-10-26
 - **Artifacts: 0** confirmed; workflow executes JVM tests and Android lint only, with no APK packaging/signing/upload.
 - Xiaomi Pad 5 / HyperOS inventory UI, SAF and Shizuku device behavior remain **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no Drive document or folder metadata was read or written.
+
+## 2026-10-27 N45 — explicit locale-independent inventory ordering
+
+- **Engineering question and acceptance criteria recorded before CI:** `docs/N45_LOCALE_INDEPENDENT_INVENTORY_SORT_PLAN.md`.
+- **Production change:** `AppInventoryRowMapper.inventorySortKey` now uses `lowercase(Locale.ROOT)` between NFC normalization passes; only comparison keys change, not displayed labels. No dependency, permission, network access or third-party code added.
+- **Regression:** map the same `I` / `i` labels with English and Turkish process defaults, assert identical package order and exact display-label preservation. Existing N44 composed/decomposed Unicode test remains in the same suite.
+- **Exact source/test SHA:** `170bef46a369911d16e1661c800cce8f97001623`; production commit `87afa93774f123fb0bc22f96668d8c53f73b773f`.
+- **PASS — source/JVM/lint:** [run #40469466535](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40469466535), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 53s**.
+- **Artifacts: 0 confirmed**; the workflow contains no APK packaging/signing/upload task. Docs-updated PR head requires a separate recheck.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS PackageManager ordering and Compose rendering, SAF providers, Shizuku operations, APK signature authenticity or malware detection.
+- No merge, main write, release, auto-merge, root or Device Owner. Google Drive LIVE sync remains **SYNC FAILED** because no Drive/Docs connector is exposed; no LIVE document or folder metadata read/write is claimed.
