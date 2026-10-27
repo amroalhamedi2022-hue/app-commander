@@ -721,3 +721,13 @@ Updated: 2026-10-26
 - Source/JVM/Lint [CI #40563943994](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40563943994) was in progress when this entry was written; final docs-head results will be recorded in the PR conversation after recheck.
 - Device/SAF, signer authenticity and malware detection: **NOT TESTED**. APK artifacts: **0**. No dependency/permission changes, root, Device Owner, merge or main write.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 N57 follow-up — canonical ZIP test fixture correction
+
+- **FAIL, superseded:** [CI #40563943994](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40563943994) showed one targeted UTF-8 test failed because the shared generic archive fixture used a non-canonical timestamp extra field and was rejected before its intended UTF-8 assertion.
+- Fixed the fixture helper to use `ZipEntry.time = 0L`, exactly matching the production exporter. The test suite now reaches the intended malformed-manifest behavior while preserving the stricter production policy.
+- **PASS — corrected production + test SHA:** `dd4fc2ce63dfe6a0139c2ea2726694312e2cec30`, [JVM tests + Android Lint #40564471753](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40564471753); all steps succeeded and artifacts **0**.
+- OpenJDK 21 local probe confirmed the expected 9-byte UT extra field; Android libcore source reviewed. Device/SAF and signer authenticity remain **NOT TESTED**.
+- Final docs-updated PR-head results will be posted in the PR conversation after CI completes.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
