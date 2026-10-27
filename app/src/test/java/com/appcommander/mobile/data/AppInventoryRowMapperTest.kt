@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 class AppInventoryRowMapperTest {
     private fun candidate(
@@ -156,4 +157,28 @@ class AppInventoryRowMapperTest {
         assertEquals(decomposed, forward.single { it.packageName == "org.example.a" }.label)
         assertEquals(composed, forward.single { it.packageName == "org.example.z" }.label)
     }
+
+    @Test fun inventoryOrderingDoesNotDependOnProcessLocale() {
+        val candidates = listOf(
+            candidate(packageName = "org.example.z", label = { "I" }),
+            candidate(packageName = "org.example.a", label = { "i" }),
+        )
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.US)
+            val englishOrder = AppInventoryRowMapper.mapAll(candidates)
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            val turkishOrder = AppInventoryRowMapper.mapAll(candidates)
+
+            val expectedPackages = listOf("org.example.a", "org.example.z")
+            assertEquals(expectedPackages, englishOrder.map { it.packageName })
+            assertEquals(expectedPackages, turkishOrder.map { it.packageName })
+            assertEquals(englishOrder.map { it.packageName }, turkishOrder.map { it.packageName })
+            assertEquals("i", englishOrder.single { it.packageName == "org.example.a" }.label)
+            assertEquals("I", englishOrder.single { it.packageName == "org.example.z" }.label)
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
 }
