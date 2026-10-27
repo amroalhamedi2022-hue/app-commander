@@ -9,10 +9,13 @@ internal object PrivilegedRequestValidator {
     private val packagePattern = Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")
     private val classPattern = Regex("\\.?[A-Za-z_\\$][A-Za-z0-9_\\$]*(\\.[A-Za-z_\\$][A-Za-z0-9_\\$]*)*")
 
-    fun error(operation: Int, packageName: String, argument: String): String? {
+    fun packageNameError(packageName: String): String? =
         if (packageName.length !in 1..255 || !packagePattern.matches(packageName)) {
-            return "Invalid Android package name"
-        }
+            "Invalid Android package name"
+        } else null
+
+    fun error(operation: Int, packageName: String, argument: String): String? {
+        packageNameError(packageName)?.let { return it }
         val requiresArgument = when (operation) {
             PrivilegedOperation.GRANT_PERMISSION, PrivilegedOperation.REVOKE_PERMISSION,
             PrivilegedOperation.ENABLE_COMPONENT, PrivilegedOperation.DISABLE_COMPONENT -> true
