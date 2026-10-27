@@ -208,6 +208,42 @@ class InstalledApkBundleVerifierTest {
         assertTrue(failure.message.orEmpty().contains("extra fields differ"))
     }
 
+    private fun exportedWithMatchingUnknownExtraField(): ByteArray {
+        val bytes = exported()
+        val localNameLength = (bytes[26].toInt() and 255) or
+            ((bytes[27].toInt() and 255) shl 8)
+        val localExtraLength = (bytes[28].toInt() and 255) or
+            ((bytes[29].toInt() and 255) shl 8)
+        assertEquals("canonical local timestamp extra length", 9, localExtraLength)
+        val localExtraStart = 30 + localNameLength
+
+        val centralOffset = readU32(bytes, bytes.size - 22 + 16)
+        val centralNameLength = (bytes[centralOffset + 28].toInt() and 255) or
+            ((bytes[centralOffset + 29].toInt() and 255) shl 8)
+        val centralExtraLength = (bytes[centralOffset + 30].toInt() and 255) or
+            ((bytes[centralOffset + 31].toInt() and 255) shl 8)
+        assertEquals(localExtraLength, centralExtraLength)
+        val centralExtraStart = centralOffset + 46 + centralNameLength
+
+        // Keep both header copies byte-identical and structurally sized, but
+        // replace the only permitted UT timestamp ID with an unknown field ID.
+        writeU16(bytes, localExtraStart, 0x9999)
+        writeU16(bytes, centralExtraStart, 0x9999)
+        return bytes
+    }
+
+    @Test fun rejectsUnknownExtraFieldEvenWhenLocalAndCentralMatch() {
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(
+                ByteArrayInputStream(exportedWithMatchingUnknownExtraField()),
+            )
+        }
+        assertTrue(
+            "matching unknown extras must still be rejected as non-canonical",
+            failure.message.orEmpty().contains("Unsupported ZIP local extra fields"),
+        )
+    }
+
     @Test fun acceptsUnixRegularFileTypeInCanonicalBundle() {
         val result = InstalledApkBundleVerifier.verify(
             ByteArrayInputStream(exportedWithFirstCentralUnixType(0x8000 or 0x01a4)),
