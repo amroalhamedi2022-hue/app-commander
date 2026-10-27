@@ -493,3 +493,14 @@ Updated: 2026-10-26
 - **Artifacts: 0 confirmed**; no APK packaging, signing, or upload occurred.
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS AppOps and UsageStats provider behavior, UI rendering, SAF providers, Shizuku operations, APK authenticity and malware detection.
 - **Google Drive LIVE sync: SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE document was read or written and no folder metadata was verified.
+
+
+## 2026-10-27 N38 — fail-safe verified APK snapshot cleanup
+
+- **Engineering question:** can cache expiry arithmetic remain safe under a negative/near-epoch wall clock, and can the returned verified installer snapshot be accidentally removed by a redundant post-URI cleanup? Source review alone cannot demonstrate the overflow regression is prevented.
+- **Production changes:** cleanup fails closed for negative clocks and retention intervals greater than observed time; removed the redundant cleanup after generating the returned FileProvider URI. Existing cleanup still runs before a new snapshot is allocated.
+- **Regression tests:** three JVM cases cover `Long.MIN_VALUE` cutoff overflow, near-epoch/retention-longer-than-uptime behavior, and `Long.MAX_VALUE` retention.
+- **Source/license review:** own Kotlin cache-lifecycle code only; no new dependency, permission, network access or external code.
+- **CI:** pending exact updated PR-head run; source-only tests/lint only, zero artifacts expected.
+- **NOT TESTED:** real SAF providers, Android installer handoff, Xiaomi Pad 5/HyperOS. No APK packaging, signing, merge, main write, root, or Device Owner.
+- **Google Drive LIVE sync: SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document was read/written or folder metadata verified.
