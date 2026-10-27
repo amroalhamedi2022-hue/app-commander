@@ -47,7 +47,13 @@ internal object ZipBundleStructure {
     private const val TAIL_BYTES = 128 * 1024
     private const val MAX_RAW_BYTES = InstalledApkBundleExport.MAX_TOTAL_BYTES + 1024 * 1024L
 
-    data class LocalEntry(val name: String, val size: Long, val compressedSize: Long, val crc: Long)
+    data class LocalEntry(
+        val name: String,
+        val size: Long,
+        val compressedSize: Long,
+        val crc: Long,
+        val extra: ByteArray,
+    )
 
     /** Captures only the final 128 KiB, including any bytes read ahead by ZipInputStream. */
     class TrackingStream(private val source: InputStream) : InputStream() {
@@ -171,6 +177,11 @@ internal object ZipBundleStructure {
                 compressed < size
             ) throw IOException("Unsupported ZIP central directory metadata")
             val name = decodeStrictUtf8(rawTail, cursor + 46, nameLength, "ZIP entry name")
+            val extraStart = cursor + 46 + nameLength
+            val centralExtra = rawTail.copyOfRange(extraStart, extraStart + extraLength)
+            if (!centralExtra.contentEquals(expected.extra)) {
+                throw IOException("ZIP central directory extra fields differ from local entries")
+            }
             if (name != expected.name || size != expected.size ||
                 compressed != expected.compressedSize || crc != expected.crc
             ) throw IOException("ZIP central directory differs from local entries")
