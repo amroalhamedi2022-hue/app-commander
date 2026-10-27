@@ -139,4 +139,21 @@ class AppInventoryRowMapperTest {
 
         assertEquals(listOf("Alpha", "org.example.fallback", "Zulu"), rows.map { it.label })
     }
+
+    @Test fun canonicallyEquivalentUnicodeLabelsHaveStablePackageOrderWithoutRewritingDisplayLabels() {
+        val composed = "Caf\u00e9"
+        val decomposed = "Cafe\u0301"
+        val candidates = listOf(
+            candidate(packageName = "org.example.z", label = { composed }),
+            candidate(packageName = "org.example.a", label = { decomposed }),
+        )
+        val expected = listOf("org.example.a", "org.example.z")
+
+        val forward = AppInventoryRowMapper.mapAll(candidates)
+        val reverse = AppInventoryRowMapper.mapAll(candidates.reversed())
+        assertEquals(expected, forward.map { it.packageName })
+        assertEquals(expected, reverse.map { it.packageName })
+        assertEquals(decomposed, forward.single { it.packageName == "org.example.a" }.label)
+        assertEquals(composed, forward.single { it.packageName == "org.example.z" }.label)
+    }
 }
