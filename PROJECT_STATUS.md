@@ -180,3 +180,14 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Docs-updated PR-head recheck **PASS** on `140cb04d65e315e46b3eb0466c6d4d7f1d1c698f`: [CI #40559928664](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559928664) succeeded; artifacts 0. Xiaomi Pad 5 / HyperOS and actual SAF provider behavior: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
 
+
+## 2026-10-27 — N59 ZIP version-header parity (source/test PASS; final docs head recheck pending)
+
+- Current PR #1 remains **open/Draft**, no merge or main write.
+- Production source: ZipBundleStructure validates local version-needed, central version-needed and central creator version for canonical ZIP32 output.
+- Crafted integration regressions reject local/central version-needed drift and unsupported creator version.
+- Production commit: `a269c43f6a41e3b65b9fd434ac638e3e2624fe21`; test commit: `668caf15514cc25fb2f735226f32e75a203a0f3d`.
+- **PASS — source/JVM/Lint on pre-ledger head `9ffeaddd284d44addfaf1fe05e753575196799c9`:** [CI #40581685497](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40581685497).
+- Latest acceptance ledger and N59 plan contain the source review, test criteria and exact evidence. Current docs-updated head recheck is pending; result will be recorded in the PR conversation.
+- APK artifacts: 0. Xiaomi Pad 5/HyperOS SAF, signer authenticity and malware detection: NOT TESTED. No new dependency/permission, root, Device Owner, APK build, merge, main write or auto-merge.
+- Google Drive LIVE sync: SYNC FAILED because this runtime has no Drive/Docs connector; no Drive read/write or folder metadata verification is claimed.
