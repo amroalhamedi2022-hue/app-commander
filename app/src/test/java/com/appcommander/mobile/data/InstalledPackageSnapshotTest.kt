@@ -81,7 +81,7 @@ class InstalledPackageSnapshotTest {
         val before = snapshot(paths = listOf(base), sizes = mapOf(base to bytes.size.toLong()))
         var cleaned = false
         assertThrows(IOException::class.java) {
-            InstalledApkExport.withPartialDocumentCleanup(cleanup = { cleaned = true }) {
+            InstalledApkExport.withPartialDocumentCleanup(cleanup = { cleaned = true; true }) {
                 val written = InstalledApkExport.copyBaseAndVerify(
                     openSource = { ByteArrayInputStream(bytes) },
                     openForWrite = { output },
@@ -102,7 +102,7 @@ class InstalledPackageSnapshotTest {
         val before = snapshot(paths = listOf(base), sizes = mapOf(base to bytes.size.toLong()))
         var cleaned = false
         assertThrows(IOException::class.java) {
-            InstalledApkExport.withPartialDocumentCleanup(cleanup = { cleaned = true }) {
+            InstalledApkExport.withPartialDocumentCleanup(cleanup = { cleaned = true; true }) {
                 val written = InstalledApkBundleExport.writeAndVerify(
                     packageName = "com.example.app",
                     sources = listOf(InstalledApkBundleExport.Source(
