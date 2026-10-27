@@ -62,13 +62,19 @@ internal object ApkCacheCopy {
     }
 
     /** Copy and hash in a single streaming pass, avoiding a second 512 MiB disk read. */
-    fun copyWithSha256(input: InputStream, output: OutputStream, maxBytes: Long = MAX_APK_BYTES): CopyResult {
+    fun copyWithSha256(
+        input: InputStream,
+        output: OutputStream,
+        maxBytes: Long = MAX_APK_BYTES,
+        checkCancelled: () -> Unit = {},
+    ): CopyResult {
         require(maxBytes > 0) { "APK copy limit must be positive" }
         val digest = MessageDigest.getInstance("SHA-256")
         val buffer = ByteArray(64 * 1024)
         var total = 0L
         var emptyReads = 0
         while (true) {
+            checkCancelled()
             val count = input.read(buffer)
             if (count < 0) break
             if (count == 0) {
@@ -92,6 +98,10 @@ internal object ApkCacheCopy {
     }
 
     /** Compatibility entry point for callers that only need the byte count. */
-    fun copy(input: InputStream, output: OutputStream, maxBytes: Long = MAX_APK_BYTES): Long =
-        copyWithSha256(input, output, maxBytes).sizeBytes
+    fun copy(
+        input: InputStream,
+        output: OutputStream,
+        maxBytes: Long = MAX_APK_BYTES,
+        checkCancelled: () -> Unit = {},
+    ): Long = copyWithSha256(input, output, maxBytes, checkCancelled).sizeBytes
 }
