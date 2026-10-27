@@ -147,6 +147,24 @@ class InstalledApkBundleVerifierTest {
         }
     }
 
+    @Test fun rejectsLocalAndCentralGeneralPurposeFlagMismatch() {
+        val forged = exported()
+        val originalFlags = (forged[6].toInt() and 255) or
+            ((forged[7].toInt() and 255) shl 8)
+        assertTrue("canonical exporter uses a data descriptor", originalFlags and 0x0008 != 0)
+        val changedFlags = originalFlags xor 0x0800 // toggle only the UTF-8 name flag
+        forged[6] = (changedFlags and 255).toByte()
+        forged[7] = ((changedFlags ushr 8) and 255).toByte()
+
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+        }
+        assertTrue(
+            "must reject a local/central metadata split-brain",
+            failure.message.orEmpty().contains("local/central"),
+        )
+    }
+
     @Test fun rejectsCentralDirectoryExtraFieldMismatchWithLocalEntry() {
         val forged = exported()
         val centralOffset = readU32(forged, forged.size - 22 + 16)
