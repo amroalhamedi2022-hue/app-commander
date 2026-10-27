@@ -16,16 +16,26 @@ internal object ZipEntryTypeSafety {
     private const val REGULAR_FILE = 0x8000
     private const val DIRECTORY = 0x4000
     private const val SYMBOLIC_LINK = 0xa000
+    private const val DOS_DIRECTORY = 0x10
 
     @Throws(IOException::class)
     fun validate(hostSystem: Int, externalAttributes: Long, name: String) {
-        if (hostSystem != UNIX_HOST_SYSTEM) return
+        val directoryPath = name.endsWith("/")
+        if (hostSystem != UNIX_HOST_SYSTEM) {
+            // PKWARE ZIP APPNOTE maps the low byte to DOS attributes for
+            // DOS/FAT host records. Reject file/directory metadata conflicts.
+            val dosAttributes = (externalAttributes and 0xffL).toInt()
+            val hasDosDirectoryBit = (dosAttributes and DOS_DIRECTORY) != 0
+            if (hasDosDirectoryBit != directoryPath) {
+                throw IOException("ZIP DOS directory attribute disagrees with path")
+            }
+            return
+        }
 
         val unixMode = ((externalAttributes ushr 16) and 0xffffL).toInt()
         val fileType = unixMode and TYPE_MASK
         if (fileType == 0) return
 
-        val directoryPath = name.endsWith("/")
         when (fileType) {
             REGULAR_FILE -> if (directoryPath) {
                 throw IOException("ZIP regular-file type disagrees with directory path")
