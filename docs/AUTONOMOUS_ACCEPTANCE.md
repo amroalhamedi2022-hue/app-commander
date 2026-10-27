@@ -552,11 +552,11 @@ Updated: 2026-10-26
 - Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is available in this runtime; no LIVE read/write or folder metadata verification is claimed.
 
 
-## 2026-10-27 N43 — deterministic installed-app inventory ordering (CI pending)
+## 2026-10-27 N43 — deterministic installed-app inventory ordering
 
-- **Production change:** inventory rows now sort by case-insensitive resolved label, then normalized package name, then original package name. This removes PackageManager enumeration order as the tie-breaker for duplicate labels.
-- **Regression coverage:** duplicate labels differing only by case; same candidate set supplied in three different provider orders must produce the same package sequence.
-- **Plan:** `docs/N43_DETERMINISTIC_INVENTORY_ORDER_PLAN.md`.
-- **CI:** pending exact source/test and docs-head checks; results will be appended after the workflow completes.
-- **Artifacts:** expected zero by the source-only workflow; no APK build requested.
-- **Device / HyperOS:** **NOT TESTED**. No merge, main write, release, auto-merge, root or Device Owner.
+- **Production source + tests SHA:** `7621e0f04eec4b91ae2b03a4c6d7d9a6e7b80661`.
+- **PASS — source/JVM tests + Android lint:** [Actions run #40465466282](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40465466282), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 43s**.
+- **Artifacts: 0 confirmed.** This was source/JVM test and lint only; no APK packaging/signing/upload.
+- Regression coverage: same duplicate-label candidate set in three different input orders; all resolve to package order `org.example.a`, `org.example.m`, `org.example.z`.
+- Docs-updated PR-head recheck will be verified after this ledger update and recorded in the PR discussion.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS live PackageManager enumeration and UI rendering, SAF provider behavior, Shizuku device operations, APK authenticity and malware detection. No merge, main write, release, auto-merge, root or Device Owner.

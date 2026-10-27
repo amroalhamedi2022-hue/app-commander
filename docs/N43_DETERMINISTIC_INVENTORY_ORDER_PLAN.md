@@ -19,3 +19,11 @@ Does the installed-app list remain stable when PackageManager returns packages i
 ## Scope
 
 This is deterministic inventory presentation, not a claim that installed-app metadata or UI rendering has been tested on Xiaomi Pad 5 / HyperOS. Device acceptance remains **NOT TESTED**.
+
+
+## Validation results
+
+- Exact source/test SHA: `7621e0f04eec4b91ae2b03a4c6d7d9a6e7b80661`.
+- **PASS:** source-only [Actions run #40465466282](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40465466282), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 43s.
+- Artifacts: 0 confirmed; no APK packaging, signing or upload.
+- Xiaomi Pad 5 / HyperOS remains NOT TESTED; docs-updated PR-head recheck is pending and will be recorded in the PR discussion.
