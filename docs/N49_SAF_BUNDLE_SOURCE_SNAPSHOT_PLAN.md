@@ -3,7 +3,7 @@
 **Date:** 2026-10-27  
 **Repository:** `amroalhamedi2022-hue/app-commander`  
 **PR:** #1 — remain Draft; no merge.  
-**Status:** source and regression tests committed; CI pending.
+**Status:** SOURCE/JVM/LINT PASS; docs-head recheck pending.
 
 ## Engineering question
 
@@ -30,7 +30,9 @@ This hardens the existing SAF/ZIP implementation without copying a third-party i
 
 ## Evidence
 
-- Source/test SHA: pending.
-- JVM and lint CI: pending.
+- **Source/test commit SHA:** `c9b34e22b84f87adec2cd79d474ecea30a14e150`.
+- **PASS — JVM tests + Android Lint:** [CI #40501376446](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40501376446), exact PR head; Gradle source checks completed successfully.
+- **Artifacts: 0 confirmed**; no APK packaging/signing/upload.
+- Docs-head recheck: pending.
 - SAF provider behavior on Xiaomi Pad 5/HyperOS: **NOT TESTED**.
 - APK artifacts: 0 expected; no packaging workflow invoked.

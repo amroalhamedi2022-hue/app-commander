@@ -611,3 +611,15 @@ Updated: 2026-10-26
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS detail-sheet interaction, real PackageManager removal/update races, SAF and Shizuku on-device.
 - **SYNC FAILED:** Google Drive LIVE handoff/index unavailable because no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
 - PR #1 remains Draft/open. No APK build, merge, main write, root, Device Owner, or auto-merge.
+
+
+## 2026-10-27 N49 — SAF bundle source snapshot
+
+- **Source/test SHA:** `c9b34e22b84f87adec2cd79d474ecea30a14e150`.
+- **PASS — JVM tests + Android Lint:** [CI #40501376446](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40501376446), exact PR head; `:app:testDebugUnitTest :app:lintDebug` completed successfully.
+- Production change: both bundle export entry points snapshot the caller-owned source list before validation, then use the same snapshot for size/name validation and ZIP writing. This prevents a mutable list changing from a provider callback after preflight.
+- Two regressions mutate the original list from `openForWrite` and from an `OutputStream` callback, then assert the written base APK bytes and SHA-256 remain correct.
+- **Artifacts: 0 confirmed.** Source/JVM/Lint workflow only; no APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS SAF provider readback: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
+- PR #1 remains Draft/open. No merge, main write, root, Device Owner or auto-merge.

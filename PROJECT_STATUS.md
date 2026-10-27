@@ -112,3 +112,13 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS detail-sheet interaction, real PackageManager removal/update races, SAF and Shizuku on-device.
 - **SYNC FAILED:** Google Drive LIVE handoff/index unavailable because no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
 - PR #1 remains Draft/open. No APK build, merge, main write, root, Device Owner, or auto-merge.
+
+
+## 2026-10-27 — N49 SAF bundle source snapshot
+
+- **Source/test SHA:** `c9b34e22b84f87adec2cd79d474ecea30a14e150`; source/JVM/lint CI [#40501376446](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40501376446) **PASS**.
+- Both `write` and `writeAndVerify` now use one stable source descriptor snapshot across preflight and archive output. Two deterministic tests cover list mutation at provider-open and output-write callbacks.
+- **Artifacts: 0 confirmed**; no APK was built or uploaded.
+- SAF provider behavior on Xiaomi Pad 5/HyperOS and Shizuku device operations remain **NOT TESTED**.
+- Google Drive LIVE handoff/index: **SYNC FAILED** because the Drive/Docs connector is unavailable in this runtime; no sync is claimed.
+- PR #1 remains Draft/open, unmerged; no main write, root, Device Owner or auto-merge.
