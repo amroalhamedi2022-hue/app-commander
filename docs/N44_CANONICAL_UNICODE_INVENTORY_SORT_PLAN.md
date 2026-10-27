@@ -31,6 +31,7 @@ Can two installed applications whose labels are canonically equivalent Unicode s
 ## Status
 
 - Source/test SHA: `f9bc35f77a71f9350cc0a6a2f04f5443185dca99`.
-- CI: **PENDING** at plan creation; update this section only after the exact run is observed.
+- **PASS — exact source/test SHA `f9bc35f77a71f9350cc0a6a2f04f5443185dca99`:** source/JVM/Lint [run #40467321993, attempt 2](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40467321993), `:app:testDebugUnitTest :app:lintDebug`, successful.
+- **PASS — docs-updated PR head `c2c9b6e547f3229d187786eb7d9265b750c22ce3`:** [run #40467473913](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40467473913), source/JVM/Lint successful; artifacts 0. The following ledger append triggers one more PR-head recheck; its result will be recorded in the PR discussion.
 - Xiaomi Pad 5 / HyperOS UI ordering: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is available; no sync claim without read-back and folder metadata verification.
