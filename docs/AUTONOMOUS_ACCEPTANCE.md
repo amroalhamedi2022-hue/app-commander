@@ -790,4 +790,5 @@ Updated: 2026-10-26
 - Production change: ApkInspectionSignals.evaluate now accepts the component-exposure counts already extracted by AppRepository; the real Inspector UI passes those values and shows concise findings alongside permission signals.
 - Regression tests cover unguarded Activity/Service/Receiver aggregation, provider read/write and effective path-rule gaps, no-finding zero cases, and malformed negative counts.
 - Android Developers documentation reviewed for android:exported and component permissions; no code copied and no dependency added.
-- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md. Initial CI #40598847529: FAIL because the test file omitted the JUnit assertNotNull import; fixed in this follow-up. Source/JVM/Lint verification: PENDING. Device/HyperOS and real APK corpus: NOT TESTED. APK artifacts: 0.
+- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md. - Source/test commit: 1d33aad9b5c0fb40e0bbafd71ea7bbe06eef0878. Initial CI #40598847529 failed only because the new test omitted the JUnit assertNotNull import; follow-up added it.
+- **PASS:** source/JVM/Lint CI #40599249288 ran :app:testDebugUnitTest and :app:lintDebug; log reports BUILD SUCCESSFUL in 1m 46s. Artifact query: 0. Final docs-head recheck: PENDING. Device/HyperOS and real APK corpus: NOT TESTED.
