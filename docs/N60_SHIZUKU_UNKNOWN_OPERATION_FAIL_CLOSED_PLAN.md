@@ -31,3 +31,9 @@ Does the privileged command policy itself deny unknown integer operation codes? 
 - Xiaomi Pad 5 / HyperOS Shizuku execution and real SAF providers: **NOT TESTED**.
 - This is policy hardening only; it does not claim device-level privilege validation.
 - Google Drive LIVE sync must be independently verified; GitHub documentation is not proof of Drive sync.
+
+## Verification follow-up — 2026-10-27
+
+- **PASS on PR head `30938366aed255507756d5578ea79c4e383337f4`:** [CI #40591001051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40591001051) completed `:app:testDebugUnitTest` and `:app:lintDebug`; the job log reports **BUILD SUCCESSFUL in 1m 26s**.
+- Artifact query returned **0 artifacts**. This plan append creates a new head; final-head recheck is reported in PR #1 conversation so the ledger does not cause an endless docs/CI commit loop.
+- Device/HyperOS/Shizuku and real SAF behavior: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is available.
