@@ -780,8 +780,12 @@ private fun AppDetailSheet(
                     }
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
-                } catch (_: Exception) {
-                    exportMessage = "تعذّر تصدير APK أو فشل التحقق من الملف المحفوظ. حاولنا حذف الملف الجزئي؛ قد يلزم حذفه يدويًا إذا رفض مزوّد الملفات."
+                } catch (failure: Exception) {
+                    exportMessage = if (InstalledApkExport.cleanupWasUnconfirmed(failure)) {
+                        "تعذّر تصدير APK أو فشل التحقق من الملف المحفوظ. لم يتأكد حذف الملف الجزئي؛ افحص المجلد واحذفه يدويًا إن بقي."
+                    } else {
+                        "تعذّر تصدير APK أو فشل التحقق من الملف المحفوظ. تم تأكيد حذف الملف الجزئي."
+                    }
                 } finally {
                     exportBusy = false
                 }
@@ -806,9 +810,12 @@ private fun AppDetailSheet(
                         "لا يشمل بيانات التطبيق، ولا يثبت سلامة التوقيع."
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
                     throw cancelled
-                } catch (_: Exception) {
-                    exportMessage = "تعذّر تصدير حزمة APKs. حاولنا حذف ملف ZIP الجزئي؛ " +
-                        "قد يحتاج الحذف اليدوي إذا رفض مزوّد SAF."
+                } catch (failure: Exception) {
+                    exportMessage = if (InstalledApkExport.cleanupWasUnconfirmed(failure)) {
+                        "تعذّر تصدير حزمة APKs. لم يتأكد حذف ملف ZIP الجزئي؛ افحص المجلد واحذفه يدويًا إن بقي."
+                    } else {
+                        "تعذّر تصدير حزمة APKs. تم تأكيد حذف ملف ZIP الجزئي."
+                    }
                 } finally {
                     exportBusy = false
                 }

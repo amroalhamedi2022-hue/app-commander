@@ -65,7 +65,7 @@ class InstalledApkExportTest {
     @Test fun successfulExportNeverDeletesNewDocument() {
         var deletes = 0
         val result = InstalledApkExport.withPartialDocumentCleanup(
-            cleanup = { deletes++ },
+            cleanup = { deletes++; true },
             write = { "saved" },
         )
         assertEquals("saved", result)
@@ -77,7 +77,7 @@ class InstalledApkExportTest {
         val original = IOException("source truncated")
         val thrown = assertThrows(IOException::class.java) {
             InstalledApkExport.withPartialDocumentCleanup(
-                cleanup = { deletes++ },
+                cleanup = { deletes++; true },
                 write = { throw original },
             )
         }
@@ -94,6 +94,40 @@ class InstalledApkExportTest {
             )
         }
         assertSame(original, thrown)
+        assertTrue(InstalledApkExport.cleanupWasUnconfirmed(thrown))
+        val diagnostic = thrown.suppressed.single() as PartialDocumentCleanupDiagnostic
+        assertEquals("Partial SAF document cleanup failed", diagnostic.message)
+        assertEquals("provider denied deletion", diagnostic.cause?.message)
+    }
+
+    @Test fun falseDeleteResultIsReportedWithoutReplacingOriginalFailure() {
+        val original = IOException("provider readback failed")
+        val thrown = assertThrows(IOException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { false },
+                write = { throw original },
+            )
+        }
+        assertSame(original, thrown)
+        assertTrue(InstalledApkExport.cleanupWasUnconfirmed(thrown))
+        assertTrue(thrown.suppressed.single() is PartialDocumentCleanupDiagnostic)
+    }
+
+    @Test fun deleteIsNotInvokedUnlessUriIsConfirmedAsDocument() {
+        var deletes = 0
+        val unconfirmed = InstalledApkExport.deleteDocumentIfConfirmed(
+            isDocument = { false },
+            delete = { deletes++; true },
+        )
+        assertFalse(unconfirmed)
+        assertEquals(0, deletes)
+
+        val confirmed = InstalledApkExport.deleteDocumentIfConfirmed(
+            isDocument = { true },
+            delete = { deletes++; true },
+        )
+        assertTrue(confirmed)
+        assertEquals(1, deletes)
     }
 
     @Test fun baseSafExportReadbackAfterCloseChecksBytesAndSplitWarning() {
@@ -150,7 +184,7 @@ class InstalledApkExportTest {
         var deletes = 0
         val error = assertThrows(IOException::class.java) {
             InstalledApkExport.withPartialDocumentCleanup(
-                cleanup = { deletes++ },
+                cleanup = { deletes++; true },
                 write = {
                     InstalledApkExport.copyBaseAndVerify(
                         openSource = { ByteArrayInputStream(base) },

@@ -5,6 +5,15 @@ import java.io.InputStream
 import java.io.OutputStream
 
 /**
+ * Typed suppressed diagnostic used when deletion of a newly created partial
+ * SAF document cannot be confirmed. The original export failure remains primary.
+ */
+internal class PartialDocumentCleanupDiagnostic(
+    message: String,
+    cause: Throwable? = null,
+) : IOException(message, cause)
+
+/**
  * SAF export of an installed app's BASE APK only. No root, Shizuku or
  * Device Owner is needed. Split APKs are deliberately not represented as
  * a complete reinstallable backup by this operation.
@@ -21,21 +30,47 @@ internal object InstalledApkExport {
      * The caller MUST supply a cleanup callback scoped to the newly created
      * SAF document, never an existing user-selected document.
      */
-    inline fun <T> withPartialDocumentCleanup(
-        cleanup: () -> Unit,
+    fun <T> withPartialDocumentCleanup(
+        cleanup: () -> Boolean,
         write: () -> T,
     ): T {
         try {
             return write()
         } catch (failure: Throwable) {
             try {
-                cleanup()
-            } catch (_: Throwable) {
-                // Preserve the original failure and allow UI to warn the user.
+                if (!cleanup()) {
+                    failure.addSuppressed(
+                        PartialDocumentCleanupDiagnostic(
+                            "SAF provider did not confirm deletion of the partial document",
+                        ),
+                    )
+                }
+            } catch (cleanupFailure: Throwable) {
+                val diagnostic = if (cleanupFailure === failure) {
+                    PartialDocumentCleanupDiagnostic("Partial SAF document cleanup failed")
+                } else {
+                    PartialDocumentCleanupDiagnostic(
+                        "Partial SAF document cleanup failed",
+                        cleanupFailure,
+                    )
+                }
+                failure.addSuppressed(diagnostic)
             }
             throw failure
         }
     }
+
+    /** Fail closed: never invoke delete unless the URI is confirmed as a document. */
+    internal fun deleteDocumentIfConfirmed(
+        isDocument: () -> Boolean,
+        delete: () -> Boolean,
+    ): Boolean {
+        if (!isDocument()) return false
+        return delete()
+    }
+
+    internal fun cleanupWasUnconfirmed(failure: Throwable): Boolean =
+        failure.suppressed.any { it is PartialDocumentCleanupDiagnostic }
 
     /**
      * Complete the single-base SAF export only after the newly created document

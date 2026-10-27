@@ -277,9 +277,10 @@ class AppRepository(private val context: Context) {
         // writing the destination or closing the stream fails.
         return InstalledApkExport.withPartialDocumentCleanup(
             cleanup = {
-                if (DocumentsContract.isDocumentUri(context, destination)) {
-                    DocumentsContract.deleteDocument(context.contentResolver, destination)
-                }
+                InstalledApkExport.deleteDocumentIfConfirmed(
+                    isDocument = { DocumentsContract.isDocumentUri(context, destination) },
+                    delete = { DocumentsContract.deleteDocument(context.contentResolver, destination) },
+                )
             },
         ) {
             val snapshot = readInstalledPackageSnapshot(packageName)
@@ -314,9 +315,10 @@ class AppRepository(private val context: Context) {
     ): InstalledApkBundleExport.Result {
         return InstalledApkExport.withPartialDocumentCleanup(
             cleanup = {
-                if (DocumentsContract.isDocumentUri(context, destination)) {
-                    DocumentsContract.deleteDocument(context.contentResolver, destination)
-                }
+                InstalledApkExport.deleteDocumentIfConfirmed(
+                    isDocument = { DocumentsContract.isDocumentUri(context, destination) },
+                    delete = { DocumentsContract.deleteDocument(context.contentResolver, destination) },
+                )
             },
         ) {
             val snapshot = readInstalledPackageSnapshot(packageName)

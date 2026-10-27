@@ -24,3 +24,11 @@ The implementation uses the existing Android `DocumentsContract` SAF API and pro
 ## Verification ledger
 
 Pending source/test CI and independent PR-head recheck. Xiaomi Pad 5 and real SAF provider deletion semantics remain **NOT TESTED**.
+
+## Implementation update — 2026-10-27
+
+- `InstalledApkExport.withPartialDocumentCleanup` now requires an explicit Boolean deletion result. A provider `false` or thrown cleanup error adds a typed `PartialDocumentCleanupDiagnostic` as a suppressed exception while preserving the original export/readback failure as the thrown exception.
+- `AppRepository` calls deletion only through `deleteDocumentIfConfirmed`; if `DocumentsContract.isDocumentUri` is false, deletion is not invoked and cleanup remains unconfirmed.
+- Base APK and bundle export UI now distinguishes confirmed deletion from unconfirmed cleanup and recommends manual inspection/removal only when necessary.
+- Added JVM regressions for false delete, thrown delete, original-error preservation, and fail-closed URI confirmation.
+- Source/test CI and the docs-updated PR-head recheck are **PENDING**. Xiaomi Pad 5 and real SAF provider behavior remain **NOT TESTED**.
