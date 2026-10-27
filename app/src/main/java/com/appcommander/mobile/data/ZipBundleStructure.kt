@@ -214,6 +214,8 @@ internal object ZipBundleStructure {
             if (cursor > end - 46 || u32(rawTail, cursor) != 0x02014b50L) {
                 throw IOException("Invalid ZIP central directory entry")
             }
+            val hostSystem = u16(rawTail, cursor + 4) ushr 8
+            val externalAttributes = u32(rawTail, cursor + 38)
             val flags = u16(rawTail, cursor + 8)
             val method = u16(rawTail, cursor + 10)
             val crc = u32(rawTail, cursor + 16)
@@ -240,6 +242,7 @@ internal object ZipBundleStructure {
             ) throw IOException("ZIP local/central header metadata mismatch")
             val centralNameBytes = rawTail.copyOfRange(cursor + 46, cursor + 46 + nameLength)
             val name = decodeStrictUtf8(centralNameBytes, "ZIP entry name")
+            ZipEntryTypeSafety.validate(hostSystem, externalAttributes, name)
             if (!centralNameBytes.contentEquals(expected.rawName)) {
                 throw IOException("ZIP local/central entry name bytes differ")
             }
