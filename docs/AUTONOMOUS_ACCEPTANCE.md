@@ -506,3 +506,21 @@ Updated: 2026-10-26
 - **Artifacts: 0** confirmed; no APK packaging, signing or upload occurred.
 - **NOT TESTED:** real SAF providers, Android installer handoff, Xiaomi Pad 5/HyperOS. No APK packaging, signing, merge, main write, root, or Device Owner.
 - **Google Drive LIVE sync: SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document was read/written or folder metadata verified.
+
+## 2026-10-27 — N39 fail-closed snapshot expiry
+
+- **PASS — source/test head:** `676454c507e057a42adc8460265a0ea85debb5c8`.
+- **PASS — source/JVM/Lint:** [run #40446325452](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40446325452); artifacts: **0**.
+- Cache cleanup is best-effort for denied listing and unknown metadata; install snapshot preparation remains fail-closed for content verification but does not fail because optional cleanup could not inspect a file.
+- Device/HyperOS installer behavior: **NOT TESTED**.
+
+## 2026-10-27 — N40 APK signer lineage inspection
+
+- **PASS — exact source/test SHA:** `feb1ee582dd9c7a59cb2184a9b1fb12c6785d377`.
+- **PASS — source-only CI:** [run #40447641304](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40447641304), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 43s.
+- **Artifacts: 0 confirmed**; no APK packaging/signing/upload.
+- Added platform-aware current-signer vs rotation-history display and pure JVM tests for rotation ordering, multi-signer normalization, unavailable metadata and duplicate fingerprints.
+- Android documents that single-signer history is ordered oldest-to-current and is unavailable as a rotation chain for multiple current signers: https://developer.android.com/reference/android/content/pm/SigningInfo
+- Fingerprints and lineage are metadata only; no malware scan or independent authenticity guarantee. Device/HyperOS archive behavior: **NOT TESTED**.
+- The final docs-updated PR-head CI result will be recorded in the PR conversation after the final documentation commit.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector; no LIVE document read/write or folder metadata verification claimed.
