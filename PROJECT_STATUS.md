@@ -177,6 +177,6 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Tests cover accepted Unix regular-file metadata, rejected symlink/FIFO/directory mismatch, and direct policy behavior for regular files, directories, unknown type bits and non-Unix hosts.
 - **PASS:** [source/JVM/Lint CI #40559296718](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559296718), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
 - **Artifacts: 0.** No APK packaging, signing or upload.
-- Docs-updated PR-head recheck pending. Xiaomi Pad 5 / HyperOS and actual SAF provider behavior: **NOT TESTED**.
+- Docs-updated PR-head recheck **PASS** on `140cb04d65e315e46b3eb0466c6d4d7f1d1c698f`: [CI #40559928664](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559928664) succeeded; artifacts 0. Xiaomi Pad 5 / HyperOS and actual SAF provider behavior: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
 
