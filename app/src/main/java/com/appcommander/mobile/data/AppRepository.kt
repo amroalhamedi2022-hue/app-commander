@@ -455,11 +455,9 @@ class AppRepository(private val context: Context) {
                 directory, stream, inspection.sizeBytes, inspection.fileSha256,
             ) ?: return@runCatching null
             try {
-                val verifiedUri = FileProvider.getUriForFile(
+                FileProvider.getUriForFile(
                     context, "${context.packageName}.verifiedapks", file,
                 )
-                ApkInstallSnapshot.cleanupExpired(directory)
-                verifiedUri
             } catch (failure: Exception) {
                 file.delete()
                 throw failure
