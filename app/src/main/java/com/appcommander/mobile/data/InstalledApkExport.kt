@@ -89,20 +89,24 @@ internal object InstalledApkExport {
         openForRead: () -> InputStream,
         expectedBytes: Long,
         hasSplits: Boolean,
+        checkCancelled: () -> Unit = {},
     ): Result {
         // Reject invalid sizes before opening or creating any output stream.
         if (expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
             throw IOException("Installed base APK exceeds safe export limits")
         }
+        checkCancelled()
         val written = openSource().use { input ->
+            checkCancelled()
             openForWrite().use { output ->
-                copyBase(input, output, expectedBytes, hasSplits)
+                copyBase(input, output, expectedBytes, hasSplits, checkCancelled)
             }
         }
         // Both streams are closed before readback: remote SAF providers may
         // commit their data only on close().
+        checkCancelled()
         val matches = openForRead().use { input ->
-            ApkInstallIntegrity.matches(input, written.bytes, written.sha256)
+            ApkInstallIntegrity.matches(input, written.bytes, written.sha256, checkCancelled)
         }
         if (!matches) throw IOException("Saved SAF base APK failed SHA-256 readback")
         return written
@@ -114,11 +118,13 @@ internal object InstalledApkExport {
         output: OutputStream,
         expectedBytes: Long,
         hasSplits: Boolean,
+        checkCancelled: () -> Unit = {},
     ): Result {
         if (expectedBytes !in 1..ApkCacheCopy.MAX_APK_BYTES) {
             throw IOException("Installed base APK exceeds safe export limits")
         }
-        val copied = ApkCacheCopy.copyWithSha256(input, output, expectedBytes)
+        checkCancelled()
+        val copied = ApkCacheCopy.copyWithSha256(input, output, expectedBytes, checkCancelled)
         if (copied.sizeBytes != expectedBytes) {
             throw IOException("Installed base APK changed or was truncated during export")
         }
