@@ -28,7 +28,11 @@ internal object AppInventoryRowMapper {
         candidates.asSequence()
             .filter { it.packageName.isNotBlank() }
             .map(::mapOne)
-            .sortedBy { it.label.lowercase() }
+            .sortedWith(
+                compareBy<AppEntry> { it.label.lowercase() }
+                    .thenBy { it.packageName.lowercase() }
+                    .thenBy { it.packageName },
+            )
             .toList()
 
     private fun mapOne(candidate: AppInventoryCandidate): AppEntry {

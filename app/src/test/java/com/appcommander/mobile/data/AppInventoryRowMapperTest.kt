@@ -115,6 +115,19 @@ class AppInventoryRowMapperTest {
         assertEquals("org.example.valid", rows.single().packageName)
     }
 
+    @Test fun duplicateLabelsHaveStablePackageNameTieBreakRegardlessOfProviderOrder() {
+        val candidates = listOf(
+            candidate(packageName = "org.example.z", label = { "Shared label" }),
+            candidate(packageName = "org.example.a", label = { "shared LABEL" }),
+            candidate(packageName = "org.example.m", label = { "SHARED LABEL" }),
+        )
+        val expected = listOf("org.example.a", "org.example.m", "org.example.z")
+
+        assertEquals(expected, AppInventoryRowMapper.mapAll(candidates).map { it.packageName })
+        assertEquals(expected, AppInventoryRowMapper.mapAll(candidates.reversed()).map { it.packageName })
+        assertEquals(expected, AppInventoryRowMapper.mapAll(listOf(candidates[1], candidates[0], candidates[2])).map { it.packageName })
+    }
+
     @Test fun rowsAreSortedByResolvedDisplayLabel() {
         val rows = AppInventoryRowMapper.mapAll(
             listOf(

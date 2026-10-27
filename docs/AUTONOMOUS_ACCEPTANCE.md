@@ -550,3 +550,13 @@ Updated: 2026-10-26
 - **Artifacts: 0 confirmed** in both runs. Workflow has no APK packaging/signing/upload.
 - No release, merge or main write. Device/HyperOS remains **NOT TESTED**.
 - Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is available in this runtime; no LIVE read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 N43 — deterministic installed-app inventory ordering (CI pending)
+
+- **Production change:** inventory rows now sort by case-insensitive resolved label, then normalized package name, then original package name. This removes PackageManager enumeration order as the tie-breaker for duplicate labels.
+- **Regression coverage:** duplicate labels differing only by case; same candidate set supplied in three different provider orders must produce the same package sequence.
+- **Plan:** `docs/N43_DETERMINISTIC_INVENTORY_ORDER_PLAN.md`.
+- **CI:** pending exact source/test and docs-head checks; results will be appended after the workflow completes.
+- **Artifacts:** expected zero by the source-only workflow; no APK build requested.
+- **Device / HyperOS:** **NOT TESTED**. No merge, main write, release, auto-merge, root or Device Owner.
