@@ -740,7 +740,7 @@ Updated: 2026-10-26
 - Source review: PKWARE ZIP APPNOTE's host-dependent external-attribute mapping and Apache Commons Compress ZIP docs/source (Apache-2.0) were reviewed; no code copied, no dependency added.
 - **FAIL, superseded:** [CI #40572924157](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40572924157) exposed five compatibility regressions because the first version required a DOS directory bit for every slash path. Fixed by checking only contradictory set bits.
 - **PASS — corrected source/test SHA:** `a0afdc0b3d8ef0bd0b251c2fb5d2a51389d8fbcd`; JVM tests + Android Lint [CI #40573621884](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40573621884).
-- Docs-updated PR-head recheck pending; results will be posted in PR #1 after CI finishes. APK artifacts: **0**.
+- **PASS — prior docs-updated PR head:** `318c35be2e9aab177be508ef154a16e8714c0443` ([JVM/Lint #40574025887](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40574025887)). This ledger append creates a new head; final recheck is tracked in PR #1 conversation. APK artifacts: **0**.
 - Xiaomi Pad 5 / HyperOS, real SAF provider behavior, APK authenticity and malware detection: **NOT TESTED**.
 - No APK packaging, merge, main write, root, Device Owner or auto-merge. Google Drive LIVE sync remains **SYNC FAILED** because no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
 
