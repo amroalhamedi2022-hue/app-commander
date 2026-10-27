@@ -34,6 +34,11 @@ class InstalledApkBundleCanonicalLayoutTest {
     private fun u32(bytes: ByteArray, offset: Int): Long =
         (u16(bytes, offset).toLong() or (u16(bytes, offset + 2).toLong() shl 16))
 
+    private fun setU16(bytes: ByteArray, offset: Int, value: Int) {
+        bytes[offset] = value.toByte()
+        bytes[offset + 1] = (value ushr 8).toByte()
+    }
+
     private fun setU32(bytes: ByteArray, offset: Int, value: Long) {
         for (index in 0 until 4) bytes[offset + index] = (value ushr (index * 8)).toByte()
     }
@@ -121,4 +126,34 @@ class InstalledApkBundleCanonicalLayoutTest {
         }
         assertTrue(failure.message.orEmpty().contains("DOS directory attribute"))
     }
+
+    @Test fun rejectsLocalAndCentralVersionNeededHeaderDrift() {
+        val original = bundle(1)
+        val central = centralEntries(original).first()
+        val localOffset = u32(original, central + 42).toInt()
+
+        val forgedLocal = original.copyOf()
+        setU16(forgedLocal, localOffset + 4, 10)
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forgedLocal))
+        }
+
+        val forgedCentral = original.copyOf()
+        setU16(forgedCentral, central + 6, 10)
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forgedCentral))
+        }
+    }
+
+    @Test fun rejectsUnsupportedCentralCreatorVersion() {
+        val original = bundle(1)
+        val central = centralEntries(original).first()
+        val forged = original.copyOf()
+        // Low byte of "version made by" is the creator software version.
+        setU16(forged, central + 4, 10)
+        assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+        }
+    }
+
 }
