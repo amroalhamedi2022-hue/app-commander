@@ -3,6 +3,7 @@ package com.appcommander.mobile.data
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class ApkInspectionSignalsTest {

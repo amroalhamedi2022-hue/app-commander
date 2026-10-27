@@ -23,6 +23,6 @@ Android Developers documentation explains that exported components can be invoke
 No third-party implementation was copied and no new dependency was added.
 
 ## Evidence
-- Source + JVM regression + UI wiring committed on the N62 PR branch; CI: PENDING.
+- Source + JVM regression + UI wiring committed on the N62 PR branch. Initial CI #40598847529 failed at test compilation due to a missing assertNotNull import; the import is corrected in the follow-up commit and CI is pending.
 - Xiaomi Pad 5/HyperOS visual and real APK corpus: NOT TESTED.
 - APK packaging/artifacts: 0 expected; no build requested.
