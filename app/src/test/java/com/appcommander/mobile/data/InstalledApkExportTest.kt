@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.security.MessageDigest
+import java.util.concurrent.CancellationException
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -257,4 +258,27 @@ class InstalledApkExportTest {
             )
         }
     }
+
+    @Test fun cancellationDuringBaseExportTriggersScopedCleanupAndKeepsCancellationPrimary() {
+        val cancelled = CancellationException("cancel base export")
+        var deletes = 0
+        val thrown = assertThrows(CancellationException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { deletes++; true },
+            ) {
+                InstalledApkExport.copyBaseAndVerify(
+                    openSource = { ByteArrayInputStream(byteArrayOf(1, 2, 3)) },
+                    openForWrite = { ByteArrayOutputStream() },
+                    openForRead = { ByteArrayInputStream(byteArrayOf(1, 2, 3)) },
+                    expectedBytes = 3,
+                    hasSplits = false,
+                    checkCancelled = { throw cancelled },
+                )
+            }
+        }
+        assertSame(cancelled, thrown)
+        assertEquals(1, deletes)
+        assertFalse(InstalledApkExport.cleanupWasUnconfirmed(thrown))
+    }
+
 }
