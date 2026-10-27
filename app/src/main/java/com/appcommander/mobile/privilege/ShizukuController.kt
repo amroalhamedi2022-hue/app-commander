@@ -125,24 +125,24 @@ object ShizukuController {
     private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult =
         PrivilegedCommandPreflight.execute(operation, packageName, argument) {
             withContext(Dispatchers.IO) {
-            if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
-            var usedService: ICommandService? = null
-            try {
-                val service = obtainService()
-                usedService = service
-                val reply = service.execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
-                val firstLine = reply.lineSequence().firstOrNull().orEmpty()
-                val success = firstLine == "exit=0"
-                CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
-            } catch (cancelled: java.util.concurrent.CancellationException) {
-                // runCatching swallows coroutine cancellation and can leave
-                // stale privileged work running after its UI scope is gone.
-                usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
-                throw cancelled
-            } catch (_: Exception) {
-                usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
-                CommandResult(false, "Command failed")
-            }
+                if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
+                var usedService: ICommandService? = null
+                try {
+                    val service = obtainService()
+                    usedService = service
+                    val reply = service.execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
+                    val firstLine = reply.lineSequence().firstOrNull().orEmpty()
+                    val success = firstLine == "exit=0"
+                    CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
+                } catch (cancelled: java.util.concurrent.CancellationException) {
+                    // runCatching swallows coroutine cancellation and can leave
+                    // stale privileged work running after its UI scope is gone.
+                    usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
+                    throw cancelled
+                } catch (_: Exception) {
+                    usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
+                    CommandResult(false, "Command failed")
+                }
             }
         }
 
