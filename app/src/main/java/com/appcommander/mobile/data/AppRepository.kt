@@ -396,6 +396,21 @@ class AppRepository(private val context: Context) {
                     }
                 },
             )
+            // SigningInfo may be absent or partially unreadable on an OEM archive parser.
+            // Preserve the rest of the inspection and expose unknown metadata as unknown.
+            val signingInfo = runCatching { pkg.signingInfo }.getOrNull()
+            val signerSummary = ApkSignerSummary.from(
+                currentCertificates = runCatching {
+                    signingInfo?.apkContentsSigners?.map { it.toByteArray() }
+                }.getOrNull(),
+                historyCertificates = runCatching {
+                    signingInfo?.signingCertificateHistory?.map { it.toByteArray() }
+                }.getOrNull(),
+                hasMultipleSigners = runCatching { signingInfo?.hasMultipleSigners() }.getOrNull(),
+                hasPastSigningCertificates = runCatching {
+                    signingInfo?.hasPastSigningCertificates()
+                }.getOrNull(),
+            )
             ApkInspection(
                 fileName = displayName,
                 label = label,
@@ -411,9 +426,10 @@ class AppRepository(private val context: Context) {
                 providers = pkg.providers?.size ?: 0,
                 sizeBytes = copied.sizeBytes,
                 fileSha256 = copied.sha256,
-                signerSha256 = runCatching {
-                    pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
-                }.getOrDefault(emptyList()),
+                signerSha256 = signerSummary.currentSha256,
+                hasMultipleSigners = signerSummary.hasMultipleSigners,
+                hasPastSigningCertificates = signerSummary.hasPastSigningCertificates,
+                signingHistorySha256 = signerSummary.signingHistorySha256,
                 exportedActivities = activityExposure.exported,
                 exportedServices = serviceExposure.exported,
                 exportedReceivers = receiverExposure.exported,
