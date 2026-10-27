@@ -191,3 +191,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Latest acceptance ledger and N59 plan contain the source review, test criteria and exact evidence. Current docs-updated head recheck is pending; result will be recorded in the PR conversation.
 - APK artifacts: 0. Xiaomi Pad 5/HyperOS SAF, signer authenticity and malware detection: NOT TESTED. No new dependency/permission, root, Device Owner, APK build, merge, main write or auto-merge.
 - Google Drive LIVE sync: SYNC FAILED because this runtime has no Drive/Docs connector; no Drive read/write or folder metadata verification is claimed.
+
+### 2026-10-27 N60 — unsupported Shizuku opcodes (verification pending)
+
+- Production/test commits: `2b9b3600d77284083b16018722d29831bcc17b4b` / `ad8a56404bc4b21ae181c662271058d81b7b1e4d`.
+- `PrivilegedCommandPolicy.allows` now denies operation IDs outside the explicit supported set, including for ordinary package targets; supported recovery exceptions remain unchanged.
+- Added unknown-code regressions for integer extremes, zero, and code 14.
+- Plan: `docs/N60_SHIZUKU_UNKNOWN_OPERATION_FAIL_CLOSED_PLAN.md`; final docs-head JVM/Lint CI **PENDING**.
+- Device/HyperOS/Shizuku and real SAF provider checks: **NOT TESTED**; artifacts 0.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
