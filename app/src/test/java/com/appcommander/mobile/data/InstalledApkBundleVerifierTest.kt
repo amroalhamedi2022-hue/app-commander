@@ -14,7 +14,9 @@ class InstalledApkBundleVerifierTest {
         val output = ByteArrayOutputStream()
         ZipOutputStream(output).use { zip ->
             files.forEach { (name, bytes) ->
-                zip.putNextEntry(ZipEntry(name))
+                // Match the canonical exporter so each fixture reaches the
+                // behavior under test instead of failing on unrelated ZIP extras.
+                zip.putNextEntry(ZipEntry(name).apply { time = 0L })
                 zip.write(bytes)
                 zip.closeEntry()
             }
