@@ -689,3 +689,14 @@ Updated: 2026-10-26
 - Regression: `rejectsCentralDirectoryExtraFieldMismatchWithLocalEntry` mutates the central extra-field payload while leaving the local header and APK digests unchanged; the verifier rejects the archive. Existing base/split round-trip and ZIP integrity tests pass.
 - **NOT TESTED:** Xiaomi Pad 5 / HyperOS, real SAF provider behavior, APK signature authenticity or malware detection. Artifacts: 0 expected; no APK packaging/signing/upload.
 - Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no sync claimed.
+
+
+## 2026-10-27 N55 — raw ZIP local/central header parity
+
+- Production change: the streaming verifier now captures raw local-header flags, compression method, strict UTF-8 filename bytes, extra fields and logical offset, then compares them with the central-directory record before accepting a bundle.
+- Regression `rejectsLocalAndCentralGeneralPurposeFlagMismatch` toggles only the local UTF-8 flag while keeping central metadata and APK payload bytes intact; acceptance is prohibited unless both header views agree.
+- Source/test SHA: `326c96a42840f3d1980c5d8d7c6f01ccfee72fa3`.
+- **CI pending at documentation preparation**; final status must be updated after the exact source/test SHA and documentation-updated head finish.
+- Source basis: OpenJDK `ZipInputStream` reads local headers without central-directory metadata; ZIP APPNOTE defines separate local and central records. No third-party code or dependency copied.
+- Xiaomi Pad 5 / HyperOS and real SAF provider: **NOT TESTED**. APK artifacts: **0 expected**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
