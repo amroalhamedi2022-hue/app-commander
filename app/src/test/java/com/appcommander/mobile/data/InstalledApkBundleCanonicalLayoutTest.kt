@@ -107,4 +107,18 @@ class InstalledApkBundleCanonicalLayoutTest {
             InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
         }
     }
+
+    @Test fun rejectsDosDirectoryAttributeOnCanonicalApkFile() {
+        val original = bundle(1)
+        val central = centralEntries(original).first()
+        val hostSystem = u16(original, central + 4) ushr 8
+        assertEquals("canonical ZipOutputStream fixture should use DOS/FAT host", 0, hostSystem)
+
+        val forged = original.copyOf()
+        setU32(forged, central + 38, 0x10L) // DOS directory bit on base.apk
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+        }
+        assertTrue(failure.message.orEmpty().contains("DOS directory attribute"))
+    }
 }
