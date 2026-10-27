@@ -783,3 +783,11 @@ Updated: 2026-10-26
 - APK artifacts/build: 0; no packaging was requested or run.
 - Real SAF providers / Xiaomi Pad 5 / HyperOS: NOT TESTED. A provider blocked inside a single non-returning read() cannot be interrupted until that call returns; cancellation is cooperative between returned chunks.
 - Drive LIVE sync: SYNC FAILED if no Google Drive/Docs connector is available in this runtime; no sync claim without read-back verification.
+
+
+## 2026-10-28 — N62 APK component-exposure review prompts (CI pending)
+
+- Production change: ApkInspectionSignals.evaluate now accepts the component-exposure counts already extracted by AppRepository; the real Inspector UI passes those values and shows concise findings alongside permission signals.
+- Regression tests cover unguarded Activity/Service/Receiver aggregation, provider read/write and effective path-rule gaps, no-finding zero cases, and malformed negative counts.
+- Android Developers documentation reviewed for android:exported and component permissions; no code copied and no dependency added.
+- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md. Source/JVM/Lint CI: PENDING. Device/HyperOS and real APK corpus: NOT TESTED. APK artifacts: 0.

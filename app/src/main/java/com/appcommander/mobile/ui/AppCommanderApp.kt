@@ -612,7 +612,17 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         Spacer(Modifier.height(8.dp))
                         Text("مؤشرات مراجعة الأذونات", fontWeight = FontWeight.Bold)
                         val signals = com.appcommander.mobile.data.ApkInspectionSignals.evaluate(
-                            apk.targetSdk, apk.permissions, apk.signerSha256,
+                            targetSdk = apk.targetSdk,
+                            permissions = apk.permissions,
+                            signerSha256 = apk.signerSha256,
+                            unguardedExportedActivities = apk.unguardedExportedActivities,
+                            unguardedExportedServices = apk.unguardedExportedServices,
+                            unguardedExportedReceivers = apk.unguardedExportedReceivers,
+                            exportedProviders = apk.exportedProviders,
+                            providersWithoutReadPermission = apk.providersWithoutReadPermission,
+                            providersWithoutWritePermission = apk.providersWithoutWritePermission,
+                            providerPathRulesWithoutReadPermission = apk.providerPathRulesWithoutReadPermission,
+                            providerPathRulesWithoutWritePermission = apk.providerPathRulesWithoutWritePermission,
                         )
                         if (signals.isEmpty()) {
                             Text("لا توجد مؤشرات من القائمة المحدودة؛ هذا لا يعني أن الملف آمن.")

@@ -56,7 +56,19 @@ object ApkInspectionSignals {
             "يطلب قراءة الفيديوهات المخزنة؛ الوصول الفعلي يخضع لأذونات النظام.",
     )
 
-    fun evaluate(targetSdk: Int, permissions: Collection<String>, signerSha256: List<String>): List<Finding> {
+    fun evaluate(
+        targetSdk: Int,
+        permissions: Collection<String>,
+        signerSha256: List<String>,
+        unguardedExportedActivities: Int = 0,
+        unguardedExportedServices: Int = 0,
+        unguardedExportedReceivers: Int = 0,
+        exportedProviders: Int = 0,
+        providersWithoutReadPermission: Int = 0,
+        providersWithoutWritePermission: Int = 0,
+        providerPathRulesWithoutReadPermission: Int = 0,
+        providerPathRulesWithoutWritePermission: Int = 0,
+    ): List<Finding> {
         val findings = mutableListOf<Finding>()
         if (targetSdk <= 0) {
             findings += Finding("target_unknown", "تعذّر تحديد إصدار Android المستهدف.")
@@ -80,6 +92,39 @@ object ApkInspectionSignals {
             "android.permission.ACCESS_BACKGROUND_LOCATION" in declared) {
             findings += Finding("precise_background_location_combination",
                 "يطلب الموقع الدقيق والموقع في الخلفية معًا؛ راجع سبب الحاجة للتتبع المستمر.")
+        }
+
+        // Manifest-only review prompts: runtime checks and platform policy may still restrict access.
+        val unguardedComponentCount = listOf(
+            unguardedExportedActivities,
+            unguardedExportedServices,
+            unguardedExportedReceivers,
+        ).sumOf { it.coerceAtLeast(0).toLong() }
+        if (unguardedComponentCount > 0L) {
+            findings += Finding(
+                "exported_components_without_declared_permission",
+                "توجد $unguardedComponentCount مكوّنات Activity/Service/Receiver مُصدّرة دون إذن مكوّن معلن؛ " +
+                    "هذا مؤشر للمراجعة من Manifest فقط وليس إثباتًا لإمكانية الاستغلال.",
+            )
+        }
+
+        val providerCount = exportedProviders.coerceAtLeast(0)
+        val providersWithoutRead = providersWithoutReadPermission.coerceAtLeast(0).coerceAtMost(providerCount)
+        val providersWithoutWrite = providersWithoutWritePermission.coerceAtLeast(0).coerceAtMost(providerCount)
+        val pathRulesWithoutRead = providerPathRulesWithoutReadPermission.coerceAtLeast(0)
+        val pathRulesWithoutWrite = providerPathRulesWithoutWritePermission.coerceAtLeast(0)
+        if (providerCount > 0 && (
+                providersWithoutRead > 0 || providersWithoutWrite > 0 ||
+                    pathRulesWithoutRead > 0 || pathRulesWithoutWrite > 0
+            )
+        ) {
+            findings += Finding(
+                "exported_provider_permission_review",
+                "من بين $providerCount ContentProvider مُصدّر: $providersWithoutRead دون إذن قراءة افتراضي، " +
+                    "$providersWithoutWrite دون إذن كتابة افتراضي؛ وقواعد مسارات بلا إذن فعّال: " +
+                    "$pathRulesWithoutRead قراءة و$pathRulesWithoutWrite كتابة. " +
+                    "قد تغيّر منح URI وفحوص وقت التشغيل إمكانية الوصول؛ راجع التفاصيل ولا تعتبرها حكمًا بثغرة.",
+            )
         }
         return findings
     }

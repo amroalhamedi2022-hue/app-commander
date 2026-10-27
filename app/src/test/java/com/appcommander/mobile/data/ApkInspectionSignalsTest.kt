@@ -74,4 +74,69 @@ class ApkInspectionSignalsTest {
         assertFalse(codes.contains("sms_read_send_combination"))
         assertFalse(codes.contains("precise_background_location_combination"))
     }
+
+    @Test fun exportedComponentsWithoutDeclaredPermissionsProduceReviewPrompts() {
+        val findings = ApkInspectionSignals.evaluate(
+            targetSdk = 35,
+            permissions = emptyList(),
+            signerSha256 = listOf("certificate"),
+            unguardedExportedActivities = 2,
+            unguardedExportedServices = 1,
+            unguardedExportedReceivers = 3,
+            exportedProviders = 4,
+            providersWithoutReadPermission = 1,
+            providersWithoutWritePermission = 2,
+            providerPathRulesWithoutReadPermission = 2,
+            providerPathRulesWithoutWritePermission = 1,
+        ).associateBy { it.code }
+
+        val components = findings["exported_components_without_declared_permission"]
+        assertNotNull(components)
+        assertTrue(components!!.description.contains("6"))
+        assertTrue(components.description.contains("Manifest فقط"))
+
+        val providers = findings["exported_provider_permission_review"]
+        assertNotNull(providers)
+        assertTrue(providers!!.description.contains("4 ContentProvider"))
+        assertTrue(providers.description.contains("1 دون إذن قراءة"))
+        assertTrue(providers.description.contains("2 دون إذن كتابة"))
+        assertTrue(providers.description.contains("2 قراءة و1 كتابة"))
+        assertTrue(providers.description.contains("حكمًا بثغرة"))
+    }
+
+    @Test fun protectedExportsAndZeroProviderGapsDoNotRaiseExposureFindings() {
+        val codes = ApkInspectionSignals.evaluate(
+            targetSdk = 35,
+            permissions = emptyList(),
+            signerSha256 = listOf("certificate"),
+            unguardedExportedActivities = 0,
+            unguardedExportedServices = 0,
+            unguardedExportedReceivers = 0,
+            exportedProviders = 3,
+            providersWithoutReadPermission = 0,
+            providersWithoutWritePermission = 0,
+            providerPathRulesWithoutReadPermission = 0,
+            providerPathRulesWithoutWritePermission = 0,
+        ).map { it.code }
+        assertFalse(codes.contains("exported_components_without_declared_permission"))
+        assertFalse(codes.contains("exported_provider_permission_review"))
+    }
+
+    @Test fun negativeExposureCountsAreClampedAndCannotCreateFindings() {
+        val codes = ApkInspectionSignals.evaluate(
+            targetSdk = 35,
+            permissions = emptyList(),
+            signerSha256 = listOf("certificate"),
+            unguardedExportedActivities = Int.MIN_VALUE,
+            unguardedExportedServices = -1,
+            unguardedExportedReceivers = -2,
+            exportedProviders = -1,
+            providersWithoutReadPermission = Int.MAX_VALUE,
+            providersWithoutWritePermission = Int.MAX_VALUE,
+            providerPathRulesWithoutReadPermission = -1,
+            providerPathRulesWithoutWritePermission = -1,
+        ).map { it.code }
+        assertFalse(codes.contains("exported_components_without_declared_permission"))
+        assertFalse(codes.contains("exported_provider_permission_review"))
+    }
 }

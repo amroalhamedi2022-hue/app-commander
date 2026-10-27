@@ -214,3 +214,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - JVM regression tests cover cancellation between chunks and cleanup/readback behavior.
 - CI PASS on source/test head 0dfe8b6775dbaedf1355b7f47eb6683842d6a001: run #40594740439 completed :app:testDebugUnitTest and :app:lintDebug successfully in 1m 49s. Device/HyperOS/real SAF provider behavior remains NOT TESTED; the following evidence-only docs commit gets its own CI recheck.
 - No APK packaging/artifacts, root, Device Owner, merge, or main write.
+
+
+## 2026-10-28 — N62 APK component-exposure review prompts (CI pending)
+
+- Production/source: extended ApkInspectionSignals to report exported Activities/Services/Receivers lacking a declared component permission and exported ContentProvider read/write/path-rule gaps; wired the actual Inspector UI to those counts.
+- Safety boundary: findings are Manifest-only review prompts, not malware detection or proof of runtime reachability. Negative counts are clamped; no dependency, permission, network access or APK execution added.
+- Tests: combined unguarded-component count, independent provider read/write gaps, zero-gap quiet path and malformed negative-count handling.
+- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md; source/JVM/Lint CI: PENDING.
+- Xiaomi Pad 5/HyperOS visual review and real APK corpus: NOT TESTED. APK artifacts: 0; no merge/main write/root/Device Owner.
