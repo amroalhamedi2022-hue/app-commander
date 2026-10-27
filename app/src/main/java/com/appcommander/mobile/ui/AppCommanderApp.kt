@@ -780,13 +780,10 @@ private fun AppDetailSheet(
                         "تم تصدير base.apk والتحقق من الملف المحفوظ بإعادة فتحه ومطابقة SHA-256 (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
                     }
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    SafExportFailureMessage.baseApkCancellation(cancelled)?.let { exportMessage = it }
                     throw cancelled
                 } catch (failure: Exception) {
-                    exportMessage = if (InstalledApkExport.cleanupWasUnconfirmed(failure)) {
-                        "تعذّر تصدير APK أو فشل التحقق من الملف المحفوظ. لم يتأكد حذف الملف الجزئي؛ افحص المجلد واحذفه يدويًا إن بقي."
-                    } else {
-                        "تعذّر تصدير APK أو فشل التحقق من الملف المحفوظ. تم تأكيد حذف الملف الجزئي."
-                    }
+                    exportMessage = SafExportFailureMessage.baseApkFailure(failure)
                 } finally {
                     exportBusy = false
                 }
@@ -810,13 +807,10 @@ private fun AppDetailSheet(
                         "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) ومطابقة SHA-256 وفهرس ZIP. " +
                         "لا يشمل بيانات التطبيق، ولا يثبت سلامة التوقيع."
                 } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    SafExportFailureMessage.bundleCancellation(cancelled)?.let { exportMessage = it }
                     throw cancelled
                 } catch (failure: Exception) {
-                    exportMessage = if (InstalledApkExport.cleanupWasUnconfirmed(failure)) {
-                        "تعذّر تصدير حزمة APKs. لم يتأكد حذف ملف ZIP الجزئي؛ افحص المجلد واحذفه يدويًا إن بقي."
-                    } else {
-                        "تعذّر تصدير حزمة APKs. تم تأكيد حذف ملف ZIP الجزئي."
-                    }
+                    exportMessage = SafExportFailureMessage.bundleFailure(failure)
                 } finally {
                     exportBusy = false
                 }
