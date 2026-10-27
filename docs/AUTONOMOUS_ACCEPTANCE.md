@@ -711,3 +711,13 @@ Updated: 2026-10-26
 - Docs-updated PR-head recheck pending. Device/SAF, signer authenticity and malware detection remain NOT TESTED. No APK packaging, permission/dependency changes, merge or main write.
 - Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE write/read claimed.
 
+
+
+## 2026-10-27 N57 — canonical ZIP extra-field allowlist
+
+- Production change: the streaming bundle verifier now accepts only the exporter's canonical UT extended-timestamp field (`0x5455`, length 5, mtime flag only, epoch 0) in both local and central metadata; matching but unsupported extra-field IDs are rejected.
+- Regression `rejectsUnknownExtraFieldEvenWhenLocalAndCentralMatch` patches the first local and central extra-field IDs together, preserving their equality, and verifies rejection. Existing canonical base/split round-trip and ZIP integrity tests remain in the same suite.
+- Source + regression-test commit: `e3dc1e9a1a7ab68a6be0b224d594fede2031acef`.
+- Source/JVM/Lint [CI #40563943994](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40563943994) was in progress when this entry was written; final docs-head results will be recorded in the PR conversation after recheck.
+- Device/SAF, signer authenticity and malware detection: **NOT TESTED**. APK artifacts: **0**. No dependency/permission changes, root, Device Owner, merge or main write.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
