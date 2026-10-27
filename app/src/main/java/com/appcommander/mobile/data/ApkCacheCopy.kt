@@ -13,13 +13,51 @@ internal object ApkCacheCopy {
 
     data class CopyResult(val sizeBytes: Long, val sha256: String)
 
-    /** Always remove a temporary APK, even if the provider or parser throws. */
-    fun <T> withTemporaryApk(cacheDir: File, inspect: (File) -> T): T {
+    /** Raised when an inspection temp file cannot be confirmed removed. */
+    internal class TemporaryApkCleanupDiagnostic(
+        message: String,
+        cause: Throwable? = null,
+    ) : IOException(message, cause)
+
+    /** Always verify temporary-APK cleanup without masking an inspection failure. */
+    fun <T> withTemporaryApk(cacheDir: File, inspect: (File) -> T): T =
+        withTemporaryApk(cacheDir, deleteTemporary = { it.delete() }, inspect = inspect)
+
+    /** Injectable cleanup boundary keeps deletion-failure behavior deterministic in JVM tests. */
+    internal fun <T> withTemporaryApk(
+        cacheDir: File,
+        deleteTemporary: (File) -> Boolean,
+        inspect: (File) -> T,
+    ): T {
         val cached = File.createTempFile("inspect-", ".apk", cacheDir)
+        var primaryFailure: Throwable? = null
         try {
             return inspect(cached)
+        } catch (failure: Throwable) {
+            primaryFailure = failure
+            throw failure
         } finally {
-            cached.delete()
+            val cleanupDiagnostic = try {
+                val removed = !cached.exists() || deleteTemporary(cached) || !cached.exists()
+                if (removed) null else TemporaryApkCleanupDiagnostic(
+                    "Temporary APK cache file could not be removed",
+                )
+            } catch (cleanupFailure: Throwable) {
+                TemporaryApkCleanupDiagnostic(
+                    "Temporary APK cache cleanup failed",
+                    cleanupFailure,
+                )
+            }
+            if (cleanupDiagnostic != null) {
+                val original = primaryFailure
+                if (original == null) {
+                    throw cleanupDiagnostic
+                } else {
+                    // Keep the parser/provider error primary; cleanup diagnostics
+                    // remain visible to logs/tests without changing exception identity.
+                    original.addSuppressed(cleanupDiagnostic)
+                }
+            }
         }
     }
 

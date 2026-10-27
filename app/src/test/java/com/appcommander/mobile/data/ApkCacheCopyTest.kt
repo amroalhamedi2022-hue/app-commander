@@ -9,6 +9,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ApkCacheCopyTest {
@@ -75,6 +77,73 @@ class ApkCacheCopyTest {
             }
             assertFalse(cached.exists())
         } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun reportsTemporaryApkCleanupFailureAfterSuccessfulInspection() {
+        val directory = Files.createTempDirectory("apk-inspection-cleanup-failure").toFile()
+        var cached: java.io.File? = null
+        try {
+            val failure = assertThrows(ApkCacheCopy.TemporaryApkCleanupDiagnostic::class.java) {
+                ApkCacheCopy.withTemporaryApk(
+                    directory,
+                    deleteTemporary = { file -> cached = file; false },
+                ) { file ->
+                    file.writeText("temporary APK bytes")
+                    "inspected"
+                }
+            }
+            assertTrue(cached!!.exists())
+            assertTrue(failure.message.orEmpty().contains("could not be removed"))
+        } finally {
+            cached?.delete()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun cleanupFailureIsSuppressedWithoutReplacingOriginalInspectionFailure() {
+        val directory = Files.createTempDirectory("apk-inspection-primary-failure").toFile()
+        val original = IllegalStateException("invalid APK")
+        var cached: java.io.File? = null
+        try {
+            val thrown = assertThrows(IllegalStateException::class.java) {
+                ApkCacheCopy.withTemporaryApk(
+                    directory,
+                    deleteTemporary = { file -> cached = file; false },
+                ) { file ->
+                    file.writeText("partial APK")
+                    throw original
+                }
+            }
+            assertSame(original, thrown)
+            assertEquals(1, thrown.suppressed.size)
+            assertTrue(thrown.suppressed.single() is ApkCacheCopy.TemporaryApkCleanupDiagnostic)
+            assertTrue(cached!!.exists())
+        } finally {
+            cached?.delete()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun cleanupExceptionIsReportedWithCauseWhenInspectionSucceeded() {
+        val directory = Files.createTempDirectory("apk-inspection-cleanup-exception").toFile()
+        val cleanupFailure = SecurityException("delete denied")
+        var cached: java.io.File? = null
+        try {
+            val thrown = assertThrows(ApkCacheCopy.TemporaryApkCleanupDiagnostic::class.java) {
+                ApkCacheCopy.withTemporaryApk(
+                    directory,
+                    deleteTemporary = { file -> cached = file; throw cleanupFailure },
+                ) { file ->
+                    file.writeText("temporary APK")
+                    Unit
+                }
+            }
+            assertSame(cleanupFailure, thrown.cause)
+            assertTrue(cached!!.exists())
+        } finally {
+            cached?.delete()
             directory.deleteRecursively()
         }
     }
