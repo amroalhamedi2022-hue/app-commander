@@ -5,6 +5,7 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
+import java.util.zip.ZipEntry
 
 /**
  * Decode untrusted ZIP metadata as strict UTF-8. The default String constructor
@@ -53,7 +54,50 @@ internal object ZipBundleStructure {
         val compressedSize: Long,
         val crc: Long,
         val extra: ByteArray,
+        val flags: Int,
+        val method: Int,
+        val rawName: ByteArray,
+        val offset: Long,
+        val headerLength: Int,
     )
+
+    /**
+     * Capture the raw local header by its logical archive offset. ZipInputStream
+     * may read ahead into its inflater buffer, so the physical stream counter is
+     * not the same as the current logical entry position. The bounded tail keeps
+     * the header available without retaining APK payloads.
+     */
+    fun captureLocalEntry(tracking: TrackingStream, offset: Long, entry: ZipEntry): LocalEntry {
+        val fixed = tracking.bytesAt(offset, 30)
+        if (u32(fixed, 0) != 0x04034b50L) throw IOException("Invalid ZIP local entry header")
+        val flags = u16(fixed, 6)
+        val method = u16(fixed, 8)
+        val nameLength = u16(fixed, 26)
+        val extraLength = u16(fixed, 28)
+        if (nameLength !in 1..64 || extraLength > 64) {
+            throw IOException("Unsupported ZIP local header metadata")
+        }
+        val headerLength = 30 + nameLength + extraLength
+        val header = tracking.bytesAt(offset, headerLength)
+        val rawName = header.copyOfRange(30, 30 + nameLength)
+        val name = decodeStrictUtf8(rawName, "ZIP local entry name")
+        val extra = header.copyOfRange(30 + nameLength, headerLength)
+        if (name != entry.name || method != entry.method ||
+            !extra.contentEquals(entry.extra ?: ByteArray(0))
+        ) throw IOException("ZIP local header differs from parsed entry metadata")
+        return LocalEntry(
+            name = name,
+            size = entry.size,
+            compressedSize = entry.compressedSize,
+            crc = entry.crc,
+            extra = extra,
+            flags = flags,
+            method = method,
+            rawName = rawName,
+            offset = offset,
+            headerLength = headerLength,
+        )
+    }
 
     /** Captures only the final 128 KiB, including any bytes read ahead by ZipInputStream. */
     class TrackingStream(private val source: InputStream) : InputStream() {
@@ -116,6 +160,21 @@ internal object ZipBundleStructure {
             }
         }
 
+        fun bytesAt(offset: Long, length: Int): ByteArray {
+            if (offset < 0 || length < 0 || length.toLong() > bytesRead ||
+                offset > bytesRead - length
+            ) throw IOException("ZIP local header lies outside captured input")
+            val oldestOffset = bytesRead - filled
+            if (offset < oldestOffset || offset + length > bytesRead) {
+                throw IOException("ZIP local header is outside the bounded capture window")
+            }
+            val oldestIndex = (next - filled + tail.size) % tail.size
+            val relative = (offset - oldestOffset).toInt()
+            return ByteArray(length) { index ->
+                tail[(oldestIndex + relative + index) % tail.size]
+            }
+        }
+
         fun finalBytes(): ByteArray = ByteArray(filled) { index ->
             tail[(next - filled + index + tail.size) % tail.size]
         }
@@ -168,7 +227,9 @@ internal object ZipBundleStructure {
             val nextCursor = cursor.toLong() + 46 + nameLength + extraLength + commentLength
             if (nextCursor > end || (flags != 8 && flags != 0x808) ||
                 method != 8 || startDisk != 0 || commentLength != 0 ||
-                localOffset != expectedLocalOffset || localOffset >= centralOffset ||
+                localOffset != expectedLocalOffset || localOffset != expected.offset ||
+                flags != expected.flags || method != expected.method ||
+                localOffset >= centralOffset ||
                 nameLength !in 1..64 || extraLength > 64 ||
                 size == 0xffffffffL || compressed == 0xffffffffL ||
                 // The exporter uses DEFLATE level zero for every entry.
@@ -176,7 +237,11 @@ internal object ZipBundleStructure {
                 // canonical backups, even if its SHA manifest is valid.
                 compressed < size
             ) throw IOException("Unsupported ZIP central directory metadata")
-            val name = decodeStrictUtf8(rawTail, cursor + 46, nameLength, "ZIP entry name")
+            val centralNameBytes = rawTail.copyOfRange(cursor + 46, cursor + 46 + nameLength)
+            val name = decodeStrictUtf8(centralNameBytes, "ZIP entry name")
+            if (!centralNameBytes.contentEquals(expected.rawName)) {
+                throw IOException("ZIP local/central entry name bytes differ")
+            }
             val extraStart = cursor + 46 + nameLength
             val centralExtra = rawTail.copyOfRange(extraStart, extraStart + extraLength)
             if (!centralExtra.contentEquals(expected.extra)) {
