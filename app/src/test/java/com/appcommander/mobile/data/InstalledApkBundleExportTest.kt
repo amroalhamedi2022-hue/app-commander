@@ -6,6 +6,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.util.concurrent.CancellationException
 import java.util.zip.ZipInputStream
 import org.junit.Assert.*
 import org.junit.Test
@@ -419,6 +420,38 @@ class InstalledApkBundleExportTest {
         assertTrue("the caller list was deliberately mutated", sources.isEmpty())
         assertEquals(listOf("base.apk"), result.entries.map { it.name })
         assertArrayEquals(base, unzip(saved.toByteArray()).getValue("base.apk"))
+    }
+
+
+    @Test fun cancellationDuringBundleWriteSkipsReadbackAndLeavesCleanupToCaller() {
+        val cancelled = CancellationException("cancel bundle export")
+        val destination = ByteArrayOutputStream()
+        var checks = 0
+        var readback = false
+        var deletes = 0
+        val thrown = assertThrows(CancellationException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { deletes++; true },
+            ) {
+                InstalledApkBundleExport.writeAndVerify(
+                    "com.example.app",
+                    listOf(source("base.apk", ByteArray(128 * 1024) { it.toByte() })),
+                    openForWrite = { destination },
+                    openForRead = {
+                        readback = true
+                        ByteArrayInputStream(destination.toByteArray())
+                    },
+                    checkCancelled = {
+                        checks++
+                        if (checks == 4) throw cancelled
+                    },
+                )
+            }
+        }
+        assertSame(cancelled, thrown)
+        assertFalse("cancelled output must never be reported as verified", readback)
+        assertEquals(1, deletes)
+        assertFalse(InstalledApkExport.cleanupWasUnconfirmed(thrown))
     }
 
 }
