@@ -28,3 +28,12 @@ N37 made UsageStats access/provider failures non-fatal, but a successful provide
 ## Evidence boundary
 
 This proves deterministic JVM normalization and Android source compilation/lint only. Real Xiaomi Pad 5 / HyperOS UsageStats values and UI display remain **NOT TESTED**.
+
+## Verification results — 2026-10-27
+
+- **Exact source/test SHA:** `e1718717ed390700af2be391cfd6d590fa134149`.
+- **PASS:** [source-only CI #40478165225](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40478165225); `:app:testDebugUnitTest :app:lintDebug --stacktrace`, `BUILD SUCCESSFUL in 1m 47s`.
+- **Artifacts:** zero confirmed by the run artifact endpoint. No APK packaging, signing, or upload.
+- The subsequent `PROJECT_STATUS.md` commit is documentation-only; the passing CI above is explicitly tied to the source/test SHA, not misrepresented as a test run on the docs head.
+- **NOT TESTED:** real Xiaomi Pad 5 / HyperOS UsageStats values, permissions flow, and UI display.
+
