@@ -545,6 +545,8 @@ Updated: 2026-10-26
 - Engineering question and acceptance criteria recorded in `docs/N42_UNIX_ZIP_ENTRY_TYPE_PREFLIGHT_PLAN.md` before CI.
 - Production change: inspect central-directory host-system/external-attributes fields for Unix-created entries; reject symbolic links and special filesystem types; reject POSIX regular-file/directory type mismatches with trailing-slash paths; allow zero/unspecified modes and non-Unix hosts.
 - Regression tests: valid Unix regular files/directories, symlink, FIFO and regular-file/directory mismatch.
-- Exact source/test SHA and CI result will be recorded after the source-only workflow and independent PR-head recheck.
-- No APK build, signing, upload, release, merge or main write. Device/HyperOS remains **NOT TESTED**.
-- Google Drive LIVE handoff/index: **SYNC FAILED** unless a Drive/Docs connector is available and both read-back and folder metadata are verified.
+- **PASS — source commit:** `3bf26b49bf5ddcf478fe619dc517a32c748fbd83`; **test commit:** `e1a0822a3cb29093bbac451d6ee78d1abd37c1d9`.
+- **PASS — tested PR head:** `4cb373c23ffebd592028b52fe5a8801b2ea35c7b`; [CI #40457897855](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40457897855) and [CI #40457924106](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40457924106) both passed `:app:testDebugUnitTest :app:lintDebug`.
+- **Artifacts: 0 confirmed** in both runs. Workflow has no APK packaging/signing/upload.
+- No release, merge or main write. Device/HyperOS remains **NOT TESTED**.
+- Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is available in this runtime; no LIVE read/write or folder metadata verification is claimed.
