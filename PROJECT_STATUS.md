@@ -80,3 +80,14 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Signing fingerprints/history are metadata only—not malware detection or an independent authenticity guarantee. Xiaomi Pad 5 / HyperOS and real APK archive behavior: **NOT TESTED**.
 - No APK packaging, signing, upload, release, merge, main write, root, Device Owner, or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
+
+## 2026-10-27 — N46 optional UsageStats value sanitization
+
+- **Production/source + test SHA:** `e1718717ed390700af2be391cfd6d590fa134149`.
+- Added a pure JVM sanitizer for successful optional UsageStats snapshots. Blank package keys are dropped; negative durations/timestamps become zero; foreground duration is capped to the smaller of the requested 24-hour window and elapsed wall-clock time; future last-used timestamps are capped at now.
+- `AppRepository.usageByPackage()` now converts Android `UsageStats` values to the tested model and sanitizes them before rows are created. Existing denied-access/provider-failure fallback remains unchanged.
+- Three new JVM tests cover negative/oversized values, blank keys, near-epoch bounds, invalid clocks, and preservation of valid values.
+- **PASS:** [source-only CI #40478165225](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40478165225), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; job completed successfully. **Artifacts: 0**; no APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS real UsageStats and UI: **NOT TESTED**.
+- No APK packaging/signing/upload, merge, main write, root, Device Owner, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
