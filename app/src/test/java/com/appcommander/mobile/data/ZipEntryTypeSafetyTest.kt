@@ -43,8 +43,9 @@ class ZipEntryTypeSafetyTest {
         }
     }
 
-    @Test fun acceptsDosDirectoryBitOnlyWhenPathIsDirectory() {
+    @Test fun acceptsDosDirectoryBitOnDirectoryAndAllowsSlashOnlyDirectoryEncoding() {
         ZipEntryTypeSafety.validate(0, 0x10L, "assets/")
+        ZipEntryTypeSafety.validate(0, 0L, "assets/")
         ZipEntryTypeSafety.validate(0, 0L, "base.apk")
     }
 }
