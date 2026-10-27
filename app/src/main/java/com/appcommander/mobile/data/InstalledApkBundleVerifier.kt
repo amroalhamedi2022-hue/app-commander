@@ -124,6 +124,7 @@ internal object InstalledApkBundleVerifier {
                 zip.closeEntry() // Checks CRC when present; never extracts files.
                 localEntries.add(ZipBundleStructure.LocalEntry(
                     entry.name, entry.size, entry.compressedSize, entry.crc,
+                    entry.extra?.copyOf() ?: ByteArray(0),
                 ))
             }
             // ZipInputStream stops at the first central-directory record. Read
