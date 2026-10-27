@@ -36,4 +36,15 @@ class ZipEntryTypeSafetyTest {
         ZipEntryTypeSafety.validate(0, attributes(0xa000 or 0x01ff), "base.apk")
         ZipEntryTypeSafety.validate(3, attributes(0x01a4), "base.apk")
     }
+
+    @Test fun rejectsDosDirectoryBitOnFilePath() {
+        assertThrows(IOException::class.java) {
+            ZipEntryTypeSafety.validate(0, 0x10L, "base.apk")
+        }
+    }
+
+    @Test fun acceptsDosDirectoryBitOnlyWhenPathIsDirectory() {
+        ZipEntryTypeSafety.validate(0, 0x10L, "assets/")
+        ZipEntryTypeSafety.validate(0, 0L, "base.apk")
+    }
 }
