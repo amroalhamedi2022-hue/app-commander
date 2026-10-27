@@ -481,3 +481,15 @@ Updated: 2026-10-26
 - **Artifacts: 0 confirmed**. No APK packaging, signing or upload occurred. A documentation-only follow-up head will be rechecked; its result will be recorded in the PR thread without another source edit so the checked head remains stable.
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS PackageManager runtime, actual UI rendering, Shizuku/SAF device behavior. No APK build, merge, main write, root, or Device Owner.
 - **Google Drive:** SYNC FAILED — this runtime has no Google Drive/Docs connector; LIVE handoff/index read/write and folder metadata read-back could not be verified.
+
+
+## 2026-10-27 N37 — optional UsageStats failure isolation
+
+- **Production change:** AppRepository.hasUsageAccess now safely returns false if AppOpsManager lookup fails; usageByPackage delegates to a pure UsageStatsSnapshot helper. Denied access, unavailable service, thrown query, or null provider result yields empty usage metadata without aborting the installed-app inventory.
+- **Regression tests:** six JVM cases cover denied access/no provider call, AppOps exception, UsageStats query exception, null result, successful data and 24-hour window, plus near-epoch/zero-clock handling.
+- **Source review:** official Android UsageStatsManager and AppOpsManager API references reviewed; no copied third-party implementation, dependency, permission, or network access.
+- **PASS — exact source/test SHA:** a450c404ac7f7570d23bcd7b93b5a073803aabcb.
+- **PASS — source/JVM/lint CI:** [run #40434828097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40434828097), :app:testDebugUnitTest and :app:lintDebug, BUILD SUCCESSFUL in 1m 41s, 36 tasks.
+- **Artifacts: 0 confirmed**; no APK packaging, signing, or upload occurred.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS AppOps and UsageStats provider behavior, UI rendering, SAF providers, Shizuku operations, APK authenticity and malware detection.
+- **Google Drive LIVE sync: SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE document was read or written and no folder metadata was verified.
