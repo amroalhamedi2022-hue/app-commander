@@ -558,7 +558,32 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             DetailLine("SHA-256", apk.fileSha256)
                             apk.signerSha256.forEachIndexed { index, value ->
-                                DetailLine("Signer ${index + 1}", value)
+                                DetailLine("Current signer ${index + 1}", value)
+                            }
+                        }
+                        val signerMode = when {
+                            apk.hasMultipleSigners == true ->
+                                if (apk.signerSha256.isEmpty()) "توقيعات حالية متعددة؛ بصماتها غير متاحة"
+                                else "توقيعات حالية متعددة؛ سجل التدوير الأحادي غير منطبق"
+                            apk.hasPastSigningCertificates == true ->
+                                if (apk.signingHistorySha256.isEmpty()) "أبلغت المنصة عن تدوير، لكن بصمات السجل غير متاحة"
+                                else "سجل تدوير متاح من الشهادة الأقدم إلى الحالية"
+                            apk.hasMultipleSigners == false ->
+                                if (apk.signerSha256.isEmpty()) "تعذّر استخراج بصمة الشهادة"
+                                else "شهادة حالية واحدة؛ لم يُبلّغ عن تدوير سابق"
+                            else -> "بيانات التوقيع غير متاحة"
+                        }
+                        DetailLine("حالة بيانات التوقيع", signerMode)
+                        if (apk.signingHistorySha256.isNotEmpty()) {
+                            Text(
+                                "سجل الشهادات بحسب Android (الأقدم ← الحالية)؛ لا يثبت وحده أمان الملف أو مصدره.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                apk.signingHistorySha256.forEachIndexed { index, value ->
+                                    DetailLine("History ${index + 1}", value)
+                                }
                             }
                         }
                         Spacer(Modifier.height(8.dp))
