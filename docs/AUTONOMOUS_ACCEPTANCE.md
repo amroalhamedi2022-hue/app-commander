@@ -701,3 +701,13 @@ Updated: 2026-10-26
 - Source basis: OpenJDK `ZipInputStream` reads local headers without central-directory metadata; ZIP APPNOTE defines separate local and central records. No third-party code or dependency copied.
 - Xiaomi Pad 5 / HyperOS and real SAF provider: **NOT TESTED**. APK artifacts: **0 expected**.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
+
+## 2026-10-27 N56 — shared ZIP entry-type safety
+
+- Production/source + regression-test SHA: `263c3a13303c6608046c54cba6d03085e5d62efa`.
+- Reused the existing N42 host-aware Unix file-type rule for the streaming exported-bundle verifier; it now parses central-directory host-system/external-attribute fields and rejects symlink/special types and path/type mismatches before success.
+- Added policy-level JVM tests plus crafted central-directory integration fixtures for accepted regular-file metadata and rejected symlink, FIFO and directory-type-on-`base.apk` cases.
+- **PASS:** [source/JVM/Lint CI #40559296718](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559296718), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; artifacts 0.
+- Docs-updated PR-head recheck pending. Device/SAF, signer authenticity and malware detection remain NOT TESTED. No APK packaging, permission/dependency changes, merge or main write.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE write/read claimed.
+
