@@ -501,6 +501,8 @@ Updated: 2026-10-26
 - **Production changes:** cleanup fails closed for negative clocks and retention intervals greater than observed time; removed the redundant cleanup after generating the returned FileProvider URI. Existing cleanup still runs before a new snapshot is allocated.
 - **Regression tests:** three JVM cases cover `Long.MIN_VALUE` cutoff overflow, near-epoch/retention-longer-than-uptime behavior, and `Long.MAX_VALUE` retention.
 - **Source/license review:** own Kotlin cache-lifecycle code only; no new dependency, permission, network access or external code.
-- **CI:** pending exact updated PR-head run; source-only tests/lint only, zero artifacts expected.
+- **PASS — exact source/test/PR head:** `34feb808b7bee907147d4ad4c6082214d8f4dbc0`.
+- **PASS — source/JVM/lint CI:** [run #40441604406](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40441604406), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 41s, 36 actionable tasks.
+- **Artifacts: 0** confirmed; no APK packaging, signing or upload occurred.
 - **NOT TESTED:** real SAF providers, Android installer handoff, Xiaomi Pad 5/HyperOS. No APK packaging, signing, merge, main write, root, or Device Owner.
 - **Google Drive LIVE sync: SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document was read/written or folder metadata verified.
