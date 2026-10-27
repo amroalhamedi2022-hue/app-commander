@@ -271,7 +271,11 @@ class AppRepository(private val context: Context) {
      * partial file if an I/O error occurs.
      */
     @Throws(IOException::class)
-    internal fun exportInstalledBaseApk(packageName: String, destination: Uri): InstalledApkExport.Result {
+    internal fun exportInstalledBaseApk(
+        packageName: String,
+        destination: Uri,
+        checkCancelled: () -> Unit = {},
+    ): InstalledApkExport.Result {
         // Only called with the fresh URI returned by CreateDocument. A
         // provider may leave an empty/partial document if reading the source,
         // writing the destination or closing the stream fails.
@@ -283,7 +287,9 @@ class AppRepository(private val context: Context) {
                 )
             },
         ) {
+            checkCancelled()
             val snapshot = readInstalledPackageSnapshot(packageName)
+            checkCancelled()
             val base = snapshot.components.first()
             val written = InstalledApkExport.copyBaseAndVerify(
                 openSource = { File(base.path).inputStream() },
@@ -297,7 +303,9 @@ class AppRepository(private val context: Context) {
                 },
                 expectedBytes = base.bytes,
                 hasSplits = snapshot.components.size > 1,
+                checkCancelled = checkCancelled,
             )
+            checkCancelled()
             snapshot.requireUnchanged { readInstalledPackageSnapshot(packageName) }
             written
         }
@@ -311,7 +319,9 @@ class AppRepository(private val context: Context) {
      */
     @Throws(IOException::class)
     internal fun exportInstalledApkBundle(
-        packageName: String, destination: Uri,
+        packageName: String,
+        destination: Uri,
+        checkCancelled: () -> Unit = {},
     ): InstalledApkBundleExport.Result {
         return InstalledApkExport.withPartialDocumentCleanup(
             cleanup = {
@@ -321,7 +331,9 @@ class AppRepository(private val context: Context) {
                 )
             },
         ) {
+            checkCancelled()
             val snapshot = readInstalledPackageSnapshot(packageName)
+            checkCancelled()
             val sources = snapshot.components.mapIndexed { index, component ->
                 val name = if (index == 0) "base.apk" else
                     "split_${index.toString().padStart(3, '0')}.apk"
@@ -340,7 +352,9 @@ class AppRepository(private val context: Context) {
                     context.contentResolver.openInputStream(destination)
                         ?: throw IOException("Cannot reopen exported SAF document for verification")
                 },
+                checkCancelled = checkCancelled,
             )
+            checkCancelled()
             snapshot.requireUnchanged { readInstalledPackageSnapshot(packageName) }
             written
         }
