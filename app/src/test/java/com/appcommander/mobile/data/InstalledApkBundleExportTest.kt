@@ -366,4 +366,59 @@ class InstalledApkBundleExportTest {
         assertTrue(error.message.orEmpty().contains("stalled"))
         assertEquals("Repeated zero-progress reads must be bounded", 8, zeroReads)
     }
+
+    @Test fun writeAndVerifyUsesTheValidatedSnapshotIfProviderOpenerMutatesCallerList() {
+        val base = ByteArray(4_097) { (it * 13).toByte() }
+        val sources = mutableListOf(source("base.apk", base))
+        val saved = ByteArrayOutputStream()
+
+        val result = InstalledApkBundleExport.writeAndVerify(
+            packageName = "com.example.snapshot",
+            sources = sources,
+            openForWrite = {
+                // Simulate a callback that mutates the caller-owned collection
+                // after validation but before the ZIP writer consumes it.
+                sources.clear()
+                saved
+            },
+            openForRead = { ByteArrayInputStream(saved.toByteArray()) },
+        )
+
+        assertTrue("the caller list was deliberately mutated", sources.isEmpty())
+        assertEquals(listOf("base.apk"), result.entries.map { it.name })
+        assertArrayEquals(base, unzip(saved.toByteArray()).getValue("base.apk"))
+        assertEquals(sha(base), result.entries.single().sha256)
+    }
+
+    @Test fun writeUsesSnapshotWhenDestinationCallbackMutatesCallerList() {
+        val base = ByteArray(2_049) { (it * 7).toByte() }
+        val sources = mutableListOf(source("base.apk", base))
+        val saved = ByteArrayOutputStream()
+        var mutated = false
+        val destination = object : OutputStream() {
+            private fun mutateOnce() {
+                if (!mutated) {
+                    mutated = true
+                    sources.clear()
+                }
+            }
+            override fun write(b: Int) {
+                mutateOnce()
+                saved.write(b)
+            }
+            override fun write(buffer: ByteArray, offset: Int, length: Int) {
+                mutateOnce()
+                saved.write(buffer, offset, length)
+            }
+        }
+
+        val result = InstalledApkBundleExport.write(
+            "com.example.snapshot", sources, destination,
+        )
+        assertTrue("destination callback ran", mutated)
+        assertTrue("the caller list was deliberately mutated", sources.isEmpty())
+        assertEquals(listOf("base.apk"), result.entries.map { it.name })
+        assertArrayEquals(base, unzip(saved.toByteArray()).getValue("base.apk"))
+    }
+
 }

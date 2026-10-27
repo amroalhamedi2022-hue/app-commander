@@ -46,8 +46,13 @@ internal object InstalledApkBundleExport {
         // the independent read. verify() closes its input on every exit path.
         // Validate all caller-controlled metadata BEFORE opening a SAF document;
         // opening a document may create or truncate provider-side content.
-        val declaredTotal = validateSources(packageName, sources)
-        val written = writeValidated(packageName, sources, openForWrite(), declaredTotal)
+        // Snapshot the caller's list before validation and before invoking any
+        // provider callback. A mutable list must not change between the preflight
+        // size/name checks and the actual archive write.
+        val sourceSnapshot = sources.toList()
+        val declaredTotal = validateSources(packageName, sourceSnapshot)
+        val destination = openForWrite()
+        val written = writeValidated(packageName, sourceSnapshot, destination, declaredTotal)
         val verified = InstalledApkBundleVerifier.verify(openForRead())
         if (verified.packageName != written.packageName ||
             verified.totalApkBytes != written.totalApkBytes ||
@@ -89,8 +94,11 @@ internal object InstalledApkBundleExport {
 
     @Throws(IOException::class)
     fun write(packageName: String, sources: List<Source>, destination: OutputStream): Result {
-        val declaredTotal = validateSources(packageName, sources)
-        return writeValidated(packageName, sources, destination, declaredTotal)
+        // OutputStream callbacks can be provider-backed too; use the same
+        // validated snapshot throughout the whole write operation.
+        val sourceSnapshot = sources.toList()
+        val declaredTotal = validateSources(packageName, sourceSnapshot)
+        return writeValidated(packageName, sourceSnapshot, destination, declaredTotal)
     }
 
     @Throws(IOException::class)
