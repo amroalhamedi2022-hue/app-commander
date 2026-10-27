@@ -744,3 +744,14 @@ Updated: 2026-10-26
 - Xiaomi Pad 5 / HyperOS, real SAF provider behavior, APK authenticity and malware detection: **NOT TESTED**.
 - No APK packaging, merge, main write, root, Device Owner or auto-merge. Google Drive LIVE sync remains **SYNC FAILED** because no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
 
+
+## 2026-10-27 — N59 canonical ZIP version-header parity
+
+- **Production change:** ZipBundleStructure now captures and validates local version-needed, central version-needed, and central creator software version for the canonical ZIP32 export format (version 2.0 / 20), in addition to existing local-central metadata parity.
+- **Crafted integration tests:** InstalledApkBundleCanonicalLayoutTest mutates the local version-needed field, central version-needed field, and central creator version independently; each malformed archive must be rejected. Canonical base/split export cases remain covered.
+- Production commit: `a269c43f6a41e3b65b9fd434ac638e3e2624fe21`; test commit: `668caf15514cc25fb2f735226f32e75a203a0f3d`.
+- **PASS — JVM tests + Android Lint on PR head `9ffeaddd284d44addfaf1fe05e753575196799c9`:** [CI #40581685497](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40581685497).
+- ZIP specification/source review: PKWARE APPNOTE field definitions and OpenJDK ZipOutputStream contract; no source copied or dependency added. Local JDK 21 probe confirmed the exporter's version fields are 20 / 0x0014 / 20.
+- Documentation updates create a new PR head; final-head CI recheck is tracked in the PR conversation.
+- Xiaomi Pad 5 / HyperOS SAF behavior, APK signer authenticity and malware detection: **NOT TESTED**. APK artifacts: **0**. No permission/dependency/root/Device Owner change, merge, main write, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is available in this runtime; no Drive read/write or folder metadata verification is claimed.
