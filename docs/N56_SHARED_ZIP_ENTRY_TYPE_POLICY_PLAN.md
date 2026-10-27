@@ -34,6 +34,6 @@ Does the streaming verifier for exported SAF APK bundles reject central-director
 - **Source + regression-test SHA:** `263c3a13303c6608046c54cba6d03085e5d62efa`.
 - **PASS — JVM tests + Android Lint:** [CI #40559296718](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559296718), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
 - **Artifacts:** 0 expected; the workflow runs tests and static lint only, no APK packaging.
-- **Docs-updated PR-head recheck:** pending after this plan/status/ledger update.
+- **PASS — docs-updated PR-head recheck:** `140cb04d65e315e46b3eb0466c6d4d7f1d1c698f`; source/JVM/Lint [CI #40559928664](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559928664) completed successfully. The workflow contains no APK packaging step; artifacts 0.
 - Xiaomi Pad 5 / HyperOS, real SAF providers, APK signature authenticity and malware detection: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
