@@ -23,17 +23,17 @@ internal object SafExportFailureMessage {
             "تعذّر تصدير حزمة APKs. تم تأكيد حذف ملف ZIP الجزئي."
         }
 
-    fun baseApkCancellation(failure: CancellationException): String? =
+    fun baseApkCancellation(failure: CancellationException): String =
         if (InstalledApkExport.cleanupWasUnconfirmed(failure)) {
             "تم إلغاء التصدير، لكن لم يتأكد حذف الملف الجزئي؛ افحص المجلد واحذفه يدويًا إن بقي."
         } else {
-            null
+            "تم إلغاء تصدير APK؛ لم يُعتمد الملف كنسخة مكتملة."
         }
 
-    fun bundleCancellation(failure: CancellationException): String? =
+    fun bundleCancellation(failure: CancellationException): String =
         if (InstalledApkExport.cleanupWasUnconfirmed(failure)) {
             "تم إلغاء تصدير حزمة APKs، لكن لم يتأكد حذف ملف ZIP الجزئي؛ افحص المجلد واحذفه يدويًا إن بقي."
         } else {
-            null
+            "تم إلغاء تصدير حزمة APKs؛ لم يُعتمد ملف ZIP كنسخة مكتملة."
         }
 }
