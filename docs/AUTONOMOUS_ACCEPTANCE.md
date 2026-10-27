@@ -679,3 +679,13 @@ Updated: 2026-10-26
 - Artifacts: **0**. Documentation-updated PR-head recheck: **PENDING**.
 - Xiaomi Pad 5 / HyperOS and real SAF provider behavior: **NOT TESTED**. Artifacts: **0 expected**; no APK packaging.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 N54 — ZIP local/central extra-field parity
+
+- Production behavior: the streaming verifier snapshots each local ZIP entry's extra-field bytes and compares them byte-for-byte with the bounded raw central-directory record before accepting the bundle. A mismatched extra-field length or payload is rejected; no entries are extracted and no extra fields are interpreted.
+- Exact source/test SHA: `ba790539abdd60319e7ab8f4d70bf8ca54571679`.
+- **PASS — JVM tests + Android Lint:** [CI #40545628852](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40545628852), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
+- Regression: `rejectsCentralDirectoryExtraFieldMismatchWithLocalEntry` mutates the central extra-field payload while leaving the local header and APK digests unchanged; the verifier rejects the archive. Existing base/split round-trip and ZIP integrity tests pass.
+- **NOT TESTED:** Xiaomi Pad 5 / HyperOS, real SAF provider behavior, APK signature authenticity or malware detection. Artifacts: 0 expected; no APK packaging/signing/upload.
+- Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no sync claimed.
