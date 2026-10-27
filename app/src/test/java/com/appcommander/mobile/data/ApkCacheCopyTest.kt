@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.concurrent.CancellationException
 import java.nio.file.Files
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertArrayEquals
@@ -201,6 +202,25 @@ class ApkCacheCopyTest {
         assertThrows(IOException::class.java) {
             ApkCacheCopy.copyWithSha256(ByteArrayInputStream(byteArrayOf(1, 2, 3)), broken)
         }
+    }
+
+
+    @Test fun cancellationIsPropagatedBetweenCopyChunksWithoutReadingTheRemainder() {
+        val bytes = ByteArray(3 * 64 * 1024) { (it * 7).toByte() }
+        val output = ByteArrayOutputStream()
+        val cancelled = CancellationException("user cancelled export")
+        var checks = 0
+        val thrown = assertThrows(CancellationException::class.java) {
+            ApkCacheCopy.copyWithSha256(
+                ByteArrayInputStream(bytes), output,
+                checkCancelled = {
+                    checks++
+                    if (checks == 2) throw cancelled
+                },
+            )
+        }
+        assertSame(cancelled, thrown)
+        assertEquals("only the first 64 KiB chunk should have been copied", 64 * 1024, output.size())
     }
 
 }
