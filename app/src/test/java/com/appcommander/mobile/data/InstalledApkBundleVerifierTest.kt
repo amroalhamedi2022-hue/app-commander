@@ -176,4 +176,17 @@ class InstalledApkBundleVerifierTest {
         assertTrue(failure.message.orEmpty().contains("UTF-8"))
     }
 
+    @Test fun rejectsMalformedUtf8CentralDirectoryNameBeforeCanonicalComparison() {
+        val forged = exported()
+        val centralOffset = readU32(forged, forged.size - 22 + 16)
+        val nameStart = centralOffset + 46
+        forged[nameStart] = 0xC3.toByte()
+        forged[nameStart + 1] = 0x28
+
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+        }
+        assertTrue(failure.message.orEmpty().contains("UTF-8"))
+    }
+
 }
