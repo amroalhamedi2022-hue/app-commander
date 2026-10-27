@@ -122,7 +122,9 @@ object ShizukuController {
         else destructive(packageName) { exec(PrivilegedOperation.DISABLE_COMPONENT, packageName, componentName) }
     }
 
-    private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult = withContext(Dispatchers.IO) {
+    private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult =
+        PrivilegedCommandPreflight.execute(operation, packageName, argument) {
+            withContext(Dispatchers.IO) {
         if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
         var usedService: ICommandService? = null
         try {
@@ -141,11 +143,14 @@ object ShizukuController {
             usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
             CommandResult(false, "Command failed")
         }
-    }
+            }
+        }
 
     private suspend fun destructive(packageName: String, block: suspend () -> CommandResult): CommandResult {
+        val packageError = PrivilegedRequestValidator.packageNameError(packageName)
+        if (packageError != null) return CommandResult(false, packageError)
         val context = appContext ?: return CommandResult(false, "App Commander is not initialized")
-        val reason = CriticalPackageGuard.reason(context, safe(packageName))
+        val reason = CriticalPackageGuard.reason(context, packageName)
         return if (reason != null) CommandResult(false, reason) else block()
     }
 
