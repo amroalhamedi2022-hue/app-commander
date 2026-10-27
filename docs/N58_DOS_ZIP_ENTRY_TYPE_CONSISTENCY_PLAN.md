@@ -36,6 +36,6 @@ The shared ZIP entry-type policy interpreted Unix mode bits, but ignored the DOS
 - **Corrected source/test SHA:** `a0afdc0b3d8ef0bd0b251c2fb5d2a51389d8fbcd`.
 - **FAIL, superseded:** [CI #40572924157](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40572924157) — five existing archive tests correctly exposed that the first version over-required the DOS directory bit and rejected common slash-only directory records. The policy was narrowed to reject only the contradictory set-bit case.
 - **PASS — JVM tests + Android Lint on corrected source/test SHA:** [CI #40573621884](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40573621884).
-- Docs-updated PR-head recheck: pending; result will be recorded in the PR conversation after CI completes.
+- **PASS — previous docs-updated PR head:** `318c35be2e9aab177be508ef154a16e8714c0443`; JVM/Lint [#40574025887](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40574025887) succeeded. This status/ledger append creates a new PR head; its final recheck is tracked in the PR conversation.
 - Xiaomi Pad 5 / HyperOS, real SAF providers, APK signer authenticity and malware detection: **NOT TESTED**.
 - APK artifacts: **0**. No merge, main write, root or Device Owner.
