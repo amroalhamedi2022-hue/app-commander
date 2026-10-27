@@ -133,6 +133,16 @@ class ApkArchivePreflightTest {
         return SigningBlockFixture(output, oldCentralOffset, newCentralOffset, sizeField)
     }
 
+    /** Mark a central-directory entry as Unix-created with the supplied POSIX mode. */
+    private fun withUnixMode(file: File, entryName: String, mode: Int): File {
+        val bytes = file.readBytes()
+        val central = centralRecordOffset(bytes, entryName)
+        writeU16(bytes, central + 4, (3 shl 8) or 20) // Unix host, ZIP version 2.0
+        writeU32(bytes, central + 38, mode.toLong() shl 16)
+        file.writeBytes(bytes)
+        return file
+    }
+
     private fun storedZip(name: String, vararg entries: Pair<String, ByteArray>): File {
         val file = temp.newFile(name)
         ZipOutputStream(file.outputStream()).use { output ->
@@ -161,6 +171,52 @@ class ApkArchivePreflightTest {
         val result = ApkArchivePreflight.check(apk)
         assertEquals(4, result.entries)
         assertEquals(30L, result.declaredUncompressedBytes)
+    }
+
+    @Test fun acceptsConsistentUnixRegularFileAndDirectoryModes() {
+        val apk = zip("unix-types-valid.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+            "assets/" to byteArrayOf(),
+        )
+        withUnixMode(apk, "AndroidManifest.xml", 0x81a4) // regular file, 0644
+        withUnixMode(apk, "classes.dex", 0x81a4)
+        withUnixMode(apk, "assets/", 0x41ed) // directory, 0755
+
+        assertEquals(3, ApkArchivePreflight.check(apk).entries)
+    }
+
+    @Test fun rejectsUnixSymbolicLinkEntryType() {
+        val apk = zip("unix-symlink.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        withUnixMode(apk, "classes.dex", 0xa1ff)
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("symbolic-link"))
+    }
+
+    @Test fun rejectsUnixSpecialFilesystemEntryType() {
+        val apk = zip("unix-fifo.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "classes.dex" to byteArrayOf(4, 5, 6),
+        )
+        withUnixMode(apk, "classes.dex", 0x11a4) // FIFO
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("special filesystem"))
+    }
+
+    @Test fun rejectsUnixFileTypeThatDisagreesWithDirectoryPath() {
+        val apk = zip("unix-directory-type-mismatch.apk",
+            "AndroidManifest.xml" to byteArrayOf(1, 2, 3),
+            "assets/" to byteArrayOf(),
+        )
+        withUnixMode(apk, "assets/", 0x81a4) // regular-file type with trailing slash
+
+        val error = assertThrows(IOException::class.java) { ApkArchivePreflight.check(apk) }
+        assertTrue(error.message.orEmpty().contains("regular-file type"))
     }
 
     @Test fun rejectsMissingOrEmptyManifest() {
