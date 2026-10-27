@@ -37,11 +37,25 @@ internal object PrivilegedCommandPolicy {
         PrivilegedOperation.DISABLE_COMPONENT,
     )
 
+    private val recoveryOperations = setOf(
+        PrivilegedOperation.ENABLE_PACKAGE,
+        PrivilegedOperation.UNSUSPEND_PACKAGE,
+        PrivilegedOperation.ALLOW_BACKGROUND,
+        PrivilegedOperation.ALLOW_ANY_BACKGROUND,
+        PrivilegedOperation.GRANT_PERMISSION,
+        PrivilegedOperation.ENABLE_COMPONENT,
+    )
+
+    // This is a final defense-in-depth gate: unknown integer opcodes must not
+    // be treated as harmless merely because they are absent from the destructive set.
+    private val supportedOperations = destructiveOperations + recoveryOperations
+
     fun isDestructive(operation: Int): Boolean = operation in destructiveOperations
 
     fun isProtected(packageName: String, ownPackageName: String = "com.appcommander.mobile"): Boolean =
         packageName == ownPackageName || packageName in essentialPackages
 
     fun allows(operation: Int, packageName: String, ownPackageName: String = "com.appcommander.mobile"): Boolean =
-        operation !in destructiveOperations || !isProtected(packageName, ownPackageName)
+        operation in supportedOperations &&
+            (operation !in destructiveOperations || !isProtected(packageName, ownPackageName))
 }
