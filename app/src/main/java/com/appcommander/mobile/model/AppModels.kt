@@ -53,6 +53,11 @@ data class ApkInspection(
     val sizeBytes: Long,
     val fileSha256: String,
     val signerSha256: List<String>,
+    // Null means the platform did not provide this signing metadata; it is not proof of unsigned content.
+    val hasMultipleSigners: Boolean? = null,
+    val hasPastSigningCertificates: Boolean? = null,
+    // Ordered oldest-to-current only for a single signer with a reported rotation history.
+    val signingHistorySha256: List<String> = emptyList(),
     // Counts of exported manifest components; not proof that a caller can invoke them.
     val exportedActivities: Int = 0,
     val exportedServices: Int = 0,
