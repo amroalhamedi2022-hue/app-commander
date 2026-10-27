@@ -76,15 +76,17 @@ internal object InstalledApkBundleVerifier {
     )
 
     @Throws(IOException::class)
-    fun verify(source: InputStream): Result {
+    fun verify(source: InputStream, checkCancelled: () -> Unit = {}): Result {
+        checkCancelled()
         val actual = ArrayList<InstalledApkBundleExport.EntryDigest>()
         var total = 0L
         var manifest: String? = null
         val localEntries = ArrayList<ZipBundleStructure.LocalEntry>()
-        val tracking = ZipBundleStructure.TrackingStream(source)
+        val tracking = ZipBundleStructure.TrackingStream(source, checkCancelled)
         var nextLocalOffset = 0L
         ZipInputStream(tracking).use { zip ->
             while (true) {
+                checkCancelled()
                 val entry = zip.nextEntry ?: break
                 val localHeader = ZipBundleStructure.captureLocalEntry(tracking, nextLocalOffset, entry)
                 if (entry.isDirectory || manifest != null) throw IOException("Unexpected bundle ZIP entry")
@@ -94,6 +96,7 @@ internal object InstalledApkBundleVerifier {
                     val buffer = ByteArray(4096)
                     var zeroReads = 0
                     while (true) {
+                        checkCancelled()
                         val count = zip.read(buffer)
                         if (count < 0) break
                         if (count == 0) {
@@ -116,6 +119,7 @@ internal object InstalledApkBundleVerifier {
                     if (entry.name != expectedName) throw IOException("Unexpected APK bundle entry name")
                     val copied = ApkCacheCopy.copyWithSha256(
                         BoundedEntryStream(zip, tracking), discard, ApkCacheCopy.MAX_APK_BYTES,
+                        checkCancelled,
                     )
                     if (copied.sizeBytes > InstalledApkBundleExport.MAX_TOTAL_BYTES - total) {
                         throw IOException("Bundle exceeds total size limit")
