@@ -95,6 +95,9 @@ import com.appcommander.mobile.ui.components.LiquidBackground
 import com.appcommander.mobile.ui.theme.AppCommanderTheme
 import com.appcommander.mobile.ui.theme.LiquidPalette
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -762,17 +765,23 @@ private fun AppDetailSheet(
     val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
     val protected = protectionReason != null
     var exportBusy by remember(entry.packageName) { mutableStateOf(false) }
+    var exportJob by remember(entry.packageName) { mutableStateOf<Job?>(null) }
     var exportMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     val exportPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
     ) { destination ->
         if (destination == null) {
             exportBusy = false
+            exportJob = null
         } else {
-            scope.launch {
+            exportJob = scope.launch {
+                val exportCoroutine = currentCoroutineContext()[Job]
                 try {
                     val exported = withContext(Dispatchers.IO) {
-                        repository.exportInstalledBaseApk(entry.packageName, destination)
+                        repository.exportInstalledBaseApk(
+                            entry.packageName, destination,
+                            checkCancelled = { exportCoroutine?.ensureActive() },
+                        )
                     }
                     exportMessage = if (exported.hasSplits) {
                         "تم تصدير base.apk والتحقق من الملف المحفوظ بإعادة فتحه ومطابقة SHA-256 (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}. تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
@@ -786,6 +795,7 @@ private fun AppDetailSheet(
                     exportMessage = SafExportFailureMessage.baseApkFailure(failure)
                 } finally {
                     exportBusy = false
+                    exportJob = null
                 }
             }
         }
@@ -797,11 +807,16 @@ private fun AppDetailSheet(
     ) { destination ->
         if (destination == null) {
             exportBusy = false
+            exportJob = null
         } else {
-            scope.launch {
+            exportJob = scope.launch {
+                val exportCoroutine = currentCoroutineContext()[Job]
                 try {
                     val bundle = withContext(Dispatchers.IO) {
-                        repository.exportInstalledApkBundle(entry.packageName, destination)
+                        repository.exportInstalledApkBundle(
+                            entry.packageName, destination,
+                            checkCancelled = { exportCoroutine?.ensureActive() },
+                        )
                     }
                     exportMessage = "تم تصدير ${bundle.entries.size} ملفات APK في ZIP والتحقق من الملف المحفوظ بإعادة فتحه " +
                         "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) ومطابقة SHA-256 وفهرس ZIP. " +
@@ -813,6 +828,7 @@ private fun AppDetailSheet(
                     exportMessage = SafExportFailureMessage.bundleFailure(failure)
                 } finally {
                     exportBusy = false
+                    exportJob = null
                 }
             }
         }
@@ -900,6 +916,9 @@ private fun AppDetailSheet(
                             bundlePicker.launch("${entry.packageName}-apks.zip")
                         },
                     ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base + Splits (ZIP)") }
+                    if (exportBusy && exportJob != null) {
+                        OutlinedButton(onClick = { exportJob?.cancel() }) { Text("إلغاء التصدير") }
+                    }
                 }
                 exportMessage?.let { message ->
                     Spacer(Modifier.height(6.dp))
