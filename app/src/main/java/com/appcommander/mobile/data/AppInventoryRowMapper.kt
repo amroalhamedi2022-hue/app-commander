@@ -2,6 +2,8 @@ package com.appcommander.mobile.data
 
 import com.appcommander.mobile.model.AppEntry
 
+import java.text.Normalizer
+
 /**
  * Maps the PackageManager's installed-application snapshot into display rows.
  *
@@ -29,11 +31,22 @@ internal object AppInventoryRowMapper {
             .filter { it.packageName.isNotBlank() }
             .map(::mapOne)
             .sortedWith(
-                compareBy<AppEntry> { it.label.lowercase() }
-                    .thenBy { it.packageName.lowercase() }
+                compareBy<AppEntry> { inventorySortKey(it.label) }
+                    .thenBy { inventorySortKey(it.packageName) }
                     .thenBy { it.packageName },
             )
             .toList()
+
+    /**
+     * Sort by a canonical Unicode key while preserving the original display
+     * label in AppEntry. NFC makes composed/decomposed accents compare equally;
+     * invariant lowercase keeps ordering independent of the device's UI locale.
+     */
+    private fun inventorySortKey(value: String): String =
+        Normalizer.normalize(
+            Normalizer.normalize(value, Normalizer.Form.NFC).lowercase(),
+            Normalizer.Form.NFC,
+        )
 
     private fun mapOne(candidate: AppInventoryCandidate): AppEntry {
         val label = try {
