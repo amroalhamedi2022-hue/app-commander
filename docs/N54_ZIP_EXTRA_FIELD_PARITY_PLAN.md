@@ -31,7 +31,7 @@ Reviewed the official Java SE `ZipEntry.getExtra()` / `setExtra()` contract and 
 
 - **Exact source/test SHA:** `ba790539abdd60319e7ab8f4d70bf8ca54571679`.
 - **PASS — JVM tests + Android Lint:** [CI #40545628852](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40545628852), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
-- Documentation-updated PR-head recheck: **PENDING** (will record the final head after this plan/ledger update).
+- **PASS — documentation-updated PR-head recheck:** head `7f114203ea964c451d80d59251cd3c957f51d139`, [CI #40545999579](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40545999579) PASS. The final recheck after this verification-note commit will be recorded in the PR comment; no further repository edits are planned.
 - Xiaomi Pad 5 / HyperOS and real SAF provider: **NOT TESTED**.
 - APK artifacts: **0 expected**.
 - Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is exposed; no sync claim without verified read-after-write.
