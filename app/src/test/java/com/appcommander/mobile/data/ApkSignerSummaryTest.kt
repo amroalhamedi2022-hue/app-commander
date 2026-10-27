@@ -71,4 +71,15 @@ class ApkSignerSummaryTest {
         assertTrue(snapshot.signingHistorySha256.isEmpty())
         assertEquals(true, snapshot.hasPastSigningCertificates)
     }
+
+    @Test fun duplicateCurrentSignerEntriesAreDeduplicated() {
+        val signer = byteArrayOf(7, 7, 1)
+        val snapshot = ApkSignerSummary.from(
+            currentCertificates = listOf(signer, signer.copyOf()),
+            historyCertificates = null,
+            hasMultipleSigners = true,
+            hasPastSigningCertificates = false,
+        )
+        assertEquals(listOf(sha(signer)), snapshot.currentSha256)
+    }
 }
