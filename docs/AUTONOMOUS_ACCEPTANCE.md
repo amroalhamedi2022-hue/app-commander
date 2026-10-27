@@ -674,6 +674,8 @@ Updated: 2026-10-26
 
 - Bundle manifest and central-directory entry names now use a UTF-8 decoder configured to REPORT malformed/unmappable input rather than silently replacing invalid bytes. Canonical ASCII manifest and entry names are unchanged.
 - Added integration coverage for a malformed UTF-8 manifest and a malformed ZIP-name byte sequence; existing archive, digest, CRC, central-directory, and size-limit tests remain in the suite.
-- Source/test SHA and CI: **PENDING**.
+- **Source/test SHA:** `55420949d98f3b523ccb4163b9e89451e25c93f5` — JVM tests + Android Lint [CI #40536857801](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40536857801) **PASS** (`:app:testDebugUnitTest :app:lintDebug --stacktrace`).
+- The malformed central-directory name test corrupts only the central name bytes and confirms strict UTF-8 rejection; valid bundle round-trip tests remain in the same run.
+- Artifacts: **0**. Documentation-updated PR-head recheck: **PENDING**.
 - Xiaomi Pad 5 / HyperOS and real SAF provider behavior: **NOT TESTED**. Artifacts: **0 expected**; no APK packaging.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE read/write or folder metadata verification is claimed.

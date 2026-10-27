@@ -29,7 +29,10 @@ Reviewed the official Java SE CodingErrorAction contract. REPORT explicitly surf
 
 ## Verification ledger
 
-- Source/test SHA and CI: PENDING.
+- **Exact source/test SHA:** `55420949d98f3b523ccb4163b9e89451e25c93f5`.
+- **PASS — JVM tests + Android Lint:** [CI #40536857801](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40536857801), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
+- Added a ZIP central-directory corruption regression that mutates the central name bytes while leaving local entries valid; the verifier fails with the explicit UTF-8 diagnostic.
+- Artifact listing: **0**. Documentation-updated PR-head recheck: **PENDING**.
 - Xiaomi Pad 5 / HyperOS and real SAF provider behavior: NOT TESTED.
 - Artifacts: 0 expected; no APK packaging/signing/upload.
 - Google Drive LIVE sync: SYNC FAILED if no Drive/Docs connector is exposed; no sync is claimed without verified read-after-write.
