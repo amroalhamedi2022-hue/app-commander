@@ -147,6 +147,24 @@ class InstalledApkBundleVerifierTest {
         }
     }
 
+    @Test fun rejectsCentralDirectoryExtraFieldMismatchWithLocalEntry() {
+        val forged = exported()
+        val centralOffset = readU32(forged, forged.size - 22 + 16)
+        val nameLength = (forged[centralOffset + 28].toInt() and 255) or
+            ((forged[centralOffset + 29].toInt() and 255) shl 8)
+        val extraLength = (forged[centralOffset + 30].toInt() and 255) or
+            ((forged[centralOffset + 31].toInt() and 255) shl 8)
+        assertTrue("canonical exporter should include its timestamp extra field", extraLength > 0)
+        val extraStart = centralOffset + 46 + nameLength
+        forged[extraStart + extraLength - 1] =
+            (forged[extraStart + extraLength - 1].toInt() xor 1).toByte()
+
+        val failure = assertThrows(IOException::class.java) {
+            InstalledApkBundleVerifier.verify(ByteArrayInputStream(forged))
+        }
+        assertTrue(failure.message.orEmpty().contains("extra fields differ"))
+    }
+
     @Test fun rejectsCentralDirectoryEntryNameCrcAndLocalOffsetTampering() {
         val valid = exported()
         val centralOffset = readU32(valid, valid.size - 22 + 16)
