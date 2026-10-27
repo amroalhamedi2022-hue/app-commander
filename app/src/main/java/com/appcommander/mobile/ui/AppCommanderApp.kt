@@ -75,6 +75,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
 import com.appcommander.mobile.data.ActivityLaunchSafety
 import com.appcommander.mobile.data.AppRepository
+import com.appcommander.mobile.data.InstalledApkExport
 import com.appcommander.mobile.data.ComponentEnabledState
 import com.appcommander.mobile.model.ApkCertificateMetadata
 import com.appcommander.mobile.model.ApkCertificateParseStatus
