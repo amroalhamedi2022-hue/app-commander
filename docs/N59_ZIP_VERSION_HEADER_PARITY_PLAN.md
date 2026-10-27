@@ -31,3 +31,13 @@ The bundle verifier compared ZIP names, flags, methods, timestamps, sizes, CRCs,
 - Xiaomi Pad 5 / HyperOS SAF providers, APK signature authenticity, and malware detection remain NOT TESTED.
 - No merge, main write, auto-merge, root, Device Owner, or APK artifact.
 - Google Drive LIVE sync requires a separate verified connector operation; GitHub docs do not prove Drive sync.
+
+## Source review and verification ledger
+
+- Reviewed the ZIP local-header and central-directory version field definitions in the PKWARE APPNOTE and inspected the OpenJDK ZipOutputStream contract; no third-party source code was copied and no dependency was added.
+- A local JDK 21 probe of the same exporter pattern (DEFLATE level 0, ZipEntry.time = 0) produced local version-needed = 20, central version-made-by = 0x0014 (DOS host, creator version 20), central version-needed = 20, and the canonical 9-byte timestamp extra field.
+- Production commit: a269c43f6a41e3b65b9fd434ac638e3e2624fe21.
+- Crafted integration-test commit: 668caf15514cc25fb2f735226f32e75a203a0f3d.
+- **PASS — JVM tests + Android Lint on PR head 9ffeaddd284d44addfaf1fe05e753575196799c9:** [CI #40581685497](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40581685497); source-checks completed successfully with no APK packaging.
+- The evidence/acceptance-ledger append creates a new PR head; final-head recheck will be recorded in the PR conversation.
+- Xiaomi Pad 5 / HyperOS SAF providers, signer authenticity and malware detection remain **NOT TESTED**.
