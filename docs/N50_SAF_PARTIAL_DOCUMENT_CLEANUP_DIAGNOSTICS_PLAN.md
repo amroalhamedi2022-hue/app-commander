@@ -40,3 +40,9 @@ Pending source/test CI and independent PR-head recheck. Xiaomi Pad 5 and real SA
 - The first validation attempt [CI #40511432761](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40511432761) exposed three test-fixture lambdas returning `Int`/`Unit` after cleanup became Boolean. Fixtures now return explicit `true`; the passing run includes the correction.
 - No APK packaging/signing/upload; zero artifacts expected by workflow. Source/test behavior is validated on JVM only.
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS and real SAF provider delete/readback behavior. The docs-updated PR-head recheck is pending.
+
+## Documentation-head recheck — 2026-10-27
+
+- **PASS:** docs-updated PR head `f995a3066f1c37918cf8d0ddf567358a2a6a4a89` was checked by [CI #40517821800](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40517821800); logs report `BUILD SUCCESSFUL in 1m 12s` for JVM tests and lint.
+- The latest documentation append itself will trigger a further source-only PR check; do not treat the run above as verification of a later SHA.
+- No APK tasks or artifacts.
