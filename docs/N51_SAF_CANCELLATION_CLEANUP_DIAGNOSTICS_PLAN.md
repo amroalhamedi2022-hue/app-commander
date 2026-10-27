@@ -30,4 +30,8 @@ This is project-owned UI/error handling built on the existing Android Storage Ac
 
 ## Verification ledger
 
-Pending source/JVM/Lint CI. Xiaomi Pad 5 / HyperOS and real SAF provider cancellation/deletion behavior remain **NOT TESTED**.
+- **Production + regression-test SHA:** b3a5a45f90dd4da7d90a15f5da66912c0ec51692.
+- **PASS — source/JVM/Lint:** [CI #40521536855](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40521536855), :app:testDebugUnitTest :app:lintDebug, BUILD SUCCESSFUL in 1m 43s.
+- **Artifacts: 0**; no APK packaging/signing/upload.
+- Documentation-updated PR-head recheck remains pending at this update; the source/test SHA result does not cover later docs commits.
+- Xiaomi Pad 5 / HyperOS and real SAF provider cancellation/deletion behavior remain **NOT TESTED**. Google Drive LIVE sync remains **SYNC FAILED** because no Drive/Docs connector is exposed in this runtime.
