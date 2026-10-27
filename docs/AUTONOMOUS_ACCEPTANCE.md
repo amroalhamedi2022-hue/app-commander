@@ -526,12 +526,15 @@ Updated: 2026-10-26
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector; no LIVE document read/write or folder metadata verification claimed.
 
 
-## 2026-10-27 — N41 APK certificate identity metadata (source CI pending)
+## 2026-10-27 — N41 APK certificate identity metadata (source CI PASS)
 
 - **Engineering question:** can X.509 subject/issuer/serial/algorithm/date metadata be surfaced without losing the raw certificate SHA-256 when parsing fails or misrepresenting metadata as signature verification?
 - **Production source:** extended `ApkSignerSummary` and `ApkInspection`, wired parsed metadata from `AppRepository.inspectApk`, and added current/history certificate details to the Arabic inspector UI.
 - **Tests:** generated self-signed DER fixture, malformed DER, empty/oversized inputs, fingerprint retention, and signer-summary/history-order integration.
 - **Open-source review:** Android `SigningInfo` docs checked; Google `apksig` is Apache-2.0 but explicitly intended for use outside Android devices, so no runtime dependency or copied implementation was introduced.
-- **Source/JVM/Lint CI:** PENDING. **APK artifacts:** 0 expected; no APK packaging requested.
+- **PASS — exact source/test SHA:** `a0a4b3695ae1ed5351c243143755c94d565e8af6`.
+- **PASS — source/JVM/Lint CI:** [run #40452757223](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40452757223), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 54s, 36 tasks.
+- **Artifacts: 0 confirmed**; no APK packaging/signing/upload.
+- Docs-updated PR-head recheck will be verified separately and recorded in the PR discussion.
 - **Device / HyperOS / signature verification:** NOT TESTED.
-- **Google Drive LIVE sync:** SYNC FAILED if the Drive/Docs connector is unavailable; no LIVE document read/write or folder metadata verification may be claimed.
+- **Google Drive LIVE sync:** SYNC FAILED — no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
