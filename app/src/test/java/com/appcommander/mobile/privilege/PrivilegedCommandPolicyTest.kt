@@ -46,6 +46,19 @@ class PrivilegedCommandPolicyTest {
         }
     }
 
+    @Test fun unknownOperationCodesFailClosedForEveryPackageClass() {
+        for (operation in listOf(Int.MIN_VALUE, 0, 14, Int.MAX_VALUE)) {
+            assertFalse(
+                "unknown operation $operation must be denied for ordinary packages",
+                PrivilegedCommandPolicy.allows(operation, "org.example.reader"),
+            )
+            assertFalse(
+                "unknown operation $operation must be denied for protected packages",
+                PrivilegedCommandPolicy.allows(operation, "com.android.systemui"),
+            )
+        }
+    }
+
     @Test fun destructiveClassificationMatchesRecoveryExceptions() {
         for (op in dangerous) assertTrue(PrivilegedCommandPolicy.isDestructive(op))
         for (op in recovery) assertFalse(PrivilegedCommandPolicy.isDestructive(op))
