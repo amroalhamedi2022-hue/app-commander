@@ -639,3 +639,17 @@ Updated: 2026-10-26
 - **PASS — prior docs-updated head:** `f995a3066f1c37918cf8d0ddf567358a2a6a4a89`, [CI #40517821800](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40517821800), logs report `BUILD SUCCESSFUL in 1m 12s`.
 - This result does not cover any commit appended after that SHA; the final docs-updated head requires its own check.
 - No APK packaging/signing/upload; SAF provider/device tests remain NOT TESTED.
+
+
+## 2026-10-27 N51 — cancellation-safe SAF cleanup diagnostics
+
+- **Production + regression-test SHA:** `b3a5a45f90dd4da7d90a15f5da66912c0ec51692`.
+- Base APK and bundle export cancellation handlers now surface a manual-cleanup warning when the fresh partial document's deletion could not be confirmed, while still rethrowing the original CancellationException.
+- Added pure message mapping and three JVM regressions covering base cancellation, bundle cancellation, and ordinary failures with confirmed/unconfirmed cleanup.
+- **PASS — source/JVM/Lint:** [CI #40521536855](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40521536855), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 43s; no APK packaging step.
+- **Docs-updated PR-head recheck:** pending at the time of this entry; do not treat the source/test result as a check of later documentation commits.
+- **Artifacts: 0 expected/confirmed**; no APK packaging/signing/upload or dependency/permission changes.
+- Xiaomi Pad 5 / HyperOS and actual SAF provider cancellation/deletion: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
+- PR #1 remains Draft/open; no merge, main write, root, Device Owner or auto-merge.
+- Detailed plan: [N51 SAF cancellation cleanup diagnostics](N51_SAF_CANCELLATION_CLEANUP_DIAGNOSTICS_PLAN.md).
