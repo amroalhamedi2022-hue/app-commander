@@ -30,6 +30,8 @@ Can the APK archive preflight reject central-directory entries that advertise Un
 
 ## Verification ledger
 
-- Source/test commits and exact CI result will be appended after CI completes.
+- **PASS — source/test changes:** source commit `3bf26b49bf5ddcf478fe619dc517a32c748fbd83`; regression-test commit `e1a0822a3cb29093bbac451d6ee78d1abd37c1d9`.
+- **PASS — exact docs-updated PR head tested:** `4cb373c23ffebd592028b52fe5a8801b2ea35c7b`; source-only CI runs [#40457897855](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40457897855) and [#40457924106](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40457924106) both completed successfully for `:app:testDebugUnitTest :app:lintDebug`.
+- **Artifacts: 0 confirmed** in both runs; workflow contains no APK assemble or artifact-upload step.
 - Android device/HyperOS and broad real-world APK corpus: **NOT TESTED**.
-- Google Drive LIVE sync: **SYNC FAILED** if the Drive/Docs connector remains unavailable; no LIVE write is claimed unless read-back and folder metadata are verified.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is available in this runtime; no LIVE read/write or folder metadata verification is claimed.
