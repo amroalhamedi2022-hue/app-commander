@@ -48,6 +48,7 @@ internal object ZipBundleStructure {
     private const val TAIL_BYTES = 128 * 1024
     private const val MAX_RAW_BYTES = InstalledApkBundleExport.MAX_TOTAL_BYTES + 1024 * 1024L
     private const val EXTENDED_TIMESTAMP_ID = 0x5455
+    private const val ZIP_VERSION_20 = 20
 
     /**
      * The exporter writes ZipEntry.time = 0 for every entry. On the supported
@@ -73,6 +74,7 @@ internal object ZipBundleStructure {
         val extra: ByteArray,
         val flags: Int,
         val method: Int,
+        val versionNeeded: Int,
         val rawName: ByteArray,
         val offset: Long,
         val headerLength: Int,
@@ -87,8 +89,12 @@ internal object ZipBundleStructure {
     fun captureLocalEntry(tracking: TrackingStream, offset: Long, entry: ZipEntry): LocalEntry {
         val fixed = tracking.bytesAt(offset, 30)
         if (u32(fixed, 0) != 0x04034b50L) throw IOException("Invalid ZIP local entry header")
+        val versionNeeded = u16(fixed, 4)
         val flags = u16(fixed, 6)
         val method = u16(fixed, 8)
+        if (versionNeeded != ZIP_VERSION_20) {
+            throw IOException("Unsupported ZIP local version-needed value")
+        }
         val nameLength = u16(fixed, 26)
         val extraLength = u16(fixed, 28)
         if (nameLength !in 1..64 || extraLength > 64) {
@@ -111,6 +117,7 @@ internal object ZipBundleStructure {
             extra = extra,
             flags = flags,
             method = method,
+            versionNeeded = versionNeeded,
             rawName = rawName,
             offset = offset,
             headerLength = headerLength,
@@ -232,7 +239,10 @@ internal object ZipBundleStructure {
             if (cursor > end - 46 || u32(rawTail, cursor) != 0x02014b50L) {
                 throw IOException("Invalid ZIP central directory entry")
             }
-            val hostSystem = u16(rawTail, cursor + 4) ushr 8
+            val versionMadeBy = u16(rawTail, cursor + 4)
+            val creatorVersion = versionMadeBy and 0xff
+            val hostSystem = versionMadeBy ushr 8
+            val versionNeeded = u16(rawTail, cursor + 6)
             val externalAttributes = u32(rawTail, cursor + 38)
             val flags = u16(rawTail, cursor + 8)
             val method = u16(rawTail, cursor + 10)
@@ -245,8 +255,10 @@ internal object ZipBundleStructure {
             val startDisk = u16(rawTail, cursor + 34)
             val localOffset = u32(rawTail, cursor + 42)
             val nextCursor = cursor.toLong() + 46 + nameLength + extraLength + commentLength
-            if (nextCursor > end || (flags != 8 && flags != 0x808) ||
-                method != 8 || startDisk != 0 || commentLength != 0 ||
+            if (nextCursor > end || creatorVersion != ZIP_VERSION_20 ||
+                versionNeeded != ZIP_VERSION_20 || versionNeeded != expected.versionNeeded ||
+                (flags != 8 && flags != 0x808) || method != 8 ||
+                startDisk != 0 || commentLength != 0 ||
                 localOffset != expectedLocalOffset || localOffset >= centralOffset ||
                 nameLength !in 1..64 || extraLength > 64 ||
                 size == 0xffffffffL || compressed == 0xffffffffL ||
