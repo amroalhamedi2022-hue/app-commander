@@ -264,6 +264,9 @@ internal object ApkArchivePreflight {
                 if (readU32(header, 0) != 0x02014b50L) {
                     throw IOException("Invalid APK ZIP central directory signature")
                 }
+                val versionMadeBy = readU16(header, 4)
+                val hostSystem = versionMadeBy ushr 8
+                val externalAttributes = readU32(header, 38)
                 val flags = readU16(header, 8)
                 val method = readU16(header, 10)
                 val crc = readU32(header, 16)
@@ -307,8 +310,10 @@ internal object ApkArchivePreflight {
                 // Android's ZipFile decodes entry names as UTF-8. Validate the raw
                 // bytes here so malformed sequences fail before platform parsing.
                 validateUtf8Field(nameBytes, "entry name")
+                val decodedName = String(nameBytes, StandardCharsets.UTF_8)
+                validateExternalFileType(hostSystem, externalAttributes, decodedName)
                 registerPath(
-                    name = String(nameBytes, StandardCharsets.UTF_8),
+                    name = decodedName,
                     isDirectory = nameBytes.lastOrNull() == '/'.code.toByte(),
                     registry = paths,
                     location = "central directory",
@@ -353,6 +358,34 @@ internal object ApkArchivePreflight {
                 }
             }
             return ordered
+        }
+    }
+
+    /**
+     * ZIP external attributes are host-system dependent. For Unix-created APKs,
+     * inspect the POSIX type bits so symlinks/devices/FIFOs cannot be presented
+     * as ordinary package entries, and require regular-file/directory metadata
+     * to agree with the path form. Unknown/unspecified type bits remain allowed
+     * for compatibility with ZIP writers that do not populate POSIX modes.
+     *
+     * This is structural preflight only; it is not APK signature verification.
+     */
+    private fun validateExternalFileType(hostSystem: Int, externalAttributes: Long, name: String) {
+        if (hostSystem != 3) return // ZIP host-system ID 3 = Unix
+        val unixMode = ((externalAttributes ushr 16) and 0xffffL).toInt()
+        val fileType = unixMode and 0xf000
+        if (fileType == 0) return
+
+        val directoryPath = name.endsWith("/")
+        when (fileType) {
+            0x8000 -> if (directoryPath) {
+                throw IOException("APK ZIP regular-file type disagrees with directory path")
+            }
+            0x4000 -> if (!directoryPath) {
+                throw IOException("APK ZIP directory type lacks directory path")
+            }
+            0xa000 -> throw IOException("APK ZIP symbolic-link entries are unsupported")
+            else -> throw IOException("APK ZIP special filesystem entry types are unsupported")
         }
     }
 
