@@ -560,3 +560,12 @@ Updated: 2026-10-26
 - Regression coverage: same duplicate-label candidate set in three different input orders; all resolve to package order `org.example.a`, `org.example.m`, `org.example.z`.
 - Docs-updated PR-head recheck will be verified after this ledger update and recorded in the PR discussion.
 - **NOT TESTED:** Xiaomi Pad 5 / HyperOS live PackageManager enumeration and UI rendering, SAF provider behavior, Shizuku device operations, APK authenticity and malware detection. No merge, main write, release, auto-merge, root or Device Owner.
+
+## 2026-10-27 N44 — canonical Unicode inventory ordering (validation pending)
+
+- Production source changed: `AppInventoryRowMapper.inventorySortKey` applies NFC → invariant lowercase → NFC for comparison only; display labels remain untouched.
+- Added a regression with composed `Café` and decomposed `Cafe\u0301` labels. It asserts identical package ordering under reversed input and exact preservation of both display strings.
+- Source/test SHA: `f9bc35f77a71f9350cc0a6a2f04f5443185dca99`.
+- Source/JVM/Lint CI and docs-updated PR-head recheck: **PENDING**.
+- Artifacts: 0 expected; no APK build/sign/upload. Xiaomi Pad 5 / HyperOS remains **NOT TESTED**.
+- Drive LIVE sync: **SYNC FAILED** if connector unavailable; no Drive read/write or folder metadata verification is claimed.
