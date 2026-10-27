@@ -731,7 +731,25 @@ private fun AppDetailSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var details by remember(entry.packageName) { mutableStateOf<AppDetails?>(null) }
+    var detailLoad by remember(entry.packageName) { mutableStateOf(AppDetailsLoadState()) }
+    val details = detailLoad.details
+
+    suspend fun reloadDetails() {
+        val started = detailLoad.begin()
+        detailLoad = started
+        try {
+            val loaded = withContext(Dispatchers.IO) { repository.loadDetails(entry) }
+            detailLoad = detailLoad.complete(started.generation, loaded)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            detailLoad = detailLoad.cancel(started.generation)
+            throw cancelled
+        } catch (_: Exception) {
+            detailLoad = detailLoad.fail(
+                started.generation,
+                "تعذّر تحميل تفاصيل التطبيق. قد يكون التطبيق أُزيل أو تغيّرت بياناته. جرّب مرة أخرى.",
+            )
+        }
+    }
     var section by rememberSaveable(entry.packageName) { mutableStateOf("activities") }
     var activityQuery by rememberSaveable(entry.packageName) { mutableStateOf("") }
     var exportedActivitiesOnly by rememberSaveable(entry.packageName) { mutableStateOf(true) }
@@ -813,7 +831,7 @@ private fun AppDetailSheet(
                     currentEnabled = withContext(Dispatchers.IO) {
                         repository.isInstalledAppEnabled(entry.packageName)
                     }
-                    details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+                    reloadDetails()
                 }
             } finally {
                 // Always re-enable controls after a failed, cancelled or
@@ -837,9 +855,7 @@ private fun AppDetailSheet(
         // Only the confirm button below can dispatch this one-shot request.
         pendingPrivileged = PendingPrivilegedAction(entry.packageName, description, onSuccess, block)
     }
-    LaunchedEffect(entry.packageName) {
-        details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
-    }
+    LaunchedEffect(entry.packageName) { reloadDetails() }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
@@ -983,8 +999,36 @@ private fun AppDetailSheet(
                     }
                 }
             }
+            if (detailLoad.error != null) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(detailLoad.error!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            enabled = !detailLoad.loading,
+                            onClick = { scope.launch { reloadDetails() } },
+                        ) { Text("إعادة المحاولة") }
+                    }
+                }
+            }
             if (details == null) {
-                item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                if (detailLoad.loading) {
+                    item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                } else if (detailLoad.error == null) {
+                    item {
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("لم تكتمل قراءة التفاصيل. يمكنك إعادة المحاولة.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(onClick = { scope.launch { reloadDetails() } }) { Text("إعادة المحاولة") }
+                        }
+                    }
+                }
             } else {
                 when (section) {
                     "activities" -> items(
