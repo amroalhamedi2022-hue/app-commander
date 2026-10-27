@@ -125,7 +125,10 @@ internal object ZipBundleStructure {
     }
 
     /** Captures only the final 128 KiB, including any bytes read ahead by ZipInputStream. */
-    class TrackingStream(private val source: InputStream) : InputStream() {
+    class TrackingStream(
+        private val source: InputStream,
+        private val checkCancelled: () -> Unit = {},
+    ) : InputStream() {
         private val tail = ByteArray(TAIL_BYTES)
         private var next = 0
         private var filled = 0
@@ -134,6 +137,7 @@ internal object ZipBundleStructure {
             private set
 
         override fun read(): Int {
+            checkCancelled()
             val value = source.read()
             consecutiveZeroReads = 0
             if (value >= 0) append(value)
@@ -145,6 +149,7 @@ internal object ZipBundleStructure {
             // SAF providers violate that contract. ZipInputStream's header
             // reader can otherwise spin forever before entry-level bounds run.
             if (length == 0) return 0
+            checkCancelled()
             val count = source.read(buffer, offset, length)
             if (count == 0) {
                 if (++consecutiveZeroReads >= 8) {
