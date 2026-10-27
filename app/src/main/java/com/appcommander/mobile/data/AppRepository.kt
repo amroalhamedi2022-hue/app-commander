@@ -53,8 +53,8 @@ class AppRepository(private val context: Context) {
                     runCatching { pm.getApplicationEnabledSetting(info.packageName) }.getOrNull(),
                 ),
                 loadLastUpdateTime = { pkg?.lastUpdateTime ?: 0L },
-                usageMillis = stat?.totalTimeInForeground ?: 0L,
-                lastTimeUsed = stat?.lastTimeUsed ?: 0L,
+                usageMillis = stat?.totalTimeInForegroundMillis ?: 0L,
+                lastTimeUsed = stat?.lastTimeUsedMillis ?: 0L,
             )
         }
         return AppInventoryRowMapper.mapAll(candidates)
@@ -491,15 +491,27 @@ class AppRepository(private val context: Context) {
         return null
     }
 
-    private fun usageByPackage() = UsageStatsSnapshot.load(
-        nowMillis = System.currentTimeMillis(),
-        hasAccess = ::hasUsageAccess,
-        query = { begin, end ->
-            val manager = context.getSystemService(UsageStatsManager::class.java)
-                ?: throw IllegalStateException("UsageStatsManager unavailable")
-            manager.queryAndAggregateUsageStats(begin, end)
-        },
-    )
+    private fun usageByPackage(): Map<String, UsageStatsValue> {
+        val now = System.currentTimeMillis()
+        val raw = UsageStatsSnapshot.load(
+            nowMillis = now,
+            hasAccess = ::hasUsageAccess,
+            query = { begin, end ->
+                val manager = context.getSystemService(UsageStatsManager::class.java)
+                    ?: throw IllegalStateException("UsageStatsManager unavailable")
+                manager.queryAndAggregateUsageStats(begin, end)
+            },
+        )
+        return UsageStatsSnapshot.sanitize(
+            nowMillis = now,
+            snapshot = raw.mapValues { (_, stats) ->
+                UsageStatsValue(
+                    totalTimeInForegroundMillis = stats.totalTimeInForeground,
+                    lastTimeUsedMillis = stats.lastTimeUsed,
+                )
+            },
+        )
+    }
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes)

@@ -87,4 +87,43 @@ class UsageStatsSnapshotTest {
         assertTrue(zeroClock.isEmpty())
         assertEquals(0, accessChecks)
     }
+
+    @Test fun sanitizeDropsBlankKeysAndClampsNegativeAndOversizedValues() {
+        val now = 172_800_123L
+        val clean = UsageStatsValue(12_000L, now - 500L)
+        val result = UsageStatsSnapshot.sanitize(
+            now,
+            mapOf(
+                "org.example.valid" to clean,
+                "org.example.negative" to UsageStatsValue(-10L, -50L),
+                "org.example.future" to UsageStatsValue(Long.MAX_VALUE, now + 10_000L),
+                "   " to UsageStatsValue(10L, 10L),
+            ),
+        )
+
+        assertEquals(clean, result["org.example.valid"])
+        assertEquals(UsageStatsValue(0L, 0L), result["org.example.negative"])
+        assertEquals(
+            UsageStatsValue(UsageStatsSnapshot.LOOKBACK_MILLIS, now),
+            result["org.example.future"],
+        )
+        assertFalse(result.containsKey("   "))
+        assertEquals(3, result.size)
+    }
+
+    @Test fun sanitizeCapsForegroundTimeToElapsedTimeNearEpoch() {
+        val result = UsageStatsSnapshot.sanitize(
+            nowMillis = 50L,
+            snapshot = mapOf("org.example.early" to UsageStatsValue(100L, 100L)),
+        )
+        assertEquals(UsageStatsValue(50L, 50L), result["org.example.early"])
+    }
+
+    @Test fun sanitizeReturnsEmptyForInvalidClockAndPreservesValidValues() {
+        val valid = mapOf("org.example.valid" to UsageStatsValue(500L, 2_000L))
+        assertTrue(UsageStatsSnapshot.sanitize(0L, valid).isEmpty())
+        assertTrue(UsageStatsSnapshot.sanitize(-1L, valid).isEmpty())
+        assertEquals(valid, UsageStatsSnapshot.sanitize(3_000L, valid))
+    }
+
 }
