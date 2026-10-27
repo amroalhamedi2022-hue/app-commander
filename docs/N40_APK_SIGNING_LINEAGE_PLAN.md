@@ -34,7 +34,9 @@ The APK Inspector currently displays the current signer SHA-256 fingerprints but
 ## Verification ledger
 
 - Engineering question and acceptance criteria recorded before the test run.
-- Source/test SHA: PENDING.
-- Source/JVM/Lint CI and docs-head recheck: PENDING.
-- Artifacts: expected 0; source-only workflow.
-- Xiaomi Pad 5 / HyperOS, OEM-specific archive metadata, cryptographic signature verification and malware detection: NOT TESTED.
+- **PASS — source/test SHA:** `feb1ee582dd9c7a59cb2184a9b1fb12c6785d377`.
+- **PASS — source/JVM/Lint CI:** [run #40447641304](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40447641304), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 43s.
+- **Artifacts: 0 confirmed** from the run artifact listing; no APK packaging, signing or upload.
+- The docs-updated PR-head recheck is performed after the remaining ledger/status commits; its exact SHA and CI result will be recorded in the PR discussion so the check is not invalidated by another docs-only commit.
+- Xiaomi Pad 5 / HyperOS, OEM-specific archive metadata, cryptographic signature verification and malware detection: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
