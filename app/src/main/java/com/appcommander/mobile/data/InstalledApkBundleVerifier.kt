@@ -82,9 +82,11 @@ internal object InstalledApkBundleVerifier {
         var manifest: String? = null
         val localEntries = ArrayList<ZipBundleStructure.LocalEntry>()
         val tracking = ZipBundleStructure.TrackingStream(source)
+        var nextLocalOffset = 0L
         ZipInputStream(tracking).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
+                val localHeader = ZipBundleStructure.captureLocalEntry(tracking, nextLocalOffset, entry)
                 if (entry.isDirectory || manifest != null) throw IOException("Unexpected bundle ZIP entry")
                 if (entry.name == "manifest.json") {
                     if (actual.isEmpty()) throw IOException("Bundle has no APK entries")
@@ -122,10 +124,19 @@ internal object InstalledApkBundleVerifier {
                     actual.add(InstalledApkBundleExport.EntryDigest(entry.name, copied.sizeBytes, copied.sha256))
                 }
                 zip.closeEntry() // Checks CRC when present; never extracts files.
-                localEntries.add(ZipBundleStructure.LocalEntry(
-                    entry.name, entry.size, entry.compressedSize, entry.crc,
-                    entry.extra?.copyOf() ?: ByteArray(0),
-                ))
+                if (entry.size < 0 || entry.compressedSize < 0 || entry.crc < 0) {
+                    throw IOException("Incomplete ZIP local entry metadata")
+                }
+                val completed = localHeader.copy(
+                    size = entry.size,
+                    compressedSize = entry.compressedSize,
+                    crc = entry.crc,
+                )
+                localEntries.add(completed)
+                // App Commander writes DEFLATED entries with a signed 16-byte
+                // data descriptor because general-purpose bit 3 is enabled.
+                nextLocalOffset = completed.offset + completed.headerLength +
+                    completed.compressedSize + 16L
             }
             // ZipInputStream stops at the first central-directory record. Read
             // the remaining raw bytes, then compare the bounded central index
