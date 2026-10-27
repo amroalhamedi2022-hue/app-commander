@@ -296,7 +296,7 @@ class InstalledApkBundleExportTest {
         var deletes = 0
         val thrown = assertThrows(IOException::class.java) {
             InstalledApkExport.withPartialDocumentCleanup(
-                cleanup = { deletes++ },
+                cleanup = { deletes++; true },
                 write = {
                     InstalledApkBundleExport.writeAndVerify(
                         "com.example.app",
