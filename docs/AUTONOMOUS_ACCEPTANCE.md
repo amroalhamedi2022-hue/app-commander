@@ -779,7 +779,7 @@ Updated: 2026-10-26
 - UI changed: an Arabic cancel control is shown while a base or bundle export coroutine is active; cancellation is propagated into IO work, and existing fresh-document cleanup remains the caller's responsibility.
 - APK SHA readback now rethrows CancellationException rather than treating it as an ordinary integrity mismatch.
 - Regressions added for mid-copy cancellation, base export cleanup, bundle cancellation/no-readback, and user-facing cancellation messages.
-- Source/JVM/Lint: pending CI on exact source/test SHA and docs-updated head.
+- Source/JVM/Lint: PASS on PR head 0dfe8b6775dbaedf1355b7f47eb6683842d6a001; CI #40594740439 completed :app:testDebugUnitTest and :app:lintDebug successfully (BUILD SUCCESSFUL in 1m 49s). The evidence-only docs commit that follows is separately rechecked.
 - APK artifacts/build: 0; no packaging was requested or run.
 - Real SAF providers / Xiaomi Pad 5 / HyperOS: NOT TESTED. A provider blocked inside a single non-returning read() cannot be interrupted until that call returns; cancellation is cooperative between returned chunks.
 - Drive LIVE sync: SYNC FAILED if no Google Drive/Docs connector is available in this runtime; no sync claim without read-back verification.

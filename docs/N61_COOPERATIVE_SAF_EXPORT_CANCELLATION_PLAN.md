@@ -28,8 +28,10 @@ Can a user cancel a long base-APK or Base+Splits SAF export without waiting for 
 
 ## Evidence
 
-- Source/test SHA: pending.
-- Exact final PR head: pending.
-- Source/JVM/Lint CI: pending.
+- Source/test changes are committed through test SHA e03c12d63389664dc533bd41bb01e781fbf7d972.
+- PR head tested: 0dfe8b6775dbaedf1355b7f47eb6683842d6a001.
+- Source/JVM/Lint CI #40594740439: PASS; logs show :app:testDebugUnitTest and :app:lintDebug completed, BUILD SUCCESSFUL in 1m 49s.
+- Artifacts: 0; no APK packaging.
 - Device/HyperOS/SAF provider test: NOT TESTED.
+- A docs-only evidence commit follows this tested head and requires its own CI recheck.
 - Google Drive LIVE sync: SYNC FAILED if the Drive/Docs connector remains unavailable; GitHub docs are not proof of Drive sync.

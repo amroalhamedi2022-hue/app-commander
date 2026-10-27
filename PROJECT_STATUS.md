@@ -212,5 +212,5 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Implemented cancellable streaming checkpoints for Base APK and Base+Splits ZIP exports, including readback validation and central-directory scanning.
 - Added a visible Arabic cancel action while an export job is active. Cancellation remains distinct from ordinary I/O/integrity failures, and fresh-document cleanup stays scoped to the new CreateDocument URI.
 - JVM regression tests cover cancellation between chunks and cleanup/readback behavior.
-- CI status: pending for the exact source/test commit; device/HyperOS/real SAF provider behavior remains NOT TESTED.
+- CI PASS on source/test head 0dfe8b6775dbaedf1355b7f47eb6683842d6a001: run #40594740439 completed :app:testDebugUnitTest and :app:lintDebug successfully in 1m 49s. Device/HyperOS/real SAF provider behavior remains NOT TESTED; the following evidence-only docs commit gets its own CI recheck.
 - No APK packaging/artifacts, root, Device Owner, merge, or main write.
