@@ -158,3 +158,13 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Documentation-updated PR-head recheck: PENDING. No APK packaging/signing/upload.
 - Xiaomi Pad 5 / HyperOS and real SAF provider behavior: NOT TESTED. No merge, main write, root, or Device Owner.
 - Google Drive LIVE sync: SYNC FAILED — Drive/Docs connector unavailable; no LIVE read/write is claimed.
+
+
+## 2026-10-27 — N55 ZIP local/central header consistency (verification pending)
+
+- APK bundle verification now records raw local header flags/method/name bytes and checks them against central-directory metadata, closing a local-vs-central general-purpose flag mismatch.
+- Source/test SHA: `326c96a42840f3d1980c5d8d7c6f01ccfee72fa3`.
+- Added regression: `rejectsLocalAndCentralGeneralPurposeFlagMismatch`.
+- CI was pending when this status entry was drafted; do not treat N55 as PASS until exact-SHA and docs-head CI both succeed.
+- Xiaomi Pad 5 / HyperOS, SAF providers, signature authenticity and malware detection: **NOT TESTED**. No APK artifact expected.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
