@@ -31,31 +31,33 @@ class AppRepository(private val context: Context) {
     fun loadApps(): List<AppEntry> {
         val usage = usageByPackage()
         @Suppress("DEPRECATION")
-        return pm.getInstalledApplications(0)
-            .asSequence()
-            .mapNotNull { info ->
-                runCatching {
-                    @Suppress("DEPRECATION")
-                    val pkg = pm.getPackageInfo(info.packageName, 0)
-                    val stat = usage[info.packageName]
-                    AppEntry(
-                        label = info.loadLabel(pm).toString().ifBlank { info.packageName },
-                        packageName = info.packageName,
-                        versionName = pkg.versionName.orEmpty().ifBlank { "—" },
-                        targetSdk = info.targetSdkVersion,
-                        isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
-                        enabled = ComponentEnabledState.effective(
-                            info.enabled,
-                            runCatching { pm.getApplicationEnabledSetting(info.packageName) }.getOrNull(),
-                        ),
-                        lastUpdateTime = pkg.lastUpdateTime,
-                        usageMillis = stat?.totalTimeInForeground ?: 0L,
-                        lastTimeUsed = stat?.lastTimeUsed ?: 0L,
-                    )
-                }.getOrNull()
+        val candidates = pm.getInstalledApplications(0).map { info ->
+            // Package metadata is optional during inventory refresh: an app may update or
+            // disappear between the application list and the metadata lookup. Keep the row
+            // from the inventory snapshot and use safe placeholders for unavailable fields.
+            @Suppress("DEPRECATION")
+            val pkg = try {
+                pm.getPackageInfo(info.packageName, 0)
+            } catch (_: Exception) {
+                null
             }
-            .sortedBy { it.label.lowercase() }
-            .toList()
+            val stat = usage[info.packageName]
+            AppInventoryCandidate(
+                packageName = info.packageName,
+                loadLabel = { info.loadLabel(pm) },
+                loadVersionName = { pkg?.versionName },
+                targetSdk = info.targetSdkVersion,
+                isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
+                enabled = ComponentEnabledState.effective(
+                    info.enabled,
+                    runCatching { pm.getApplicationEnabledSetting(info.packageName) }.getOrNull(),
+                ),
+                loadLastUpdateTime = { pkg?.lastUpdateTime ?: 0L },
+                usageMillis = stat?.totalTimeInForeground ?: 0L,
+                lastTimeUsed = stat?.lastTimeUsed ?: 0L,
+            )
+        }
+        return AppInventoryRowMapper.mapAll(candidates)
     }
 
     fun loadDetails(entry: AppEntry): AppDetails {

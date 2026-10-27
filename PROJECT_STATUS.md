@@ -34,3 +34,12 @@ Date: 2026-10-18
 ## Device validation still required
 
 Install and exercise the debug build on physical devices. Start with Android 13 / HyperOS on Xiaomi Pad 5, then verify permission flows and Shizuku commands on the phone. Device Owner mode should only be tested on a suitable test device/profile because provisioning has system-level consequences.
+
+
+## 2026-10-27 — N36 inventory metadata resilience (in progress)
+
+- Production change prepared on PR #1 branch: per-package metadata is best-effort; valid inventory identities are preserved with explicit label/version/update-time fallbacks.
+- New JVM mapper tests: exception/blank fallback, field preservation, invalid identity isolation, and sorting.
+- Exact source/test SHA and source-only CI result: pending until GitHub Actions confirms the pushed commit.
+- Xiaomi Pad 5/HyperOS, Shizuku, SAF provider behavior, and UI interaction: NOT TESTED.
+- No APK packaging/artifacts, merge, main write, root, or Device Owner.

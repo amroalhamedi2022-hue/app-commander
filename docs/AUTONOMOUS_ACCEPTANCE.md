@@ -468,3 +468,14 @@ Updated: 2026-10-26
 - No APK packaging/signing/upload, release, merge, main write, auto-merge, root or Device Owner. PR #1 remains Draft.
 - The following ledger-only commit requires its own source-only CI query; do not transfer the above result to the new head without rechecking.
 - **Google Drive:** SYNC FAILED — no Drive/Docs connector is available in this runtime, so LIVE handoff/index read/write/read-back and folder metadata verification could not be performed.
+
+
+## 2026-10-27 N36 — Best-effort installed-app metadata mapping (CI PENDING)
+
+- **Engineering question:** can a single per-package label/version/update-time failure silently drop an otherwise listed installed application?
+- **Production change:** added pure `AppInventoryRowMapper`; `AppRepository.loadApps()` now preserves valid package rows and uses package-name / `—` / `0L` fallbacks for optional metadata failures. Top-level inventory query failures still surface through the N35 retry state.
+- **Regression coverage:** five JVM tests exercise thrown and blank metadata, valid-field preservation, invalid package identity isolation, and ordering after fallback.
+- **Source/license review:** Android PackageManager API docs and AOSP PackageManager.java (Apache-2.0) inspected; no third-party implementation copied and no new dependency/permission.
+- **Source/test SHA and CI:** PENDING until exact GitHub Actions run is inspected; source-only `:app:testDebugUnitTest :app:lintDebug` expected, zero artifacts.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS PackageManager runtime, actual UI rendering, Shizuku/SAF device behavior. No APK build, merge, main write, root, or Device Owner.
+- **Google Drive:** SYNC FAILED — this runtime has no Google Drive/Docs connector; LIVE handoff/index read/write and folder metadata read-back could not be verified.
