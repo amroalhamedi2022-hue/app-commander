@@ -63,3 +63,20 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Removed redundant cache cleanup after creating the installer FileProvider URI; cleanup remains before snapshot allocation.
 - Added three clock-boundary JVM regressions. **PASS:** exact PR-head source/JUnit/lint run [#40441604406](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40441604406), BUILD SUCCESSFUL in 1m 41s; 36 actionable tasks; zero artifacts.
 - Device SAF/installer behavior: NOT TESTED. No APK packaging or artifacts.
+
+## 2026-10-27 — N39 fail-closed snapshot expiry
+
+- Source/test head: `676454c507e057a42adc8460265a0ea85debb5c8`.
+- Expiry cleanup now treats denied directory listing, unknown/negative file metadata, and inaccessible entries as best-effort cleanup failures; verified install preparation is not aborted by optional cache cleanup.
+- **PASS:** [source-only CI #40446325452](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40446325452), `:app:testDebugUnitTest :app:lintDebug`; zero artifacts.
+- Xiaomi Pad 5 / HyperOS installer handoff: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** — connector unavailable.
+
+## 2026-10-27 — N40 APK signer lineage inspection
+
+- Source/test SHA: `feb1ee582dd9c7a59cb2184a9b1fb12c6785d377`.
+- APK Inspector now separates current signer fingerprints from platform-reported single-signer certificate-rotation history; multiple current signers are sorted for stable display and never mislabeled as a rotation chain.
+- Added pure JVM tests for no history, oldest-to-current rotation order, multiple signers, unavailable metadata, missing history bytes, and duplicate fingerprint normalization.
+- **PASS:** [source-only CI #40447641304](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40447641304), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 43s; **0 artifacts**.
+- Signing fingerprints/history are metadata only—not malware detection or an independent authenticity guarantee. Xiaomi Pad 5 / HyperOS and real APK archive behavior: **NOT TESTED**.
+- No APK packaging, signing, upload, release, merge, main write, root, Device Owner, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
