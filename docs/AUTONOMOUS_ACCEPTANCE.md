@@ -623,3 +623,13 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS SAF provider readback: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
 - PR #1 remains Draft/open. No merge, main write, root, Device Owner or auto-merge.
+
+## 2026-10-27 N50 — SAF partial-document cleanup diagnostics (source/JVM PASS)
+
+- Production implementation: typed suppressed `PartialDocumentCleanupDiagnostic` reports unconfirmed cleanup while preserving the original export/readback exception; `deleteDocumentIfConfirmed` refuses deletion unless the URI is confirmed as a document. Base APK and bundle export UI explain when manual inspection/removal may be needed.
+- Regression coverage: provider delete returns false; cleanup throws; original failure remains primary; unconfirmed URI never invokes delete; base and bundle export failure paths retain cleanup diagnostics.
+- **PASS — source/test head:** `6173145507847dcbe33839c0077ab24bcf0e49f4`; [CI #40516604932](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40516604932), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 40s.
+- **FAIL, superseded:** [CI #40511432761](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40511432761) found three test fixture return-type errors; all were corrected and the subsequent run passed.
+- **Artifacts: 0**; workflow does not package or upload APKs. No merge, main write, root, Device Owner or auto-merge.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS and real SAF provider semantics. Docs-updated PR-head recheck pending.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE read/write or folder metadata verification is claimed.
