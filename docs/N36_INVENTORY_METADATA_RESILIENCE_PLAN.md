@@ -39,8 +39,8 @@ The current source wraps the entire row construction in `runCatching { ... }.get
 
 ## Exact source/test CI evidence
 
-- Source/test commit SHA: **PENDING**.
-- `:app:testDebugUnitTest :app:lintDebug`: **PENDING**.
-- Artifacts: **0 expected**; workflow must remain source-only.
+- **PASS — exact source/test commit SHA:** `075c1635ceb701ba771f3d330b44b197eb8d1d9c`.
+- **PASS — source-only CI:** [run #40429462073](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40429462073), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 42s**, 36 actionable tasks.
+- **Artifacts: 0 confirmed** by the run's artifact listing. No APK packaging, signing or upload occurred.
 - Device/HyperOS runtime: **NOT TESTED**.
-- Google Drive LIVE handoff/index: **SYNC FAILED** if no Drive/Docs connector is available; do not claim sync without read-back verification.
+- **Google Drive LIVE handoff/index: SYNC FAILED** — no Drive/Docs connector is exposed; the LIVE documents and folder metadata were not read or written.

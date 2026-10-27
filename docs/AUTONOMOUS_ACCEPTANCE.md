@@ -470,12 +470,14 @@ Updated: 2026-10-26
 - **Google Drive:** SYNC FAILED — no Drive/Docs connector is available in this runtime, so LIVE handoff/index read/write/read-back and folder metadata verification could not be performed.
 
 
-## 2026-10-27 N36 — Best-effort installed-app metadata mapping (CI PENDING)
+## 2026-10-27 N36 — Best-effort installed-app metadata mapping
 
 - **Engineering question:** can a single per-package label/version/update-time failure silently drop an otherwise listed installed application?
 - **Production change:** added pure `AppInventoryRowMapper`; `AppRepository.loadApps()` now preserves valid package rows and uses package-name / `—` / `0L` fallbacks for optional metadata failures. Top-level inventory query failures still surface through the N35 retry state.
 - **Regression coverage:** five JVM tests exercise thrown and blank metadata, valid-field preservation, invalid package identity isolation, and ordering after fallback.
 - **Source/license review:** Android PackageManager API docs and AOSP PackageManager.java (Apache-2.0) inspected; no third-party implementation copied and no new dependency/permission.
-- **Source/test SHA and CI:** PENDING until exact GitHub Actions run is inspected; source-only `:app:testDebugUnitTest :app:lintDebug` expected, zero artifacts.
+- **PASS — exact source/test SHA:** `075c1635ceb701ba771f3d330b44b197eb8d1d9c`.
+- **PASS — source-only CI:** [run #40429462073](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40429462073), `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 42s**, 36 actionable tasks; job `source-checks` PASS.
+- **Artifacts: 0 confirmed**. No APK packaging, signing or upload occurred. A documentation-only follow-up head will be rechecked; its result will be recorded in the PR thread without another source edit so the checked head remains stable.
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS PackageManager runtime, actual UI rendering, Shizuku/SAF device behavior. No APK build, merge, main write, root, or Device Owner.
 - **Google Drive:** SYNC FAILED — this runtime has no Google Drive/Docs connector; LIVE handoff/index read/write and folder metadata read-back could not be verified.

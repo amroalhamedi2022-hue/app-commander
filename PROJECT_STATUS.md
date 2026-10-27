@@ -36,10 +36,12 @@ Date: 2026-10-18
 Install and exercise the debug build on physical devices. Start with Android 13 / HyperOS on Xiaomi Pad 5, then verify permission flows and Shizuku commands on the phone. Device Owner mode should only be tested on a suitable test device/profile because provisioning has system-level consequences.
 
 
-## 2026-10-27 — N36 inventory metadata resilience (in progress)
+## 2026-10-27 — N36 inventory metadata resilience (source/test PASS)
 
-- Production change prepared on PR #1 branch: per-package metadata is best-effort; valid inventory identities are preserved with explicit label/version/update-time fallbacks.
-- New JVM mapper tests: exception/blank fallback, field preservation, invalid identity isolation, and sorting.
-- Exact source/test SHA and source-only CI result: pending until GitHub Actions confirms the pushed commit.
+- Production source commit: `075c1635ceb701ba771f3d330b44b197eb8d1d9c`.
+- Per-package label/version/update-time failures now preserve valid inventory identities with explicit fallbacks; top-level inventory-query failures still use the N35 retry state.
+- Five JVM tests cover exception/blank fallbacks, field preservation, invalid identity isolation, and sorting.
+- **PASS:** [source-only CI #40429462073](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40429462073), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 42s; 0 artifacts.
+- A docs-only head recheck is pending and will be reported in the PR thread without further source edits.
 - Xiaomi Pad 5/HyperOS, Shizuku, SAF provider behavior, and UI interaction: NOT TESTED.
 - No APK packaging/artifacts, merge, main write, root, or Device Owner.
