@@ -138,3 +138,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - PR head `cdb50c9ccb000623196d37878a3d597dfb0e32ed): [CI #40522694769](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40522694769), JVM tests + Android Lint passed in 1m 54s.
 - Checkout log confirms this PR head was tested; artifacts: 0. No APK packaging/signing/upload.
 - Physical-device and real SAF provider tests remain NOT TESTED.
+
+
+## 2026-10-27 — N52 temporary APK cache cleanup — VERIFIED
+
+- **Production/test SHA:** d2f756368d8bf25b813396d70574382090320c80.
+- **PASS:** source/JVM/Lint [CI #40526102343](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40526102343); :app:testDebugUnitTest :app:lintDebug --stacktrace; BUILD SUCCESSFUL in 2m 22s.
+- ApkCacheCopy.withTemporaryApk now verifies temp-file absence; if inspection succeeded but cleanup failed it throws a typed diagnostic, while an existing parser/cancellation failure remains primary with cleanup detail suppressed.
+- Three new deterministic JVM regressions passed. **Artifacts: 0**, no APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS remains **NOT TESTED**. Google Drive LIVE sync **SYNC FAILED** because no Drive/Docs connector is exposed.

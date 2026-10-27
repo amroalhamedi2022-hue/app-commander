@@ -660,3 +660,11 @@ Updated: 2026-10-26
 - **PASS — docs-updated PR head:** `cdb50c9ccb000623196d37878a3d597dfb0e32ed`, [CI #40522694769](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40522694769), JVM tests + Android Lint, BUILD SUCCESSFUL in 1m 54s.
 - Checkout log confirms the PR merge ref contained this head; the workflow ran `:app:testDebugUnitTest :app:lintDebug` and did not package an APK.
 - **Artifacts: 0**. Xiaomi Pad 5 / HyperOS and real SAF provider behavior remain **NOT TESTED**.
+
+
+## 2026-10-27 N52 — temporary APK cache cleanup
+
+- **PASS — source/test SHA:** d2f756368d8bf25b813396d70574382090320c80; [CI #40526102343](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40526102343), JVM tests + Android Lint, BUILD SUCCESSFUL in 2m 22s.
+- Production cleanup now checks File.delete() and confirms absence; successful inspection fails closed if the temp APK remains, while parser/cancellation failures remain primary with a typed suppressed cleanup diagnostic.
+- Three regressions cover false delete after success, preserved original exception identity, and thrown cleanup cause. **Artifacts: 0**; no APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is exposed; no sync is claimed.
