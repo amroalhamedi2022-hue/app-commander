@@ -139,14 +139,16 @@ class AppRepository(private val context: Context) {
         )
     }
 
-    fun hasUsageAccess(): Boolean {
+    /** Usage access is optional; AppOps/provider failures must never crash inventory UI. */
+    fun hasUsageAccess(): Boolean = runCatching {
         val ops = context.getSystemService(AppOpsManager::class.java)
-        return ops.checkOpNoThrow(
+            ?: return@runCatching false
+        ops.checkOpNoThrow(
             AppOpsManager.OPSTR_GET_USAGE_STATS,
             android.os.Process.myUid(),
             context.packageName,
         ) == AppOpsManager.MODE_ALLOWED
-    }
+    }.getOrDefault(false)
 
     fun openApp(packageName: String): Boolean {
         val intent = pm.getLaunchIntentForPackage(packageName) ?: return false
@@ -473,13 +475,15 @@ class AppRepository(private val context: Context) {
         return null
     }
 
-    private fun usageByPackage() = if (!hasUsageAccess()) emptyMap() else {
-        val manager = context.getSystemService(UsageStatsManager::class.java)
-        val now = System.currentTimeMillis()
-        runCatching {
-            manager.queryAndAggregateUsageStats(now - 24 * 60 * 60 * 1000L, now)
-        }.getOrDefault(emptyMap())
-    }
+    private fun usageByPackage() = UsageStatsSnapshot.load(
+        nowMillis = System.currentTimeMillis(),
+        hasAccess = ::hasUsageAccess,
+        query = { begin, end ->
+            val manager = context.getSystemService(UsageStatsManager::class.java)
+                ?: throw IllegalStateException("UsageStatsManager unavailable")
+            manager.queryAndAggregateUsageStats(begin, end)
+        },
+    )
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes)
