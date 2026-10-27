@@ -61,5 +61,5 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 
 - Added a fail-closed guard for negative/near-epoch wall clocks and retention intervals longer than observed time; prevents cutoff subtraction overflow from deleting valid verified APK snapshots.
 - Removed redundant cache cleanup after creating the installer FileProvider URI; cleanup remains before snapshot allocation.
-- Added three clock-boundary JVM regressions. Exact PR-head source/JUnit/lint result is pending.
+- Added three clock-boundary JVM regressions. **PASS:** exact PR-head source/JUnit/lint run [#40441604406](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40441604406), BUILD SUCCESSFUL in 1m 41s; 36 actionable tasks; zero artifacts.
 - Device SAF/installer behavior: NOT TESTED. No APK packaging or artifacts.
