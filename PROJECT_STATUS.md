@@ -131,3 +131,10 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Three new JVM tests cover cancellation cleanup, provider deletion denial, and ordinary error-message mapping. No APK packaging or artifacts.
 - Current documentation-head recheck is pending; device/HyperOS and real SAF provider behavior remain **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — connector unavailable in this runtime; no Drive write is claimed.
+
+
+### N51 documentation-head recheck — PASS
+
+- PR head `cdb50c9ccb000623196d37878a3d597dfb0e32ed): [CI #40522694769](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40522694769), JVM tests + Android Lint passed in 1m 54s.
+- Checkout log confirms this PR head was tested; artifacts: 0. No APK packaging/signing/upload.
+- Physical-device and real SAF provider tests remain NOT TESTED.
