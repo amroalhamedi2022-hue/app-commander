@@ -200,3 +200,9 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Plan: `docs/N60_SHIZUKU_UNKNOWN_OPERATION_FAIL_CLOSED_PLAN.md`; final docs-head JVM/Lint CI **PENDING**.
 - Device/HyperOS/Shizuku and real SAF provider checks: **NOT TESTED**; artifacts 0.
 - Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
+
+### 2026-10-27 N60 verification follow-up — source/JVM/Lint PASS
+
+- **PASS on PR head `30938366aed255507756d5578ea79c4e383337f4`:** [CI #40591001051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40591001051), `:app:testDebugUnitTest` + `:app:lintDebug`, BUILD SUCCESSFUL in 1m 26s.
+- Artifact query returned 0. The verification-log append creates a new head; final-head recheck is tracked in PR #1 conversation.
+- Device/HyperOS/Shizuku/real SAF: **NOT TESTED**; Google Drive LIVE sync **SYNC FAILED** because no Drive/Docs connector is exposed.
