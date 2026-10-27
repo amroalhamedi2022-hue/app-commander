@@ -430,6 +430,8 @@ class AppRepository(private val context: Context) {
                 hasMultipleSigners = signerSummary.hasMultipleSigners,
                 hasPastSigningCertificates = signerSummary.hasPastSigningCertificates,
                 signingHistorySha256 = signerSummary.signingHistorySha256,
+                signerCertificateDetails = signerSummary.currentCertificateDetails,
+                signingHistoryDetails = signerSummary.signingHistoryDetails,
                 exportedActivities = activityExposure.exported,
                 exportedServices = serviceExposure.exported,
                 exportedReceivers = receiverExposure.exported,

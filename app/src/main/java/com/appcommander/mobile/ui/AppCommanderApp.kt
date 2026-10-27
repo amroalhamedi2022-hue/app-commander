@@ -76,6 +76,8 @@ import androidx.core.graphics.drawable.toBitmap
 import com.appcommander.mobile.data.ActivityLaunchSafety
 import com.appcommander.mobile.data.AppRepository
 import com.appcommander.mobile.data.ComponentEnabledState
+import com.appcommander.mobile.model.ApkCertificateMetadata
+import com.appcommander.mobile.model.ApkCertificateParseStatus
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
@@ -586,6 +588,23 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                                 }
                             }
                         }
+                        if (apk.signerCertificateDetails.isNotEmpty()) {
+                            Text("تفاصيل الشهادات الحالية", fontWeight = FontWeight.SemiBold)
+                            apk.signerCertificateDetails.forEachIndexed { index, certificate ->
+                                CertificateMetadataBlock("Current signer ${index + 1}", certificate)
+                            }
+                        }
+                        if (apk.signingHistoryDetails.isNotEmpty()) {
+                            Text("تفاصيل سلسلة الشهادات", fontWeight = FontWeight.SemiBold)
+                            apk.signingHistoryDetails.forEachIndexed { index, certificate ->
+                                CertificateMetadataBlock("History ${index + 1}", certificate)
+                            }
+                        }
+                        Text(
+                            "تفاصيل X.509 وصفية فقط؛ لا تتحقق من توقيع APK ولا تثبت سلامة الملف أو مصدره.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Spacer(Modifier.height(8.dp))
                         Text("مؤشرات مراجعة الأذونات", fontWeight = FontWeight.Bold)
                         val signals = com.appcommander.mobile.data.ApkInspectionSignals.evaluate(
@@ -1216,6 +1235,37 @@ private fun DetailLine(label: String, value: String) {
         Text(value, modifier = Modifier.weight(1f), fontSize = 12.sp)
     }
 }
+
+@Composable
+private fun CertificateMetadataBlock(title: String, certificate: ApkCertificateMetadata) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+        when (certificate.parseStatus) {
+            ApkCertificateParseStatus.PARSED -> {
+                DetailLine("Subject", certificate.subject ?: "غير متاح")
+                DetailLine("Issuer", certificate.issuer ?: "غير متاح")
+                DetailLine("Serial (hex)", certificate.serialNumberHex ?: "غير متاح")
+                DetailLine("Public key", certificate.publicKeyAlgorithm ?: "غير متاح")
+                DetailLine("Signature alg.", certificate.signatureAlgorithm ?: "غير متاح")
+                val dates = if (certificate.notBeforeEpochMillis != null && certificate.notAfterEpochMillis != null) {
+                    "${formatCertificateDate(certificate.notBeforeEpochMillis)} — ${formatCertificateDate(certificate.notAfterEpochMillis)}"
+                } else {
+                    "غير متاح"
+                }
+                DetailLine("X.509 dates", dates)
+            }
+            ApkCertificateParseStatus.EMPTY_INPUT ->
+                DetailLine("تحليل X.509", "بيانات شهادة فارغة؛ احتُفظ بالبصمة")
+            ApkCertificateParseStatus.OVERSIZED ->
+                DetailLine("تحليل X.509", "الحجم تجاوز 1 MiB؛ احتُفظ بالبصمة")
+            ApkCertificateParseStatus.INVALID_DER ->
+                DetailLine("تحليل X.509", "تعذّر تحليل DER؛ احتُفظ بالبصمة")
+        }
+    }
+}
+
+private fun formatCertificateDate(epochMillis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(epochMillis))
 
 private fun formatDuration(millis: Long): String {
     val minutes = (millis / 60_000.0).roundToInt()

@@ -37,6 +37,20 @@ data class AppDetails(
     val apkPath: String,
 )
 
+enum class ApkCertificateParseStatus { PARSED, EMPTY_INPUT, OVERSIZED, INVALID_DER }
+
+data class ApkCertificateMetadata(
+    val sha256: String,
+    val subject: String?,
+    val issuer: String?,
+    val serialNumberHex: String?,
+    val notBeforeEpochMillis: Long?,
+    val notAfterEpochMillis: Long?,
+    val signatureAlgorithm: String?,
+    val publicKeyAlgorithm: String?,
+    val parseStatus: ApkCertificateParseStatus,
+)
+
 data class ApkInspection(
     val fileName: String,
     val label: String,
@@ -72,6 +86,9 @@ data class ApkInspection(
     val providerPathPermissionRules: Int = 0,
     val providerPathRulesWithoutReadPermission: Int = 0,
     val providerPathRulesWithoutWritePermission: Int = 0,
+    // X.509 certificate fields are descriptive metadata; they do not verify the APK signature.
+    val signerCertificateDetails: List<ApkCertificateMetadata> = emptyList(),
+    val signingHistoryDetails: List<ApkCertificateMetadata> = emptyList(),
 )
 
 data class CapabilityState(

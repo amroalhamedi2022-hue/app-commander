@@ -524,3 +524,14 @@ Updated: 2026-10-26
 - Fingerprints and lineage are metadata only; no malware scan or independent authenticity guarantee. Device/HyperOS archive behavior: **NOT TESTED**.
 - The final docs-updated PR-head CI result will be recorded in the PR conversation after the final documentation commit.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector; no LIVE document read/write or folder metadata verification claimed.
+
+
+## 2026-10-27 — N41 APK certificate identity metadata (source CI pending)
+
+- **Engineering question:** can X.509 subject/issuer/serial/algorithm/date metadata be surfaced without losing the raw certificate SHA-256 when parsing fails or misrepresenting metadata as signature verification?
+- **Production source:** extended `ApkSignerSummary` and `ApkInspection`, wired parsed metadata from `AppRepository.inspectApk`, and added current/history certificate details to the Arabic inspector UI.
+- **Tests:** generated self-signed DER fixture, malformed DER, empty/oversized inputs, fingerprint retention, and signer-summary/history-order integration.
+- **Open-source review:** Android `SigningInfo` docs checked; Google `apksig` is Apache-2.0 but explicitly intended for use outside Android devices, so no runtime dependency or copied implementation was introduced.
+- **Source/JVM/Lint CI:** PENDING. **APK artifacts:** 0 expected; no APK packaging requested.
+- **Device / HyperOS / signature verification:** NOT TESTED.
+- **Google Drive LIVE sync:** SYNC FAILED if the Drive/Docs connector is unavailable; no LIVE document read/write or folder metadata verification may be claimed.
