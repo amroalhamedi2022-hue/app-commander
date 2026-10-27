@@ -47,6 +47,23 @@ internal fun decodeStrictUtf8(
 internal object ZipBundleStructure {
     private const val TAIL_BYTES = 128 * 1024
     private const val MAX_RAW_BYTES = InstalledApkBundleExport.MAX_TOTAL_BYTES + 1024 * 1024L
+    private const val EXTENDED_TIMESTAMP_ID = 0x5455
+
+    /**
+     * The exporter writes ZipEntry.time = 0 for every entry. On the supported
+     * JDK/Android ZIP writer this requires exactly one UT extended timestamp
+     * field: mtime flag only, epoch seconds zero. This verifier accepts only
+     * that canonical representation, not arbitrary opaque extra fields that
+     * different ZIP readers might interpret differently.
+     */
+    private fun validateCanonicalTimestampExtra(extra: ByteArray, location: String) {
+        if (extra.size != 9 ||
+            u16(extra, 0) != EXTENDED_TIMESTAMP_ID ||
+            u16(extra, 2) != 5 ||
+            (extra[4].toInt() and 0xff) != 1 ||
+            u32(extra, 5) != 0L
+        ) throw IOException("Unsupported ZIP $location extra fields")
+    }
 
     data class LocalEntry(
         val name: String,
@@ -82,6 +99,7 @@ internal object ZipBundleStructure {
         val rawName = header.copyOfRange(30, 30 + nameLength)
         val name = decodeStrictUtf8(rawName, "ZIP local entry name")
         val extra = header.copyOfRange(30 + nameLength, headerLength)
+        validateCanonicalTimestampExtra(extra, "local")
         if (name != entry.name || method != entry.method ||
             !extra.contentEquals(entry.extra ?: ByteArray(0))
         ) throw IOException("ZIP local header differs from parsed entry metadata")
@@ -251,6 +269,7 @@ internal object ZipBundleStructure {
             if (!centralExtra.contentEquals(expected.extra)) {
                 throw IOException("ZIP central directory extra fields differ from local entries")
             }
+            validateCanonicalTimestampExtra(centralExtra, "central")
             if (name != expected.name || size != expected.size ||
                 compressed != expected.compressedSize || crc != expected.crc
             ) throw IOException("ZIP central directory differs from local entries")
