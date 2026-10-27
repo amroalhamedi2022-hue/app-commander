@@ -589,3 +589,13 @@ Updated: 2026-10-26
 - **Artifacts: 0 confirmed**; the workflow contains no APK packaging/signing/upload task. Docs-updated PR head requires a separate recheck.
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS PackageManager ordering and Compose rendering, SAF providers, Shizuku operations, APK signature authenticity or malware detection.
 - No merge, main write, release, auto-merge, root or Device Owner. Google Drive LIVE sync remains **SYNC FAILED** because no Drive/Docs connector is exposed; no LIVE document or folder metadata read/write is claimed.
+
+
+## 2026-10-27 N47 — Fail-fast validation before Shizuku dispatch
+- Production source changed: YES. Added PrivilegedCommandPreflight; reused packageNameError; ShizukuController now validates operation/package/argument before permission checks and UserService binding. The elevated CommandUserService keeps its independent validation and safety checks.
+- Tests: malformed package, unsupported operation, invalid permission/component never invoke the dispatch callback; valid input dispatches once; a source contract test checks validation/permission/bind ordering.
+- **PASS — current source/test SHA:** a3f545ba00bc9970e96bc609352f44257ee9777b; [CI #40484909419](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40484909419), JVM tests + Android lint, success.
+- **Artifacts: 0 confirmed**; no APK packaging/signing/upload.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS, real Shizuku/ADB Binder flow, SAF providers or device commands. No root or Device Owner provisioning.
+- PR #1 remains Draft/open; no merge, main write or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE read/write or folder metadata verification is claimed.

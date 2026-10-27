@@ -91,3 +91,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Xiaomi Pad 5 / HyperOS real UsageStats and UI: **NOT TESTED**.
 - No APK packaging/signing/upload, merge, main write, root, Device Owner, or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 — N47: fail-fast Shizuku request preflight
+- Production source changed: YES. Added a pure preflight gate before Shizuku permission checks and UserService binding; malformed package names are rejected before destructive app-side safety checks can throw.
+- Regression tests prove malformed package/operation/permission/component requests do not invoke dispatch, valid requests dispatch once, and controller ordering places validation before permission/Binder access.
+- **PASS — exact current source/test SHA:** a3f545ba00bc9970e96bc609352f44257ee9777b; source/JVM/Lint [CI #40484909419](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40484909419) succeeded.
+- **Artifacts: 0 confirmed.** No APK packaging, signing or upload.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS Shizuku/ADB flow, SAF providers, and physical-device commands. No root or Device Owner provisioning.
+- PR #1 remains Draft/open; no merge, main write or auto-merge. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is available; no LIVE read/write or folder metadata verification is claimed.
