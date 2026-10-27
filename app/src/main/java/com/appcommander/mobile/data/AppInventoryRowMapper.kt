@@ -3,6 +3,7 @@ package com.appcommander.mobile.data
 import com.appcommander.mobile.model.AppEntry
 
 import java.text.Normalizer
+import java.util.Locale
 
 /**
  * Maps the PackageManager's installed-application snapshot into display rows.
@@ -44,7 +45,7 @@ internal object AppInventoryRowMapper {
      */
     private fun inventorySortKey(value: String): String =
         Normalizer.normalize(
-            Normalizer.normalize(value, Normalizer.Form.NFC).lowercase(),
+            Normalizer.normalize(value, Normalizer.Form.NFC).lowercase(Locale.ROOT),
             Normalizer.Form.NFC,
         )
 
