@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-27  
 **PR:** #1 — App Commander; keep Draft, no merge.  
-**Status at source commit:** implementation and JVM regressions added; CI pending.
+**Status:** source/JVM/lint CI PASS; docs-head recheck pending.
 
 ## Engineering question
 
@@ -29,6 +29,10 @@ If an installed app is removed, updated, or temporarily unreadable between inven
 
 This is a focused change to existing project state/UI code. No third-party implementation or dependency was copied or added; no permissions or privileged operations were broadened.
 
-## Verification
+## Verified result
 
-Pending source-only CI. Xiaomi Pad 5/HyperOS UI interaction, PackageManager races on-device, SAF, and Shizuku remain **NOT TESTED**.
+- **PASS — exact source/test SHA:** `20c0a63b2ae12145f822ba2f9e7ca18d91019c02`.
+- **PASS — source/JVM/lint CI:** [run #40491926201](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40491926201), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 10s; 36 actionable tasks.
+- **Artifacts: 0 confirmed**; no APK packaging, signing or upload.
+- Xiaomi Pad 5/HyperOS UI interaction, PackageManager races on-device, SAF, and Shizuku remain **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.

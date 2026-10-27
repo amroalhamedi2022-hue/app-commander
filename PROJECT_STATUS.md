@@ -100,3 +100,15 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - **Artifacts: 0 confirmed.** No APK packaging, signing or upload.
 - **NOT TESTED:** Xiaomi Pad 5/HyperOS Shizuku/ADB flow, SAF providers, and physical-device commands. No root or Device Owner provisioning.
 - PR #1 remains Draft/open; no merge, main write or auto-merge. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is available; no LIVE read/write or folder metadata verification is claimed.
+
+## 2026-10-27 N48 — App-detail loading resilience
+
+- **Production/source + tests SHA:** `20c0a63b2ae12145f822ba2f9e7ca18d91019c02`.
+- Added `AppDetailsLoadState` and wired the real Compose detail sheet for initial loading, retry, and post-command refresh. An initial PackageManager/provider failure now stops the spinner and shows an Arabic retry card; failed refreshes preserve the last readable details.
+- Latest-request-wins generation checks reject stale success, failure, and cancellation results.
+- Five JVM tests cover initial failure, preserved successful snapshot, stale result rejection, retry/cancellation, and stale cancellation.
+- **PASS — source/JVM/lint CI:** [run #40491926201](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40491926201), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 10s; 36 actionable tasks.
+- **Artifacts: 0 confirmed.** Workflow performed source tests and lint only; no APK packaging/signing/upload.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS detail-sheet interaction, real PackageManager removal/update races, SAF and Shizuku on-device.
+- **SYNC FAILED:** Google Drive LIVE handoff/index unavailable because no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
+- PR #1 remains Draft/open. No APK build, merge, main write, root, Device Owner, or auto-merge.
