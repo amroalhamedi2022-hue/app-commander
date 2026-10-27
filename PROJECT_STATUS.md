@@ -160,11 +160,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Google Drive LIVE sync: SYNC FAILED — Drive/Docs connector unavailable; no LIVE read/write is claimed.
 
 
-## 2026-10-27 — N55 ZIP local/central header consistency (verification pending)
+## 2026-10-27 — N55 ZIP local/central header consistency (source/JVM/Lint PASS; docs-head recheck pending)
 
 - APK bundle verification now records raw local header flags/method/name bytes and checks them against central-directory metadata, closing a local-vs-central general-purpose flag mismatch.
-- Source/test SHA: `326c96a42840f3d1980c5d8d7c6f01ccfee72fa3`.
+- Source/test SHA: `7cdd8f925b4592b516eace5b4fd8eca2cbe157f4`.
+- **PASS:** [CI #40556511097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40556511097), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; no APK packaging or artifacts.
 - Added regression: `rejectsLocalAndCentralGeneralPurposeFlagMismatch`.
-- CI was pending when this status entry was drafted; do not treat N55 as PASS until exact-SHA and docs-head CI both succeed.
+- Exact source/JVM/Lint checks passed. Do not treat the final documentation-updated PR head as verified until its own CI run succeeds.
 - Xiaomi Pad 5 / HyperOS, SAF providers, signature authenticity and malware detection: **NOT TESTED**. No APK artifact expected.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
