@@ -371,22 +371,7 @@ internal object ApkArchivePreflight {
      * This is structural preflight only; it is not APK signature verification.
      */
     private fun validateExternalFileType(hostSystem: Int, externalAttributes: Long, name: String) {
-        if (hostSystem != 3) return // ZIP host-system ID 3 = Unix
-        val unixMode = ((externalAttributes ushr 16) and 0xffffL).toInt()
-        val fileType = unixMode and 0xf000
-        if (fileType == 0) return
-
-        val directoryPath = name.endsWith("/")
-        when (fileType) {
-            0x8000 -> if (directoryPath) {
-                throw IOException("APK ZIP regular-file type disagrees with directory path")
-            }
-            0x4000 -> if (!directoryPath) {
-                throw IOException("APK ZIP directory type lacks directory path")
-            }
-            0xa000 -> throw IOException("APK ZIP symbolic-link entries are unsupported")
-            else -> throw IOException("APK ZIP special filesystem entry types are unsupported")
-        }
+        ZipEntryTypeSafety.validate(hostSystem, externalAttributes, name)
     }
 
     /**
