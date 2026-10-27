@@ -55,3 +55,11 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - **PASS:** [source-only CI #40434828097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40434828097), :app:testDebugUnitTest + :app:lintDebug, BUILD SUCCESSFUL in 1m 41s; 0 artifacts.
 - Xiaomi Pad 5/HyperOS, SAF, Shizuku and UI interaction: NOT TESTED. No APK packaging, merge, main write, root, or Device Owner.
 - Google Drive LIVE handoff/index: SYNC FAILED — connector unavailable; no Drive sync claimed.
+
+
+## 2026-10-27 — N38 verified-install cache clock safety
+
+- Added a fail-closed guard for negative/near-epoch wall clocks and retention intervals longer than observed time; prevents cutoff subtraction overflow from deleting valid verified APK snapshots.
+- Removed redundant cache cleanup after creating the installer FileProvider URI; cleanup remains before snapshot allocation.
+- Added three clock-boundary JVM regressions. Exact PR-head source/JUnit/lint result is pending.
+- Device SAF/installer behavior: NOT TESTED. No APK packaging or artifacts.
