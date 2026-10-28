@@ -529,23 +529,40 @@ class AppRepository(private val context: Context) {
      * Never give the installer the original mutable SAF URI: the provider may
      * otherwise replace the APK between inspection and the installer's read.
      */
-    fun prepareVerifiedInstall(uri: Uri, inspection: ApkInspection): Uri? = runCatching {
-        val directory = File(context.cacheDir, ApkInstallSnapshot.DIRECTORY)
-        val input = context.contentResolver.openInputStream(uri) ?: return@runCatching null
-        input.use { stream ->
-            val file = ApkInstallSnapshot.create(
-                directory, stream, inspection.sizeBytes, inspection.fileSha256,
-            ) ?: return@runCatching null
-            try {
-                FileProvider.getUriForFile(
-                    context, "${context.packageName}.verifiedapks", file,
-                )
-            } catch (failure: Exception) {
-                file.delete()
-                throw failure
+    fun prepareVerifiedInstall(
+        uri: Uri,
+        inspection: ApkInspection,
+        checkCancelled: () -> Unit = {},
+    ): Uri? {
+        return try {
+            checkCancelled()
+            val directory = File(context.cacheDir, ApkInstallSnapshot.DIRECTORY)
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            input.use { stream ->
+                val file = ApkInstallSnapshot.create(
+                    directory, stream, inspection.sizeBytes, inspection.fileSha256, checkCancelled,
+                ) ?: return null
+                try {
+                    checkCancelled()
+                    val verifiedUri = FileProvider.getUriForFile(
+                        context, "${context.packageName}.verifiedapks", file,
+                    )
+                    checkCancelled()
+                    verifiedUri
+                } catch (failure: Throwable) {
+                    // Cancellation and provider failures must never leave an
+                    // installer-visible snapshot behind.
+                    file.delete()
+                    throw failure
+                }
             }
+        } catch (cancelled: java.util.concurrent.CancellationException) {
+            // Do not turn coroutine cancellation into a normal verification failure.
+            throw cancelled
+        } catch (_: Exception) {
+            null
         }
-    }.getOrNull()
+    }
 
     private fun queryDisplayName(uri: Uri): String? {
         context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)

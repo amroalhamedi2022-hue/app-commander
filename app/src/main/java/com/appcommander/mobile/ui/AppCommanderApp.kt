@@ -96,6 +96,7 @@ import com.appcommander.mobile.ui.theme.LiquidPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -672,8 +673,11 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                                     busy = true
                                     scope.launch {
                                         try {
+                                            val installContext = currentCoroutineContext()
                                             val verifiedUri = withContext(Dispatchers.IO) {
-                                                repository.prepareVerifiedInstall(uri, apk)
+                                                repository.prepareVerifiedInstall(uri, apk) {
+                                                    installContext.ensureActive()
+                                                }
                                             }
                                             if (verifiedUri == null) {
                                                 error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."

@@ -2,6 +2,7 @@ package com.appcommander.mobile.data
 
 import java.io.ByteArrayInputStream
 import java.io.IOException
+import java.util.concurrent.CancellationException
 import java.io.InputStream
 import java.security.MessageDigest
 import org.junit.Assert.*
@@ -102,4 +103,58 @@ class ApkInstallSnapshotTest {
         assertTrue(fresh.exists())
         assertTrue(unrelated.exists())
     }
+
+    @Test fun cancellationDuringSnapshotCopyPropagatesAndRemovesPartialFile() {
+        val expected = ByteArray(128 * 1024) { (it * 13).toByte() }
+        var delivered = false
+        var cancelled = false
+        val input = object : InputStream() {
+            override fun read(): Int = -1
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                if (delivered) return -1
+                val count = minOf(length, expected.size / 2)
+                System.arraycopy(expected, 0, buffer, offset, count)
+                delivered = true
+                cancelled = true
+                return count
+            }
+        }
+        val cancellation = CancellationException("cancelled during snapshot copy")
+        val directory = temp.newFolder("cancelled-partial-copy")
+
+        val thrown = assertThrows(CancellationException::class.java) {
+            ApkInstallSnapshot.create(
+                directory, input, expected.size.toLong(), sha(expected),
+            ) {
+                if (cancelled) throw cancellation
+            }
+        }
+
+        assertSame(cancellation, thrown)
+        assertTrue("partial private snapshot must be removed on cancellation", directory.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test fun cancellationAtSnapshotEofPropagatesBeforeVerifiedFileCanEscape() {
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        var sawEof = false
+        val input = object : ByteArrayInputStream(bytes) {
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                val count = super.read(buffer, offset, length)
+                if (count < 0) sawEof = true
+                return count
+            }
+        }
+        val cancellation = CancellationException("cancelled at snapshot EOF")
+        val directory = temp.newFolder("cancelled-at-eof")
+
+        val thrown = assertThrows(CancellationException::class.java) {
+            ApkInstallSnapshot.create(directory, input, bytes.size.toLong(), sha(bytes)) {
+                if (sawEof) throw cancellation
+            }
+        }
+
+        assertSame(cancellation, thrown)
+        assertTrue("cancelled snapshot must not remain installer-visible", directory.listFiles().orEmpty().isEmpty())
+    }
+
 }

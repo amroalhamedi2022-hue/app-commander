@@ -30,7 +30,9 @@ internal object ApkInstallSnapshot {
         input: InputStream,
         expectedSize: Long,
         expectedSha256: String,
+        checkCancelled: () -> Unit = {},
     ): File? {
+        checkCancelled()
         if (expectedSize !in 1..ApkCacheCopy.MAX_APK_BYTES ||
             !digestPattern.matches(expectedSha256)) return null
         if (!directory.isDirectory && !directory.mkdirs()) {
@@ -40,16 +42,23 @@ internal object ApkInstallSnapshot {
         // them BEFORE allocating a new snapshot, otherwise a full cache may
         // prevent installation before the post-copy cleanup ever runs.
         cleanupExpired(directory)
+        checkCancelled()
         val file = File.createTempFile(PREFIX, SUFFIX, directory)
         var verified = false
         try {
             val copied = file.outputStream().use { output ->
                 // Stop immediately if the provider streams more than the
                 // previously inspected length; no unbounded disk writes.
-                ApkCacheCopy.copyWithSha256(input, output, expectedSize)
+                ApkCacheCopy.copyWithSha256(
+                    input, output, maxBytes = expectedSize, checkCancelled = checkCancelled,
+                )
             }
-            verified = copied.sizeBytes == expectedSize &&
+            val matches = copied.sizeBytes == expectedSize &&
                 copied.sha256.equals(expectedSha256, ignoreCase = true)
+            // Keep the snapshot unverified until the final cancellation check
+            // succeeds; cancellation at EOF must delete it too.
+            checkCancelled()
+            verified = matches
             return if (verified) file else null
         } finally {
             if (!verified) file.delete()
