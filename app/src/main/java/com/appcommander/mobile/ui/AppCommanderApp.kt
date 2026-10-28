@@ -1080,7 +1080,8 @@ private fun AppDetailSheet(
                                     "تعذّر فتح ${component.name}: قد تكون غير مصدّرة أو معطّلة أو مقيّدة من Android."
                                 }
                             }) else null,
-                            launchPermissionGranted = component.callerHasPermission,
+                            callerHasPermission = component.callerHasPermission,
+                            requiredPermission = component.requiredPermission,
                             onToggle = if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
                                 requestPrivileged(
                                     if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
@@ -1102,6 +1103,8 @@ private fun AppDetailSheet(
                                     ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
                                 }
                             }) else null,
+                            requiredPermission = component.requiredPermission,
+                            callerHasPermission = component.callerHasPermission,
                         )
                     }
                     "receivers" -> items(details!!.receivers) { component ->
@@ -1115,6 +1118,8 @@ private fun AppDetailSheet(
                                     ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
                                 }
                             }) else null,
+                            requiredPermission = component.requiredPermission,
+                            callerHasPermission = component.callerHasPermission,
                         )
                     }
                     else -> items(details!!.permissions) { permission ->
@@ -1167,7 +1172,8 @@ private fun ComponentRow(
     enabled: Boolean,
     onClick: (() -> Unit)?,
     onToggle: (() -> Unit)? = null,
-    launchPermissionGranted: Boolean = true,
+    callerHasPermission: Boolean = true,
+    requiredPermission: String? = null,
 ) {
     Row(
         Modifier
@@ -1182,10 +1188,19 @@ private fun ComponentRow(
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 Text(name.substringAfterLast('.'), fontWeight = FontWeight.SemiBold)
                 Text(name, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                requiredPermission?.takeIf { it.isNotBlank() }?.let { permission ->
+                    Text(
+                        "إذن: $permission",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         TinyTag(if (exported) "exported" else "internal")
-        if (!launchPermissionGranted) TinyTag("إذن تشغيل غير متاح", MaterialTheme.colorScheme.error)
+        if (!callerHasPermission) TinyTag("التطبيق لا يملك الإذن", MaterialTheme.colorScheme.error)
         if (onToggle != null) {
             TextButton(onClick = onToggle) { Text(if (enabled) "تعطيل" else "تفعيل", fontSize = 11.sp) }
         }
