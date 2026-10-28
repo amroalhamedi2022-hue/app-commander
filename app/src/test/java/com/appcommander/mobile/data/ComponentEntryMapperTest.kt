@@ -47,6 +47,28 @@ class ComponentEntryMapperTest {
         assertTrue(service.enabled)
     }
 
+    @Test fun blankPermissionIsNormalizedBeforeCallerPermissionLookup() {
+        val checkedPermissions = mutableListOf<String?>()
+        val mapped = ComponentEntryMapper.map(
+            components = arrayOf(
+                Component("a.Activity", exported = true, enabled = true, permission = "  \\t "),
+            ),
+            name = { it.name },
+            exported = { it.exported },
+            enabled = { it.enabled },
+            requiredPermission = { it.permission },
+            callerHasPermission = { permission ->
+                checkedPermissions.add(permission)
+                permission == null
+            },
+        )
+
+        assertEquals(listOf<String?>(null), checkedPermissions)
+        assertEquals(1, mapped.size)
+        assertEquals(null, mapped.single().requiredPermission)
+        assertTrue(mapped.single().callerHasPermission)
+    }
+
     @Test fun nullComponentArrayProducesAnEmptyInventory() {
         val mapped = ComponentEntryMapper.map<Component>(
             components = null,
