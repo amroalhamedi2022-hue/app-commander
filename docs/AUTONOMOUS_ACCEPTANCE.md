@@ -802,9 +802,12 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS visual review and real APK-corpus validation: NOT TESTED. APK packaging/artifacts: 0.
 
 
-## 2026-10-28 N64 — installed component permission visibility (source/test committed; CI PENDING)
+## 2026-10-28 N64 — installed component permission visibility (source/test PASS; final docs-head check follows)
 - Production/source: added `ComponentEntryMapper` and wired installed Activities, Services, and Receivers through it so `requiredPermission` and `callerHasPermission` are not silently dropped for Services/Receivers.
 - UI: component rows show the declared permission; the warning text is generic. Only Activities remain clickable, and `launchActivity` still re-queries Android component state and permission at click time.
 - Tests: new JVM mapper regressions cover stable order, null arrays, held/unheld/missing permission gates, disabled/non-exported metadata, and repository/UI wiring.
-- Plan: `docs/N64_INSTALLED_COMPONENT_PERMISSION_VISIBILITY_PLAN.md`. Source/test SHA and JVM/Lint CI: PENDING.
+- Plan: `docs/N64_INSTALLED_COMPONENT_PERMISSION_VISIBILITY_PLAN.md`. Source/test head: `459a8e428837dd55eebff976339b5a8807cfe67d`.
+- **PASS:** CI #40612329865 ran `./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace`, `BUILD SUCCESSFUL in 1m 18s`, 36 tasks; artifact query 0.
+- CI #40611844665 initially failed on generic-array mapping; fixed with `components?.asList().orEmpty()`. CI #40612076457 exposed a stale static contract assertion after the mapper refactor; corrected in the source/test head above.
+- Final docs-updated head is independently checked by the attached PR workflow; APK packaging/artifacts remain 0.
 - Xiaomi Pad 5/HyperOS visual behavior and real installed-package validation: NOT TESTED. APK packaging/artifacts: 0.
