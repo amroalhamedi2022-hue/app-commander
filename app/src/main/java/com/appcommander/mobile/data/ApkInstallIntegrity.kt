@@ -28,7 +28,12 @@ internal object ApkInstallIntegrity {
         if (expectedSize !in 1..ApkCacheCopy.MAX_APK_BYTES ||
             !sha256Pattern.matches(expectedSha256)) return false
         return try {
-            val actual = ApkCacheCopy.copyWithSha256(input, discard, checkCancelled = checkCancelled)
+            // The inspected byte count is a stricter bound than the global 512 MiB cap.
+            // A provider that swaps in a larger file is rejected after the first chunk
+            // that exceeds the previously verified size, not after reading the whole APK.
+            val actual = ApkCacheCopy.copyWithSha256(
+                input, discard, maxBytes = expectedSize, checkCancelled = checkCancelled,
+            )
             actual.sizeBytes == expectedSize &&
                 actual.sha256.equals(expectedSha256, ignoreCase = true)
         } catch (cancelled: CancellationException) {

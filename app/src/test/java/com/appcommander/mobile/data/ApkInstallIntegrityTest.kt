@@ -46,6 +46,28 @@ class ApkInstallIntegrityTest {
         assertFalse(ApkInstallIntegrity.matches(stalled, 1, hash(byteArrayOf(1))))
     }
 
+    @Test fun oversizedReplacementStopsAtTheInspectedSizeBound() {
+        val chunkSize = 64 * 1024
+        var readCalls = 0
+        var bytesReturned = 0
+        val oversized = object : InputStream() {
+            override fun read(): Int = -1
+
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                readCalls++
+                if (bytesReturned >= 4 * 1024 * 1024) return -1
+                val count = minOf(length, chunkSize, 4 * 1024 * 1024 - bytesReturned)
+                java.util.Arrays.fill(buffer, offset, offset + count, 0x41.toByte())
+                bytesReturned += count
+                return count
+            }
+        }
+
+        assertFalse(ApkInstallIntegrity.matches(oversized, 1L, hash(byteArrayOf(0x41))))
+        assertEquals("a size mismatch must stop at the first chunk crossing the inspected size", 1, readCalls)
+        assertEquals(chunkSize, bytesReturned)
+    }
+
     @Test fun doesNotDowngradeUnexpectedErrorsToIntegrityMismatch() {
         val fatal = AssertionError("unexpected provider implementation failure")
         val broken = object : InputStream() {
