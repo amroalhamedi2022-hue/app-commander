@@ -902,3 +902,13 @@ Updated: 2026-10-26
 - **PASS:** source/JVM/Lint CI #40646249969; `:app:testDebugUnitTest` and `:app:lintDebug`, BUILD SUCCESSFUL in 1m 51s. Artifact query: 0.
 - Xiaomi Pad 5/HyperOS, real SAF provider behavior, and installer handoff: **NOT TESTED**. No APK packaging/signing/upload, permission or dependency change.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed.
+
+## 2026-10-28 N71 — fatal temporary-APK cleanup errors
+- Production + regression-test SHA: `6e7bc5b2683ef40fcce34a586d5a84150bdb1d3b`.
+- Cleanup no longer wraps JVM `Error` as an ordinary `TemporaryApkCleanupDiagnostic`: it propagates unchanged after successful inspection; if inspection already failed, that original remains primary and the cleanup Error is suppressed.
+- Added two regressions for exact Error identity and preservation of the original inspection exception. Existing normal cleanup, cancellation, size/digest and provider-failure tests remain.
+- **PASS:** Source/JVM/Android Lint CI [#40653238999](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40653238999), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 53s.
+- Artifact count: 0. No APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS, real SAF provider/installer handoff, and Shizuku device flow: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
+- Final documentation-head CI: pending.
