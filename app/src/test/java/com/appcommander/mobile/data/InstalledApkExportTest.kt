@@ -281,4 +281,38 @@ class InstalledApkExportTest {
         assertFalse(InstalledApkExport.cleanupWasUnconfirmed(thrown))
     }
 
+
+    @Test fun cancellationAfterBaseReadbackCloseTriggersScopedCleanup() {
+        val base = byteArrayOf(2, 7, 1, 8)
+        var readbackClosed = false
+        var deletes = 0
+        val cancelled = CancellationException("cancel after base readback")
+        val thrown = assertThrows(CancellationException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { deletes++; true },
+            ) {
+                InstalledApkExport.copyBaseAndVerify(
+                    openSource = { ByteArrayInputStream(base) },
+                    openForWrite = { ByteArrayOutputStream() },
+                    openForRead = {
+                        object : ByteArrayInputStream(base) {
+                            override fun close() {
+                                readbackClosed = true
+                                super.close()
+                            }
+                        }
+                    },
+                    expectedBytes = base.size.toLong(),
+                    hasSplits = false,
+                    checkCancelled = {
+                        if (readbackClosed) throw cancelled
+                    },
+                )
+            }
+        }
+        assertSame(cancelled, thrown)
+        assertTrue(readbackClosed)
+        assertEquals(1, deletes)
+        assertFalse(InstalledApkExport.cleanupWasUnconfirmed(thrown))
+    }
 }
