@@ -922,4 +922,4 @@ Updated: 2026-10-26
 - Initial source commit 413389a77fe554492e1e55be8e8f52aa01b2621a **FAILED** CI because the UI still assigned to the now-derived result value. Corrected in bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
 - **PASS:** final source/JVM/lint CI [#40661366429](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40661366429): :app:testDebugUnitTest :app:lintDebug, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
 - APK packaging/build/upload: NOT PERFORMED. Xiaomi Pad 5/HyperOS cancellation, installer handoff, SAF provider and Shizuku device behavior: NOT TESTED.
-- No root, Device Owner, external API, merge, or main write. Final docs-head recheck: pending.
+- No root, Device Owner, external API, merge, or main write. Final docs-head recheck: recorded in the PR verification comment for the final documentation head; source/test code remains unchanged after the source/test SHA above.
