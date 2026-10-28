@@ -27,3 +27,6 @@ Date: 2026-10-28. App Commander PR #1 remains open Draft; no merge.
 - Xiaomi Pad 5/HyperOS, real SAF providers, and installer handoff: NOT TESTED.
 - Open API reference checked: Java `InputStream.read(byte[])` returns -1 at EOF; https://docs.oracle.com/en/java/javase/24/docs/api/java.base/java/io/InputStream.html. No third-party implementation copied.
 - No root, Device Owner, merge, main write, or paid service.
+
+
+- Google Drive LIVE handoff/index: SYNC FAILED — this runtime exposes no Google Drive/Docs connector; no LIVE read/write/read-back or folder metadata verification was possible.
