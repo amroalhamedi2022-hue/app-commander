@@ -32,3 +32,11 @@ Reviewed the official Shizuku API implementation: https://github.com/RikkaApps/S
 
 Source/test SHA and CI: pending. Final docs-head recheck: pending.
 Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is available; do not claim sync without read-back verification.
+
+## Source/test evidence — 2026-10-28
+
+- Exact source/test SHA: `33acdb7ef28eecb9c59a38732c232a2f50791945`.
+- **PASS:** JVM tests + Android static lint [CI #40708206028](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40708206028), workflow and `source-checks` job completed successfully.
+- Artifact query: 0. No APK packaging/signing/upload; no new permission/dependency.
+- Device Shizuku/HyperOS callback timing: NOT TESTED.
+- Final documentation-head recheck: pending.
