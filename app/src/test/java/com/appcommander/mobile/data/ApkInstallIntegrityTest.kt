@@ -1,0 +1,105 @@
+package com.appcommander.mobile.data
+
+import java.io.ByteArrayInputStream
+import java.io.IOException
+import java.io.InputStream
+import java.security.MessageDigest
+import org.junit.Assert.*
+import org.junit.Test
+
+class ApkInstallIntegrityTest {
+    private fun hash(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+
+    @Test fun acceptsUnchangedBinarySafContentWithoutCachingItAgain() {
+        val bytes = ByteArray(131_079) { ((it * 31) % 256).toByte() }
+        assertTrue(ApkInstallIntegrity.matches(ByteArrayInputStream(bytes), bytes.size.toLong(), hash(bytes)))
+        assertTrue(ApkInstallIntegrity.matches(ByteArrayInputStream(bytes), bytes.size.toLong(), hash(bytes).uppercase()))
+    }
+
+    @Test fun deniesChangedContentEvenWhenByteCountMatches() {
+        val inspected = "original APK bytes".toByteArray()
+        val replaced = inspected.copyOf().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() }
+        assertEquals(inspected.size, replaced.size)
+        assertFalse(ApkInstallIntegrity.matches(ByteArrayInputStream(replaced), inspected.size.toLong(), hash(inspected)))
+        assertFalse(ApkInstallIntegrity.matches(ByteArrayInputStream(inspected), inspected.size.toLong() + 1, hash(inspected)))
+    }
+
+    @Test fun deniesInvalidOrMissingInspectionMetadata() {
+        val bytes = byteArrayOf(1, 2, 3)
+        assertFalse(ApkInstallIntegrity.matches(ByteArrayInputStream(bytes), 0, hash(bytes)))
+        assertFalse(ApkInstallIntegrity.matches(ByteArrayInputStream(bytes), bytes.size.toLong(), "not-a-digest"))
+        assertFalse(ApkInstallIntegrity.matches(ByteArrayInputStream(byteArrayOf()), 1, hash(bytes)))
+    }
+
+    @Test fun failsClosedOnProviderReadFailureOrStall() {
+        val broken = object : InputStream() {
+            override fun read(): Int = throw IOException("provider error")
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw IOException("provider error")
+        }
+        assertFalse(ApkInstallIntegrity.matches(broken, 1, hash(byteArrayOf(1))))
+        val stalled = object : InputStream() {
+            override fun read(): Int = 0
+            override fun read(b: ByteArray, off: Int, len: Int): Int = 0
+        }
+        assertFalse(ApkInstallIntegrity.matches(stalled, 1, hash(byteArrayOf(1))))
+    }
+
+    @Test fun oversizedReplacementStopsAtTheInspectedSizeBound() {
+        val chunkSize = 64 * 1024
+        var readCalls = 0
+        var bytesReturned = 0
+        val oversized = object : InputStream() {
+            override fun read(): Int = -1
+
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                readCalls++
+                if (bytesReturned >= 4 * 1024 * 1024) return -1
+                val count = minOf(length, chunkSize, 4 * 1024 * 1024 - bytesReturned)
+                java.util.Arrays.fill(buffer, offset, offset + count, 0x41.toByte())
+                bytesReturned += count
+                return count
+            }
+        }
+
+        assertFalse(ApkInstallIntegrity.matches(oversized, 1L, hash(byteArrayOf(0x41))))
+        assertEquals("a size mismatch must stop at the first chunk crossing the inspected size", 1, readCalls)
+        assertEquals(chunkSize, bytesReturned)
+    }
+
+    @Test fun propagatesCancellationThatArrivesAtEndOfStream() {
+        val bytes = byteArrayOf(0x41)
+        var cancelled = false
+        val input = object : ByteArrayInputStream(bytes) {
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                val count = super.read(buffer, offset, length)
+                if (count < 0) cancelled = true
+                return count
+            }
+        }
+        val cancellation = java.util.concurrent.CancellationException("cancelled at EOF")
+
+        val thrown = assertThrows(java.util.concurrent.CancellationException::class.java) {
+            ApkInstallIntegrity.matches(input, bytes.size.toLong(), hash(bytes)) {
+                if (cancelled) throw cancellation
+            }
+        }
+
+        assertSame(cancellation, thrown)
+    }
+
+    @Test fun doesNotDowngradeUnexpectedErrorsToIntegrityMismatch() {
+        val fatal = AssertionError("unexpected provider implementation failure")
+        val broken = object : InputStream() {
+            override fun read(): Int = throw fatal
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw fatal
+        }
+
+        val thrown = assertThrows(AssertionError::class.java) {
+            ApkInstallIntegrity.matches(broken, 1, hash(byteArrayOf(1)))
+        }
+        assertSame(fatal, thrown)
+    }
+
+}

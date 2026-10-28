@@ -6,7 +6,9 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import com.appcommander.mobile.BuildConfig
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
@@ -15,25 +17,72 @@ data class CommandResult(val success: Boolean, val output: String)
 
 object ShizukuController {
     const val REQUEST_CODE = 9411
+    private const val BIND_TIMEOUT_MILLIS = 8_000L
 
     private var args: Shizuku.UserServiceArgs? = null
     @Volatile private var appContext: Context? = null
-    @Volatile private var remote: ICommandService? = null
-    @Volatile private var binding = false
-    private var pending = CompletableDeferred<ICommandService>()
+    private val connectionState = ShizukuConnectionState<ICommandService>()
+    // The timeout and a late platform callback may both request cleanup for the
+    // same ServiceConnection. Weak keys retain the gate only while that attempt
+    // connection is still reachable.
+    private val unbindGates = java.util.WeakHashMap<ServiceConnection, UnbindOnce>()
+    // A bind attempt outlives any single UI caller; its own timer owns stale-binding cleanup.
+    private val bindingTimeoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val bindingTimeout = ShizukuBindingTimeout(
+        scope = bindingTimeoutScope,
+        timeoutMillis = BIND_TIMEOUT_MILLIS,
+        state = connectionState,
+        lock = this@ShizukuController,
+    )
 
-    private val connection = object : ServiceConnection {
+    /**
+     * Each platform callback is bound to one request generation. Old Shizuku
+     * callbacks may arrive after timeout/retry; they must never mutate the new
+     * waiter's Binder state.
+     */
+    private fun connectionFor(
+        waiter: CompletableDeferred<ICommandService>,
+        serviceArgs: Shizuku.UserServiceArgs,
+    ): ServiceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, service: IBinder) {
             val connected = ICommandService.Stub.asInterface(service)
-            remote = connected
-            binding = false
-            if (!pending.isCompleted) pending.complete(connected)
+            val accepted = synchronized(ShizukuController) {
+                connectionState.connectedIfCurrent(waiter, connected)
+            }
+            if (!accepted) unbind(serviceArgs, this)
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-            remote = null
-            binding = false
-            pending = CompletableDeferred()
+            synchronized(ShizukuController) {
+                connectionState.failIfCurrent(waiter, "Shizuku service disconnected")
+            }
+            unbind(serviceArgs, this)
+        }
+
+        override fun onBindingDied(name: ComponentName) {
+            synchronized(ShizukuController) {
+                connectionState.failIfCurrent(waiter, "Shizuku binding died")
+            }
+            unbind(serviceArgs, this)
+        }
+
+        override fun onNullBinding(name: ComponentName) {
+            synchronized(ShizukuController) {
+                connectionState.failIfCurrent(waiter, "Shizuku returned no service")
+            }
+            unbind(serviceArgs, this)
+        }
+    }
+
+    /** Remove only this callback; never request termination of the UserService. */
+    private fun unbind(serviceArgs: Shizuku.UserServiceArgs, connection: ServiceConnection) {
+        val gate = synchronized(this) {
+            unbindGates.getOrPut(connection) { UnbindOnce() }
+        }
+        try {
+            gate.run { Shizuku.unbindUserService(serviceArgs, connection, false) }
+        } catch (_: Exception) {
+            // Best-effort release: the gate stays retryable if the platform call throws.
         }
     }
 
@@ -69,19 +118,21 @@ object ShizukuController {
     }
     suspend fun unsuspend(packageName: String) = exec(PrivilegedOperation.UNSUSPEND_PACKAGE, packageName)
 
-    suspend fun blockBackground(packageName: String): CommandResult {
-        return destructive(packageName) {
-            val first = exec(PrivilegedOperation.BLOCK_BACKGROUND, packageName)
-            val second = exec(PrivilegedOperation.BLOCK_ANY_BACKGROUND, packageName)
-            combine(first, second, "Background blocked")
+    suspend fun blockBackground(packageName: String): CommandResult =
+        destructive(packageName) {
+            BackgroundAppOpsSequence.apply(
+                "RUN_IN_BACKGROUND", "RUN_ANY_IN_BACKGROUND", "Background blocked",
+                first = { exec(PrivilegedOperation.BLOCK_BACKGROUND, packageName) },
+                second = { exec(PrivilegedOperation.BLOCK_ANY_BACKGROUND, packageName) },
+            )
         }
-    }
 
-    suspend fun allowBackground(packageName: String): CommandResult {
-        val first = exec(PrivilegedOperation.ALLOW_BACKGROUND, packageName)
-        val second = exec(PrivilegedOperation.ALLOW_ANY_BACKGROUND, packageName)
-        return combine(first, second, "Background allowed")
-    }
+    suspend fun allowBackground(packageName: String): CommandResult =
+        BackgroundAppOpsSequence.apply(
+            "RUN_IN_BACKGROUND", "RUN_ANY_IN_BACKGROUND", "Background allowed",
+            first = { exec(PrivilegedOperation.ALLOW_BACKGROUND, packageName) },
+            second = { exec(PrivilegedOperation.ALLOW_ANY_BACKGROUND, packageName) },
+        )
 
     suspend fun setPermission(packageName: String, permission: String, grant: Boolean): CommandResult {
         return if (grant) exec(PrivilegedOperation.GRANT_PERMISSION, packageName, permission)
@@ -93,41 +144,68 @@ object ShizukuController {
         else destructive(packageName) { exec(PrivilegedOperation.DISABLE_COMPONENT, packageName, componentName) }
     }
 
-    private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult = withContext(Dispatchers.IO) {
-        if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
-        runCatching {
-            val reply = obtainService().execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
-            val firstLine = reply.lineSequence().firstOrNull().orEmpty()
-            val success = firstLine == "exit=0"
-            CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
-        }.getOrElse {
-            remote = null
-            CommandResult(false, it.message ?: "Command failed")
+    private suspend fun exec(operation: Int, packageName: String, argument: String = ""): CommandResult =
+        PrivilegedCommandPreflight.execute(operation, packageName, argument) {
+            withContext(Dispatchers.IO) {
+                if (!hasPermission()) return@withContext CommandResult(false, "Shizuku permission is not available")
+                var usedService: ICommandService? = null
+                try {
+                    val service = obtainService()
+                    usedService = service
+                    val reply = service.execute(operation, safe(packageName), argument.takeIf { it.isNotBlank() }?.let(::safe).orEmpty())
+                    val firstLine = reply.lineSequence().firstOrNull().orEmpty()
+                    val success = firstLine == "exit=0"
+                    CommandResult(success, reply.lineSequence().drop(1).joinToString("\n").trim())
+                } catch (cancelled: java.util.concurrent.CancellationException) {
+                    // runCatching swallows coroutine cancellation and can leave
+                    // stale privileged work running after its UI scope is gone.
+                    usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
+                    throw cancelled
+                } catch (_: Exception) {
+                    usedService?.let { service -> synchronized(this) { connectionState.discardIfSame(service) } }
+                    CommandResult(false, "Command failed")
+                }
+            }
         }
-    }
 
     private suspend fun destructive(packageName: String, block: suspend () -> CommandResult): CommandResult {
+        val packageError = PrivilegedRequestValidator.packageNameError(packageName)
+        if (packageError != null) return CommandResult(false, packageError)
         val context = appContext ?: return CommandResult(false, "App Commander is not initialized")
-        val reason = CriticalPackageGuard.reason(context, safe(packageName))
+        val reason = CriticalPackageGuard.reason(context, packageName)
         return if (reason != null) CommandResult(false, reason) else block()
     }
 
     private suspend fun obtainService(): ICommandService {
-        remote?.let { if (it.asBinder().pingBinder()) return it }
+        val candidate = connectionState.remoteCandidate()
+        if (candidate != null) {
+            val alive = runCatching { candidate.asBinder().pingBinder() }.getOrDefault(false)
+            if (alive) return candidate
+            // A dead cached Binder must be removed before timeout recovery.
+            // Identity check prevents an old failed ping from clearing a newer
+            // ServiceConnection callback that has already installed a live Binder.
+            synchronized(this) { connectionState.discardIfSame(candidate) }
+        }
         val serviceArgs = requireNotNull(args) { "ShizukuController.initialize must be called first" }
+        val request: BindingRequest<ICommandService>
+        var attemptConnection: ServiceConnection? = null
+        var bindFailedConnection: ServiceConnection? = null
         synchronized(this) {
-            if (!binding) {
-                binding = true
-                pending = CompletableDeferred()
-                Shizuku.bindUserService(serviceArgs, connection)
+            request = connectionState.beginOrJoin()
+            if (request.shouldBind) {
+                val attempt = connectionFor(request.waiter, serviceArgs)
+                attemptConnection = attempt
+                try {
+                    Shizuku.bindUserService(serviceArgs, attempt)
+                    bindingTimeout.schedule(request) { unbind(serviceArgs, attempt) }
+                } catch (_: Exception) {
+                    connectionState.failIfCurrent(request.waiter, "Shizuku service bind failed")
+                    bindFailedConnection = attempt
+                }
             }
         }
-        return withTimeout(8_000) { pending.await() }
-    }
-
-    private fun combine(first: CommandResult, second: CommandResult, successText: String): CommandResult {
-        return if (first.success && second.success) CommandResult(true, successText)
-        else CommandResult(false, listOf(first.output, second.output).filter { it.isNotBlank() }.joinToString("\n"))
+        bindFailedConnection?.let { unbind(serviceArgs, it) }
+        return withTimeout(BIND_TIMEOUT_MILLIS) { request.waiter.await() }
     }
 
     private fun safe(value: String): String {

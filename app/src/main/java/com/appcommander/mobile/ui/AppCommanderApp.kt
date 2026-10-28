@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
@@ -72,21 +73,33 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
+import com.appcommander.mobile.data.ActivityLaunchSafety
 import com.appcommander.mobile.data.AppRepository
-import com.appcommander.mobile.admin.DeviceOwnerController
-import com.appcommander.mobile.model.ApkInspection
+import com.appcommander.mobile.data.VerifiedInstallHandoff
+import com.appcommander.mobile.data.VerifiedInstallSnapshot
+import com.appcommander.mobile.data.InstalledApkExport
+import com.appcommander.mobile.data.ComponentEnabledState
+import com.appcommander.mobile.model.ApkCertificateMetadata
+import com.appcommander.mobile.model.ApkCertificateParseStatus
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.PermissionEntry
 import com.appcommander.mobile.privilege.CommandResult
+import com.appcommander.mobile.privilege.PrivilegedActionConsent
+import com.appcommander.mobile.privilege.PrivilegedOperation
 import com.appcommander.mobile.privilege.CriticalPackageGuard
 import com.appcommander.mobile.privilege.ShizukuController
+import com.appcommander.mobile.privilege.SafeCommandCall
 import com.appcommander.mobile.ui.components.GlassBox
 import com.appcommander.mobile.ui.components.LiquidBackground
 import com.appcommander.mobile.ui.theme.AppCommanderTheme
 import com.appcommander.mobile.ui.theme.LiquidPalette
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
@@ -125,18 +138,31 @@ private fun AppCommanderRoot(palette: LiquidPalette, onCyclePalette: () -> Unit)
     }
     val scope = rememberCoroutineScope()
     var currentTab by rememberSaveable { mutableStateOf(MainTab.HOME) }
-    var apps by remember { mutableStateOf<List<AppEntry>>(emptyList()) }
-    var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false, false)) }
-    var loading by remember { mutableStateOf(true) }
+    var inventory by remember { mutableStateOf(InventoryRefreshState()) }
+    var capabilities by remember { mutableStateOf(CapabilityState(false, false, false, false)) }
     var selected by remember { mutableStateOf<AppEntry?>(null) }
 
     fun refresh() {
+        val started = inventory.begin()
+        inventory = started
+        val requestGeneration = started.generation
         scope.launch {
-            loading = true
-            val loaded = withContext(Dispatchers.IO) { repository.loadApps() }
-            apps = loaded
-            capabilities = repository.capabilities()
-            loading = false
+            try {
+                val loaded = withContext(Dispatchers.IO) { repository.loadApps() }
+                inventory = inventory.complete(requestGeneration, loaded)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                inventory = inventory.cancel(requestGeneration)
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep the last successful inventory and avoid exposing raw provider/package errors.
+                inventory = inventory.fail(
+                    requestGeneration,
+                    "تعذّر تحديث قائمة التطبيقات. جرّب مرة أخرى.",
+                )
+            }
+            if (inventory.generation == requestGeneration) {
+                capabilities = runCatching { repository.capabilities() }.getOrDefault(capabilities)
+            }
         }
     }
     LaunchedEffect(Unit) { refresh() }
@@ -181,8 +207,13 @@ private fun AppCommanderRoot(palette: LiquidPalette, onCyclePalette: () -> Unit)
         ) { padding ->
             AnimatedContent(currentTab, label = "tabs") { tab ->
                 when (tab) {
-                    MainTab.HOME -> DashboardScreen(padding, apps, capabilities, loading, repository)
-                    MainTab.APPS -> AppsScreen(padding, apps, loading) { selected = it }
+                    MainTab.HOME -> DashboardScreen(
+                        padding, inventory.apps, capabilities, inventory.loading,
+                        inventory.error, ::refresh, repository,
+                    )
+                    MainTab.APPS -> AppsScreen(
+                        padding, inventory.apps, inventory.loading, inventory.error, ::refresh,
+                    ) { selected = it }
                     MainTab.INSPECT -> InspectorScreen(padding, repository)
                     MainTab.ROUTINES -> RoutinesScreen(padding, capabilities)
                 }
@@ -235,6 +266,8 @@ private fun DashboardScreen(
     apps: List<AppEntry>,
     capabilities: CapabilityState,
     loading: Boolean,
+    loadError: String?,
+    onRetry: () -> Unit,
     repository: AppRepository,
 ) {
     val context = LocalContext.current
@@ -243,6 +276,9 @@ private fun DashboardScreen(
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        if (loadError != null) {
+            item { InventoryErrorCard(loadError, onRetry) }
+        }
         item {
             GlassBox(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp)) {
@@ -252,8 +288,6 @@ private fun DashboardScreen(
                         StatusPill("أساسي", true)
                         StatusPill("الاستخدام", capabilities.usageAccess)
                         StatusPill("Shizuku", capabilities.shizukuGranted)
-                        StatusPill("Device Owner", capabilities.deviceOwner)
-                        StatusPill("Root", capabilities.rootAvailable)
                     }
                     if (!capabilities.usageAccess) {
                         Spacer(Modifier.height(14.dp))
@@ -264,9 +298,22 @@ private fun DashboardScreen(
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MetricCard("التطبيقات", if (loading) "…" else apps.size.toString(), Modifier.weight(1f))
-                MetricCard("تطبيقاتك", apps.count { !it.isSystem }.toString(), Modifier.weight(1f))
-                MetricCard("معطّلة", apps.count { !it.enabled }.toString(), Modifier.weight(1f))
+                val unavailable = !loading && loadError != null && apps.isEmpty()
+                MetricCard(
+                    "التطبيقات",
+                    if (loading) "…" else if (unavailable) "—" else apps.size.toString(),
+                    Modifier.weight(1f),
+                )
+                MetricCard(
+                    "تطبيقاتك",
+                    if (unavailable) "—" else apps.count { !it.isSystem }.toString(),
+                    Modifier.weight(1f),
+                )
+                MetricCard(
+                    "معطّلة",
+                    if (unavailable) "—" else apps.count { !it.enabled }.toString(),
+                    Modifier.weight(1f),
+                )
             }
         }
         item { SectionTitle("اختصارات ذكية") }
@@ -317,6 +364,8 @@ private fun AppsScreen(
     padding: PaddingValues,
     apps: List<AppEntry>,
     loading: Boolean,
+    loadError: String?,
+    onRetry: () -> Unit,
     onSelect: (AppEntry) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -334,6 +383,10 @@ private fun AppsScreen(
         }
     }
     Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
+        if (loadError != null) {
+            InventoryErrorCard(loadError, onRetry)
+            Spacer(Modifier.height(8.dp))
+        }
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
@@ -351,6 +404,9 @@ private fun AppsScreen(
         Spacer(Modifier.height(8.dp))
         when {
             loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            filtered.isEmpty() && loadError != null -> Box(
+                Modifier.fillMaxSize(), contentAlignment = Alignment.Center,
+            ) { Text("تعذّر تحميل قائمة التطبيقات") }
             filtered.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("ما لقينا تطبيقات مطابقة") }
             else -> LazyColumn(
                 contentPadding = PaddingValues(bottom = 18.dp),
@@ -397,19 +453,62 @@ private fun AppRow(app: AppEntry, onClick: () -> Unit) {
 private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var result by remember { mutableStateOf<ApkInspection?>(null) }
+    var inspectionState by remember { mutableStateOf(ApkInspectionLoadState()) }
+    val result = inspectionState.result
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    // This separate message is used for installer handoff failures. Inspection
+    // errors live in the generation-aware state below.
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var verifiedBundle by remember { mutableStateOf<com.appcommander.mobile.data.InstalledApkBundleVerifier.Result?>(null) }
+    var bundleError by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) scope.launch {
-            selectedUri = uri
-            busy = true
+        if (uri != null && !busy) {
+            // Lock before launching the coroutine: rapid repeated taps cannot
+            // start overlapping inspections or race the installable URI.
+            val started = inspectionState.begin()
+            inspectionState = started
+            selectedUri = null
             error = null
-            result = runCatching { withContext(Dispatchers.IO) { repository.inspectApk(uri) } }
-                .onFailure { error = it.message ?: "تعذّر فحص الملف" }
-                .getOrNull()
-            busy = false
+            busy = true
+            scope.launch {
+                try {
+                    val inspected = withContext(Dispatchers.IO) { repository.inspectApk(uri) }
+                    inspectionState = inspectionState.complete(started.generation, inspected)
+                    if (inspectionState.generation == started.generation) {
+                        selectedUri = uri
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    inspectionState = inspectionState.cancel(started.generation)
+                    throw cancelled
+                } catch (failure: Exception) {
+                    inspectionState = inspectionState.fail(
+                        started.generation,
+                        failure.message ?: "تعذّر فحص الملف",
+                    )
+                } finally {
+                    // A stale request must not turn off a newer request's busy lock.
+                    if (inspectionState.generation == started.generation) busy = false
+                }
+            }
+        }
+    }
+    val verifyBundlePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null && !busy) scope.launch {
+            busy = true
+            verifiedBundle = null
+            bundleError = null
+            try {
+                verifiedBundle = withContext(Dispatchers.IO) {
+                    repository.verifyInstalledApkBundle(uri)
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                bundleError = "الحزمة غير مطابقة أو تعذرت قراءتها. لا تثبت ملفاتها قبل مراجعتها."
+            } finally {
+                busy = false
+            }
         }
     }
     LazyColumn(
@@ -430,6 +529,27 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                 }
             }
         }
+        item {
+            GlassBox(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("فحص حزمة APK المصدّرة", fontWeight = FontWeight.Bold)
+                    Text("تحقق من ملفات Base/Split وبصمات SHA-256 داخل ZIP دون استخراج أو تثبيت. هذا ليس فحص توقيع أو برمجيات خبيثة.", fontSize = 12.sp)
+                    Button(
+                        onClick = { verifyBundlePicker.launch("application/zip") },
+                        enabled = !busy,
+                    ) { Text("اختيار ZIP للتحقق") }
+                    verifiedBundle?.let { verified ->
+                        Text("تطابقت بصمات ${verified.entries.size} ملفات APK — ${formatBytes(verified.totalApkBytes)}")
+                        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                            Text(verified.packageName, fontSize = 12.sp)
+                        }
+                        Text("تم التحقق من ملفات ZIP وفهرسها المركزي؛ لا يشمل ذلك صحة توقيع APK أو مصدره.", fontSize = 11.sp)
+                    }
+                    bundleError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                }
+            }
+        }
+        inspectionState.error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
         error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
         result?.let { apk ->
             item { SectionTitle("نتيجة الفحص") }
@@ -443,24 +563,167 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                         DetailLine("الملف", apk.fileName)
                         DetailLine("الإصدار", "${apk.versionName} (${apk.versionCode})")
                         DetailLine("Android SDK", "min ${apk.minSdk} • target ${apk.targetSdk}")
+                        DetailLine("توافق هذا الجهاز", com.appcommander.mobile.data.ApkCompatibility.assess(
+                            apk.minSdk, android.os.Build.VERSION.SDK_INT,
+                        ).description)
                         DetailLine("الحجم", formatBytes(apk.sizeBytes))
-                        DetailLine("المكوّنات", "${apk.activities} Activity • ${apk.services} Service • ${apk.receivers} Receiver")
+                        DetailLine("المكوّنات", "${apk.activities} Activity • ${apk.services} Service • ${apk.receivers} Receiver • ${apk.providers} Provider")
+                        DetailLine("مكوّنات مصدّرة", "${apk.exportedActivities} Activity • ${apk.exportedServices} Service • ${apk.exportedReceivers} Receiver • ${apk.exportedProviders} Provider")
+                        DetailLine("مصدّرة دون إذن معلن", "${apk.unguardedExportedActivities} Activity • ${apk.unguardedExportedServices} Service • ${apk.unguardedExportedReceivers} Receiver")
+                        DetailLine("Providers مصدّرة دون إذن قراءة افتراضي", apk.providersWithoutReadPermission.toString())
+                        DetailLine("Providers مصدّرة دون إذن كتابة افتراضي", apk.providersWithoutWritePermission.toString())
+                        DetailLine("قواعد PathPermission للمسارات", apk.providerPathPermissionRules.toString())
+                        DetailLine("مسارات دون إذن قراءة فعّال", apk.providerPathRulesWithoutReadPermission.toString())
+                        DetailLine("مسارات دون إذن كتابة فعّال", apk.providerPathRulesWithoutWritePermission.toString())
+                        DetailLine("Providers تسمح بمنح URI", apk.providersGrantUriPermissions.toString())
+                        Text(
+                            "هذه أعداد من تعريفات Manifest فقط؛ التصدير أو غياب إذن على مستوى المكوّن لا يثبت إمكانية الوصول الفعلية أو وجود ثغرة. تُحسب صلاحيات المسار مع الرجوع إلى إذن Provider الافتراضي، لكن منح URI وفحوص وقت التشغيل قد تغيّر الوصول الفعلي.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         DetailLine("الأذونات", apk.permissions.size.toString())
                         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                             DetailLine("SHA-256", apk.fileSha256)
                             apk.signerSha256.forEachIndexed { index, value ->
-                                DetailLine("Signer ${index + 1}", value)
+                                DetailLine("Current signer ${index + 1}", value)
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = {
-                            selectedUri?.let { uri ->
-                                val install = Intent(Intent.ACTION_VIEW, uri)
-                                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                runCatching { context.startActivity(install) }
+                        val signerMode = when {
+                            apk.hasMultipleSigners == true ->
+                                if (apk.signerSha256.isEmpty()) "توقيعات حالية متعددة؛ بصماتها غير متاحة"
+                                else "توقيعات حالية متعددة؛ سجل التدوير الأحادي غير منطبق"
+                            apk.hasPastSigningCertificates == true ->
+                                if (apk.signingHistorySha256.isEmpty()) "أبلغت المنصة عن تدوير، لكن بصمات السجل غير متاحة"
+                                else "سجل تدوير متاح من الشهادة الأقدم إلى الحالية"
+                            apk.hasMultipleSigners == false ->
+                                if (apk.signerSha256.isEmpty()) "تعذّر استخراج بصمة الشهادة"
+                                else "شهادة حالية واحدة؛ لم يُبلّغ عن تدوير سابق"
+                            else -> "بيانات التوقيع غير متاحة"
+                        }
+                        DetailLine("حالة بيانات التوقيع", signerMode)
+                        if (apk.signingHistorySha256.isNotEmpty()) {
+                            Text(
+                                "سجل الشهادات بحسب Android (الأقدم ← الحالية)؛ لا يثبت وحده أمان الملف أو مصدره.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                apk.signingHistorySha256.forEachIndexed { index, value ->
+                                    DetailLine("History ${index + 1}", value)
+                                }
                             }
-                        }) { Text("تثبيت عبر أندرويد") }
+                        }
+                        if (apk.signerCertificateDetails.isNotEmpty()) {
+                            Text("تفاصيل الشهادات الحالية", fontWeight = FontWeight.SemiBold)
+                            apk.signerCertificateDetails.forEachIndexed { index, certificate ->
+                                CertificateMetadataBlock("Current signer ${index + 1}", certificate)
+                            }
+                        }
+                        if (apk.signingHistoryDetails.isNotEmpty()) {
+                            Text("تفاصيل سلسلة الشهادات", fontWeight = FontWeight.SemiBold)
+                            apk.signingHistoryDetails.forEachIndexed { index, certificate ->
+                                CertificateMetadataBlock("History ${index + 1}", certificate)
+                            }
+                        }
+                        Text(
+                            "تفاصيل X.509 وصفية فقط؛ لا تتحقق من توقيع APK ولا تثبت سلامة الملف أو مصدره.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("مؤشرات مراجعة الأذونات", fontWeight = FontWeight.Bold)
+                        val signals = com.appcommander.mobile.data.ApkInspectionSignals.evaluate(
+                            targetSdk = apk.targetSdk,
+                            permissions = apk.permissions,
+                            signerSha256 = apk.signerSha256,
+                            unguardedExportedActivities = apk.unguardedExportedActivities,
+                            unguardedExportedServices = apk.unguardedExportedServices,
+                            unguardedExportedReceivers = apk.unguardedExportedReceivers,
+                            exportedProviders = apk.exportedProviders,
+                            providersWithoutReadPermission = apk.providersWithoutReadPermission,
+                            providersWithoutWritePermission = apk.providersWithoutWritePermission,
+                            providerPathRulesWithoutReadPermission = apk.providerPathRulesWithoutReadPermission,
+                            providerPathRulesWithoutWritePermission = apk.providerPathRulesWithoutWritePermission,
+                            exportedComponentsUsingNonSignatureAppPermission = apk.exportedComponentsUsingNonSignatureAppPermission,
+                            providerDirectionsUsingNonSignatureAppPermission = apk.providerDirectionsUsingNonSignatureAppPermission,
+                            providerPathRulesUsingNonSignatureAppPermission = apk.providerPathRulesUsingNonSignatureAppPermission,
+                        )
+                        if (signals.isEmpty()) {
+                            Text("لا توجد مؤشرات من القائمة المحدودة؛ هذا لا يعني أن الملف آمن.")
+                        } else {
+                            signals.forEach { finding ->
+                                Text("• ${finding.description}", fontSize = 12.sp)
+                            }
+                        }
+                        Text(
+                            com.appcommander.mobile.data.ApkInspectionSignals.DISCLAIMER,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "قبل التثبيت ننشئ نسخة خاصة متحققًا من SHA-256 لها. " +
+                                "المثبّت يقرأ النسخة الثابتة بدل رابط SAF القابل للتغيير. أندرويد يتحقق من التوقيع.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            enabled = !busy && selectedUri != null,
+                            onClick = {
+                                val uri = selectedUri
+                                if (uri != null) {
+                                    busy = true
+                                    scope.launch {
+                                        val handoff = VerifiedInstallHandoff<VerifiedInstallSnapshot>(
+                                            repository::discardVerifiedInstall,
+                                        )
+                                        var primaryFailure: Throwable? = null
+                                        var failurePrefix = "تعذّر تجهيز نسخة التثبيت المتحقق منها: "
+                                        try {
+                                            val installContext = currentCoroutineContext()
+                                            val snapshot = withContext(Dispatchers.IO) {
+                                                repository.prepareVerifiedInstall(uri, apk) {
+                                                    installContext.ensureActive()
+                                                }.also(handoff::record)
+                                            }
+                                            if (snapshot == null) {
+                                                error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."
+                                                inspectionState = inspectionState.copy(result = null)
+                                                selectedUri = null
+                                            } else {
+                                                val install = Intent(Intent.ACTION_VIEW)
+                                                    .setDataAndType(snapshot.uri, "application/vnd.android.package-archive")
+                                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                failurePrefix = "تعذّر فتح مثبّت أندرويد: "
+                                                context.startActivity(install)
+                                                // Keep the immutable cache file for the installer only
+                                                // after startActivity returns successfully.
+                                                check(handoff.markTransferred()) {
+                                                    "Verified install snapshot ownership was already released"
+                                                }
+                                            }
+                                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            primaryFailure = cancelled
+                                            throw cancelled
+                                        } catch (failure: Throwable) {
+                                            primaryFailure = failure
+                                            if (failure is Exception) {
+                                                error = failurePrefix + (failure.message ?: "خطأ غير معروف")
+                                            } else {
+                                                throw failure
+                                            }
+                                        } finally {
+                                            // The reference is recorded inside the IO block, so a
+                                            // cancelled withContext return cannot orphan the snapshot.
+                                            handoff.discardIfNotTransferred(
+                                                primaryFailure ?: IllegalStateException("Installer handoff did not complete"),
+                                            )
+                                            busy = false
+                                        }
+                                    }
+                                }
+                            },
+                        ) { Text(if (busy) "جاري التحقق…" else "تثبيت عبر أندرويد") }
                     }
                 }
             }
@@ -516,6 +779,17 @@ private fun RoutinesScreen(padding: PaddingValues, capabilities: CapabilityState
     }
 }
 
+/**
+ * Pending consent is deliberately in-memory only: dismiss, navigation and
+ * rotation drop the request. The closure is never executed by rendering.
+ */
+private data class PendingPrivilegedAction(
+    val packageName: String,
+    val description: String,
+    val onSuccess: () -> Unit,
+    val execute: suspend () -> CommandResult,
+)
+
 @Composable
 private fun AppDetailSheet(
     entry: AppEntry,
@@ -525,29 +799,145 @@ private fun AppDetailSheet(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val deviceOwnerController = remember { DeviceOwnerController(context.applicationContext) }
-    var details by remember(entry.packageName) { mutableStateOf<AppDetails?>(null) }
+    var detailLoad by remember(entry.packageName) { mutableStateOf(AppDetailsLoadState()) }
+    val details = detailLoad.details
+
+    suspend fun reloadDetails() {
+        val started = detailLoad.begin()
+        detailLoad = started
+        try {
+            val loaded = withContext(Dispatchers.IO) { repository.loadDetails(entry) }
+            detailLoad = detailLoad.complete(started.generation, loaded)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            detailLoad = detailLoad.cancel(started.generation)
+            throw cancelled
+        } catch (_: Exception) {
+            detailLoad = detailLoad.fail(
+                started.generation,
+                "تعذّر تحميل تفاصيل التطبيق. قد يكون التطبيق أُزيل أو تغيّرت بياناته. جرّب مرة أخرى.",
+            )
+        }
+    }
     var section by rememberSaveable(entry.packageName) { mutableStateOf("activities") }
+    var activityQuery by rememberSaveable(entry.packageName) { mutableStateOf("") }
+    var exportedActivitiesOnly by rememberSaveable(entry.packageName) { mutableStateOf(true) }
+    var activityLaunchMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     var commandMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
     var commandBusy by remember(entry.packageName) { mutableStateOf(false) }
+    var pendingPrivileged by remember(entry.packageName) { mutableStateOf<PendingPrivilegedAction?>(null) }
     var currentEnabled by remember(entry.packageName) { mutableStateOf(entry.enabled) }
     val protectionReason = remember(entry.packageName) { CriticalPackageGuard.reason(context, entry.packageName) }
     val protected = protectionReason != null
-    fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
-        scope.launch {
-            commandBusy = true
-            val result = block()
-            commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
-            if (result.success) {
-                onSuccess()
-                details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+    var exportBusy by remember(entry.packageName) { mutableStateOf(false) }
+    var exportJob by remember(entry.packageName) { mutableStateOf<Job?>(null) }
+    var exportMessage by remember(entry.packageName) { mutableStateOf<String?>(null) }
+    val exportPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/vnd.android.package-archive")
+    ) { destination ->
+        if (destination == null) {
+            exportBusy = false
+            exportJob = null
+        } else {
+            exportJob = scope.launch {
+                val exportCoroutine = currentCoroutineContext()[Job]
+                try {
+                    val exported = withContext(Dispatchers.IO) {
+                        repository.exportInstalledBaseApk(
+                            entry.packageName, destination,
+                            checkCancelled = { exportCoroutine?.ensureActive() },
+                        )
+                    }
+                    exportMessage = if (exported.hasSplits) {
+                        "تم تصدير base.apk والتحقق من الملف المحفوظ بإعادة فتحه ومطابقة SHA-256 (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}. تنبيه: التطبيق يستخدم Split APK؛ هذا الملف وحده ليس نسخة احتياطية قابلة للتثبيت."
+                    } else {
+                        "تم تصدير base.apk والتحقق من الملف المحفوظ بإعادة فتحه ومطابقة SHA-256 (${formatBytes(exported.bytes)}). SHA-256: ${exported.sha256}"
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    SafExportFailureMessage.baseApkCancellation(cancelled)?.let { exportMessage = it }
+                    throw cancelled
+                } catch (failure: Exception) {
+                    exportMessage = SafExportFailureMessage.baseApkFailure(failure)
+                } finally {
+                    exportBusy = false
+                    exportJob = null
+                }
             }
-            commandBusy = false
         }
     }
-    LaunchedEffect(entry.packageName) {
-        details = withContext(Dispatchers.IO) { runCatching { repository.loadDetails(entry) }.getOrNull() }
+    // Separate SAF document: a complete base + split APK archive, not a
+    // reinstallable one-click backup and never a copy of application data.
+    val bundlePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { destination ->
+        if (destination == null) {
+            exportBusy = false
+            exportJob = null
+        } else {
+            exportJob = scope.launch {
+                val exportCoroutine = currentCoroutineContext()[Job]
+                try {
+                    val bundle = withContext(Dispatchers.IO) {
+                        repository.exportInstalledApkBundle(
+                            entry.packageName, destination,
+                            checkCancelled = { exportCoroutine?.ensureActive() },
+                        )
+                    }
+                    exportMessage = "تم تصدير ${bundle.entries.size} ملفات APK في ZIP والتحقق من الملف المحفوظ بإعادة فتحه " +
+                        "(${formatBytes(bundle.totalApkBytes)} قبل الضغط) ومطابقة SHA-256 وفهرس ZIP. " +
+                        "لا يشمل بيانات التطبيق، ولا يثبت سلامة التوقيع."
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    SafExportFailureMessage.bundleCancellation(cancelled)?.let { exportMessage = it }
+                    throw cancelled
+                } catch (failure: Exception) {
+                    exportMessage = SafExportFailureMessage.bundleFailure(failure)
+                } finally {
+                    exportBusy = false
+                    exportJob = null
+                }
+            }
+        }
     }
+    fun runCommand(onSuccess: () -> Unit = {}, block: suspend () -> CommandResult) {
+        if (commandBusy) return
+        // Lock synchronously: two rapid taps must not dispatch duplicate Binder commands.
+        commandBusy = true
+        scope.launch {
+            try {
+                val result = SafeCommandCall.execute(block)
+                commandMessage = if (result.success) "تم تنفيذ الأمر ✓" else result.output.ifBlank { "تعذّر تنفيذ الأمر" }
+                if (result.success) {
+                    onSuccess()
+                    // The command may have raced with an external package
+                    // change. Display PackageManager's state, not a guessed
+                    // inverse of the stale row shown before confirmation.
+                    currentEnabled = withContext(Dispatchers.IO) {
+                        repository.isInstalledAppEnabled(entry.packageName)
+                    }
+                    reloadDetails()
+                }
+            } finally {
+                // Always re-enable controls after a failed, cancelled or
+                // successful command; a thrown Binder error must not strand UI.
+                commandBusy = false
+            }
+        }
+    }
+    fun requestPrivileged(
+        operation: Int,
+        argument: String = "",
+        onSuccess: () -> Unit = {},
+        block: suspend () -> CommandResult,
+    ) {
+        if (commandBusy || pendingPrivileged != null || !capabilities.shizukuGranted) return
+        val description = PrivilegedActionConsent.description(operation, entry.packageName, argument)
+        if (description == null) {
+            commandMessage = "تم رفض طلب Shizuku غير صالح قبل التنفيذ."
+            return
+        }
+        // Only the confirm button below can dispatch this one-shot request.
+        pendingPrivileged = PendingPrivilegedAction(entry.packageName, description, onSuccess, block)
+    }
+    LaunchedEffect(entry.packageName) { reloadDetails() }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
@@ -574,48 +964,85 @@ private fun AppDetailSheet(
                     OutlinedButton(onClick = { repository.openBatterySettings(entry.packageName) }) { Text("البطارية") }
                     OutlinedButton(onClick = { repository.openAutoStartSettings(entry.packageName) }) { Text("Auto-start") }
                     OutlinedButton(onClick = { repository.requestUninstall(entry.packageName) }) { Text("إزالة") }
+                    OutlinedButton(
+                        enabled = !exportBusy,
+                        onClick = {
+                            exportBusy = true
+                            exportMessage = null
+                            exportPicker.launch("${entry.packageName}-base.apk")
+                        },
+                    ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base APK") }
+                    OutlinedButton(
+                        enabled = !exportBusy,
+                        onClick = {
+                            exportBusy = true
+                            exportMessage = null
+                            bundlePicker.launch("${entry.packageName}-apks.zip")
+                        },
+                    ) { Text(if (exportBusy) "جاري التصدير…" else "تصدير Base + Splits (ZIP)") }
+                    if (exportBusy && exportJob != null) {
+                        OutlinedButton(onClick = { exportJob?.cancel() }) { Text("إلغاء التصدير") }
+                    }
                 }
+                exportMessage?.let { message ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(message, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Text(
+                    "تصدير Base APK يحفظ الملف الأساسي فقط. تصدير ZIP يشمل Base وجميع Splits المثبتة، " +
+                        "لكنه لا يشمل بيانات التطبيق ولا يثبّت الملفات تلقائيًا.",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (capabilities.shizukuGranted) {
                 item {
                     Text("تحكم متقدم عبر Shizuku", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+                    if (!currentEnabled) {
+                        Text(
+                            "التطبيق معطّل: أعد تفعيله أولًا قبل تعديل مكوّناته أو فتح Activities.",
+                            fontSize = 11.sp, color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
                     if (protected) {
                         Spacer(Modifier.height(5.dp))
                         Text("محمي: $protectionReason", fontSize = 11.sp, color = MaterialTheme.colorScheme.tertiary)
                     }
                     Spacer(Modifier.height(6.dp))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(enabled = !commandBusy && !protected, onClick = { runCommand { ShizukuController.forceStop(entry.packageName) } }) {
+                        Button(enabled = !commandBusy && !protected, onClick = {
+                            requestPrivileged(PrivilegedOperation.FORCE_STOP) { ShizukuController.forceStop(entry.packageName) }
+                        }) {
                             Text("Force stop")
                         }
                         OutlinedButton(enabled = !commandBusy && (!protected || !currentEnabled), onClick = {
-                            runCommand(onSuccess = { currentEnabled = !currentEnabled }) {
-                                if (currentEnabled) ShizukuController.freeze(entry.packageName)
+                            val disabling = currentEnabled
+                            requestPrivileged(
+                                if (disabling) PrivilegedOperation.DISABLE_PACKAGE else PrivilegedOperation.ENABLE_PACKAGE,
+                                onSuccess = { currentEnabled = !disabling },
+                            ) {
+                                if (disabling) ShizukuController.freeze(entry.packageName)
                                 else ShizukuController.unfreeze(entry.packageName)
                             }
                         }) { Text(if (currentEnabled) "تجميد" else "إلغاء التجميد") }
-                        OutlinedButton(enabled = !commandBusy && !protected, onClick = { runCommand { ShizukuController.blockBackground(entry.packageName) } }) {
+                        OutlinedButton(enabled = !commandBusy && !protected, onClick = {
+                            requestPrivileged(PrivilegedOperation.BLOCK_BACKGROUND) {
+                                ShizukuController.blockBackground(entry.packageName)
+                            }
+                        }) {
                             Text("منع الخلفية")
                         }
-                        OutlinedButton(enabled = !commandBusy, onClick = { runCommand { ShizukuController.allowBackground(entry.packageName) } }) {
+                        OutlinedButton(enabled = !commandBusy, onClick = {
+                            requestPrivileged(PrivilegedOperation.ALLOW_BACKGROUND) {
+                                ShizukuController.allowBackground(entry.packageName)
+                            }
+                        }) {
                             Text("السماح بالخلفية")
                         }
                     }
                     commandMessage?.let {
                         Spacer(Modifier.height(7.dp))
                         Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            if (capabilities.deviceOwner) {
-                item {
-                    Text("تحكم Device Owner", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.tertiary)
-                    Spacer(Modifier.height(6.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, true) } }) { Text("تعليق") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setSuspended(entry.packageName, false) } }) { Text("إلغاء التعليق") }
-                        OutlinedButton(enabled = !protected, onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, true) } }) { Text("إخفاء") }
-                        OutlinedButton(onClick = { runCommand { deviceOwnerController.setHidden(entry.packageName, false) } }) { Text("إظهار") }
                     }
                 }
             }
@@ -633,40 +1060,125 @@ private fun AppDetailSheet(
                     }
                 }
             }
+            if (section == "activities") {
+                item {
+                    OutlinedTextField(
+                        value = activityQuery,
+                        onValueChange = { activityQuery = it.take(128) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("ابحث في Activities") },
+                        singleLine = true,
+                    )
+                    FilterChip(
+                        selected = exportedActivitiesOnly,
+                        onClick = { exportedActivitiesOnly = !exportedActivitiesOnly },
+                        label = { Text("المصدّرة فقط") },
+                    )
+                    Text(
+                        "التشغيل يتطلب مكوّنًا مصدّرًا ومفعّلًا وأي إذن يفرضه التطبيق الآخر. لا يستخدم Shizuku لتجاوز قيود Android.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    activityLaunchMessage?.let {
+                        Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (detailLoad.error != null) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(detailLoad.error!!, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedButton(
+                            enabled = !detailLoad.loading,
+                            onClick = { scope.launch { reloadDetails() } },
+                        ) { Text("إعادة المحاولة") }
+                    }
+                }
+            }
             if (details == null) {
-                item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                if (detailLoad.loading) {
+                    item { Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                } else if (detailLoad.error == null) {
+                    item {
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("لم تكتمل قراءة التفاصيل. يمكنك إعادة المحاولة.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(onClick = { scope.launch { reloadDetails() } }) { Text("إعادة المحاولة") }
+                        }
+                    }
+                }
             } else {
                 when (section) {
-                    "activities" -> items(details!!.activities) { component ->
+                    "activities" -> items(
+                        ActivityLaunchSafety.visible(details!!.activities, activityQuery, exportedActivitiesOnly)
+                    ) { component ->
                         ComponentRow(
                             name = component.name,
                             exported = component.exported,
                             enabled = component.enabled,
-                            onClick = { repository.launchActivity(entry.packageName, component.name) },
-                            onToggle = if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
-                                runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
+                            onClick = if (currentEnabled && component.callerHasPermission) ({
+                                val dispatched = repository.launchActivity(entry.packageName, component.name)
+                                activityLaunchMessage = if (dispatched) {
+                                    "تم إرسال طلب فتح ${component.name}؛ لا يؤكد ذلك أن الشاشة اشتغلت بنجاح."
+                                } else {
+                                    "تعذّر فتح ${component.name}: قد تكون غير مصدّرة أو معطّلة أو مقيّدة من Android."
+                                }
+                            }) else null,
+                            callerHasPermission = component.callerHasPermission,
+                            requiredPermission = component.requiredPermission,
+                            onToggle = if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
+                                requestPrivileged(
+                                    if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
+                                    argument = component.name,
+                                ) {
+                                    ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
+                                }
                             }) else null,
                         )
                     }
                     "services" -> items(details!!.services) { component ->
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
-                            if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
-                                runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
+                            if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
+                                requestPrivileged(
+                                    if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
+                                    argument = component.name,
+                                ) {
+                                    ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
+                                }
                             }) else null,
+                            requiredPermission = component.requiredPermission,
+                            callerHasPermission = component.callerHasPermission,
                         )
                     }
                     "receivers" -> items(details!!.receivers) { component ->
                         ComponentRow(
                             component.name, component.exported, component.enabled, null,
-                            if (capabilities.shizukuGranted && (!protected || !component.enabled)) ({
-                                runCommand { ShizukuController.setComponent(entry.packageName, component.name, !component.enabled) }
+                            if (capabilities.shizukuGranted && ComponentEnabledState.mayToggleComponent(component.enabled, currentEnabled, protected)) ({
+                                requestPrivileged(
+                                    if (component.enabled) PrivilegedOperation.DISABLE_COMPONENT else PrivilegedOperation.ENABLE_COMPONENT,
+                                    argument = component.name,
+                                ) {
+                                    ShizukuController.setComponent(entry.packageName, component.name, !component.enabled)
+                                }
                             }) else null,
+                            requiredPermission = component.requiredPermission,
+                            callerHasPermission = component.callerHasPermission,
                         )
                     }
                     else -> items(details!!.permissions) { permission ->
-                        PermissionRow(permission, capabilities.shizukuGranted && (!protected || !permission.granted)) {
-                            runCommand {
+                        PermissionRow(permission, capabilities.shizukuGranted && permission.runtimeMutable && (!protected || !permission.granted)) {
+                            requestPrivileged(
+                                if (permission.granted) PrivilegedOperation.REVOKE_PERMISSION else PrivilegedOperation.GRANT_PERMISSION,
+                                argument = permission.name,
+                            ) {
                                 ShizukuController.setPermission(entry.packageName, permission.name, !permission.granted)
                             }
                         }
@@ -679,6 +1191,29 @@ private fun AppDetailSheet(
             }
         }
     }
+    pendingPrivileged?.let { action ->
+        AlertDialog(
+            onDismissRequest = { if (pendingPrivileged === action) pendingPrivileged = null },
+            title = { Text("تأكيد أمر Shizuku") },
+            text = { Text(action.description, fontSize = 13.sp) },
+            confirmButton = {
+                Button(
+                    enabled = !commandBusy && capabilities.shizukuGranted,
+                    onClick = {
+                        if (pendingPrivileged === action) {
+                            pendingPrivileged = null
+                            if (action.packageName == entry.packageName && capabilities.shizukuGranted) {
+                                runCommand(action.onSuccess, action.execute)
+                            }
+                        }
+                    },
+                ) { Text("أوافق، نفّذ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPrivileged = null }) { Text("إلغاء") }
+            },
+        )
+    }
 }
 
 @Composable
@@ -688,6 +1223,8 @@ private fun ComponentRow(
     enabled: Boolean,
     onClick: (() -> Unit)?,
     onToggle: (() -> Unit)? = null,
+    callerHasPermission: Boolean = true,
+    requiredPermission: String? = null,
 ) {
     Row(
         Modifier
@@ -702,9 +1239,19 @@ private fun ComponentRow(
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 Text(name.substringAfterLast('.'), fontWeight = FontWeight.SemiBold)
                 Text(name, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                requiredPermission?.takeIf { it.isNotBlank() }?.let { permission ->
+                    Text(
+                        "إذن: $permission",
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         TinyTag(if (exported) "exported" else "internal")
+        if (!callerHasPermission) TinyTag("التطبيق لا يملك الإذن", MaterialTheme.colorScheme.error)
         if (onToggle != null) {
             TextButton(onClick = onToggle) { Text(if (enabled) "تعطيل" else "تفعيل", fontSize = 11.sp) }
         }
@@ -724,6 +1271,9 @@ private fun PermissionRow(permission: PermissionEntry, canControl: Boolean, onTo
             }
         }
         TinyTag(if (permission.granted) "ممنوح" else "غير ممنوح", if (permission.granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant)
+        if (!permission.runtimeMutable) {
+            TinyTag("للعرض فقط")
+        }
         if (canControl) {
             TextButton(onClick = onToggle) { Text(if (permission.granted) "سحب" else "منح", fontSize = 11.sp) }
         }
@@ -793,6 +1343,21 @@ private fun QuickAction(emoji: String, title: String, subtitle: String, onClick:
 }
 
 @Composable
+private fun InventoryErrorCard(message: String, onRetry: () -> Unit) {
+    GlassBox(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                "تعذّر تحديث قائمة التطبيقات",
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Text(message, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = onRetry) { Text("إعادة المحاولة") }
+        }
+    }
+}
+
+@Composable
 private fun SectionTitle(text: String) {
     Text(text, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 3.dp))
 }
@@ -814,6 +1379,37 @@ private fun DetailLine(label: String, value: String) {
         Text(value, modifier = Modifier.weight(1f), fontSize = 12.sp)
     }
 }
+
+@Composable
+private fun CertificateMetadataBlock(title: String, certificate: ApkCertificateMetadata) {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+        when (certificate.parseStatus) {
+            ApkCertificateParseStatus.PARSED -> {
+                DetailLine("Subject", certificate.subject ?: "غير متاح")
+                DetailLine("Issuer", certificate.issuer ?: "غير متاح")
+                DetailLine("Serial (hex)", certificate.serialNumberHex ?: "غير متاح")
+                DetailLine("Public key", certificate.publicKeyAlgorithm ?: "غير متاح")
+                DetailLine("Signature alg.", certificate.signatureAlgorithm ?: "غير متاح")
+                val dates = if (certificate.notBeforeEpochMillis != null && certificate.notAfterEpochMillis != null) {
+                    "${formatCertificateDate(certificate.notBeforeEpochMillis)} — ${formatCertificateDate(certificate.notAfterEpochMillis)}"
+                } else {
+                    "غير متاح"
+                }
+                DetailLine("X.509 dates", dates)
+            }
+            ApkCertificateParseStatus.EMPTY_INPUT ->
+                DetailLine("تحليل X.509", "بيانات شهادة فارغة؛ احتُفظ بالبصمة")
+            ApkCertificateParseStatus.OVERSIZED ->
+                DetailLine("تحليل X.509", "الحجم تجاوز 1 MiB؛ احتُفظ بالبصمة")
+            ApkCertificateParseStatus.INVALID_DER ->
+                DetailLine("تحليل X.509", "تعذّر تحليل DER؛ احتُفظ بالبصمة")
+        }
+    }
+}
+
+private fun formatCertificateDate(epochMillis: Long): String =
+    DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(epochMillis))
 
 private fun formatDuration(millis: Long): String {
     val minutes = (millis / 60_000.0).roundToInt()

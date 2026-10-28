@@ -1,7 +1,6 @@
 package com.appcommander.mobile.data
 
 import android.app.AppOpsManager
-import android.app.admin.DevicePolicyManager
 import android.app.usage.UsageStatsManager
 import android.content.ComponentName
 import android.content.Context
@@ -9,18 +8,26 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.PermissionInfo
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.DocumentsContract
 import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
 import com.appcommander.mobile.model.ComponentEntry
 import com.appcommander.mobile.model.PermissionEntry
+import com.appcommander.mobile.privilege.RuntimePermissionSafety
 import com.appcommander.mobile.privilege.ShizukuController
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
+import androidx.core.content.FileProvider
+import androidx.core.content.pm.PermissionInfoCompat
+
+internal data class VerifiedInstallSnapshot(val file: File, val uri: Uri)
 
 class AppRepository(private val context: Context) {
     private val pm = context.packageManager
@@ -28,28 +35,33 @@ class AppRepository(private val context: Context) {
     fun loadApps(): List<AppEntry> {
         val usage = usageByPackage()
         @Suppress("DEPRECATION")
-        return pm.getInstalledApplications(0)
-            .asSequence()
-            .mapNotNull { info ->
-                runCatching {
-                    @Suppress("DEPRECATION")
-                    val pkg = pm.getPackageInfo(info.packageName, 0)
-                    val stat = usage[info.packageName]
-                    AppEntry(
-                        label = info.loadLabel(pm).toString().ifBlank { info.packageName },
-                        packageName = info.packageName,
-                        versionName = pkg.versionName.orEmpty().ifBlank { "—" },
-                        targetSdk = info.targetSdkVersion,
-                        isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
-                        enabled = info.enabled,
-                        lastUpdateTime = pkg.lastUpdateTime,
-                        usageMillis = stat?.totalTimeInForeground ?: 0L,
-                        lastTimeUsed = stat?.lastTimeUsed ?: 0L,
-                    )
-                }.getOrNull()
+        val candidates = pm.getInstalledApplications(0).map { info ->
+            // Package metadata is optional during inventory refresh: an app may update or
+            // disappear between the application list and the metadata lookup. Keep the row
+            // from the inventory snapshot and use safe placeholders for unavailable fields.
+            @Suppress("DEPRECATION")
+            val pkg = try {
+                pm.getPackageInfo(info.packageName, 0)
+            } catch (_: Exception) {
+                null
             }
-            .sortedBy { it.label.lowercase() }
-            .toList()
+            val stat = usage[info.packageName]
+            AppInventoryCandidate(
+                packageName = info.packageName,
+                loadLabel = { info.loadLabel(pm) },
+                loadVersionName = { pkg?.versionName },
+                targetSdk = info.targetSdkVersion,
+                isSystem = info.flags and ApplicationInfo.FLAG_SYSTEM != 0,
+                enabled = ComponentEnabledState.effective(
+                    info.enabled,
+                    runCatching { pm.getApplicationEnabledSetting(info.packageName) }.getOrNull(),
+                ),
+                loadLastUpdateTime = { pkg?.lastUpdateTime ?: 0L },
+                usageMillis = stat?.totalTimeInForegroundMillis ?: 0L,
+                lastTimeUsed = stat?.lastTimeUsedMillis ?: 0L,
+            )
+        }
+        return AppInventoryRowMapper.mapAll(candidates)
     }
 
     fun loadDetails(entry: AppEntry): AppDetails {
@@ -60,28 +72,77 @@ class AppRepository(private val context: Context) {
             PackageManager.MATCH_DISABLED_COMPONENTS
         @Suppress("DEPRECATION")
         val pkg = pm.getPackageInfo(entry.packageName, flags)
+        val requested = pkg.requestedPermissions.orEmpty().toList()
+        val appEnabled = ComponentEnabledState.effective(
+            pkg.applicationInfo?.enabled ?: false,
+            runCatching { pm.getApplicationEnabledSetting(entry.packageName) }.getOrNull(),
+        )
+        // ComponentInfo.enabled may only reflect the manifest default.
+        // Re-query the per-component override for every inventory row.
+        // A missing/denied state is not proof that a component is enabled.
+        fun componentEnabled(name: String, manifestEnabled: Boolean): Boolean =
+            appEnabled && ComponentEnabledState.effective(
+                manifestEnabled,
+                runCatching {
+                    pm.getComponentEnabledSetting(ComponentName(entry.packageName, name))
+                }.getOrNull(),
+            )
         return AppDetails(
             app = entry,
-            permissions = pkg.requestedPermissions.orEmpty().mapIndexed { index, name ->
+            permissions = requested.mapIndexed { index, name ->
                 val granted = (pkg.requestedPermissionsFlags?.getOrNull(index) ?: 0) and
                     PackageInfo.REQUESTED_PERMISSION_GRANTED != 0
-                PermissionEntry(name, granted)
+                @Suppress("DEPRECATION")
+                val protectionLevel = runCatching { pm.getPermissionInfo(name, 0).protectionLevel }.getOrNull()
+                PermissionEntry(
+                    name, granted,
+                    runtimeMutable = RuntimePermissionSafety.canToggle(
+                        name, requested, entry.targetSdk, protectionLevel,
+                    ),
+                )
             }.sortedBy { it.name },
-            activities = pkg.activities.orEmpty().map {
-                ComponentEntry(it.name, it.exported, it.enabled)
-            }.sortedBy { it.name },
-            services = pkg.services.orEmpty().map {
-                ComponentEntry(it.name, it.exported, it.enabled)
-            }.sortedBy { it.name },
-            receivers = pkg.receivers.orEmpty().map {
-                ComponentEntry(it.name, it.exported, it.enabled)
-            }.sortedBy { it.name },
+            activities = ComponentEntryMapper.map(
+                components = pkg.activities,
+                name = { it.name },
+                exported = { it.exported },
+                enabled = { componentEnabled(it.name, it.enabled) },
+                requiredPermission = { it.permission },
+                callerHasPermission = ::callerHasPermission,
+            ),
+            services = ComponentEntryMapper.map(
+                components = pkg.services,
+                name = { it.name },
+                exported = { it.exported },
+                enabled = { componentEnabled(it.name, it.enabled) },
+                requiredPermission = { it.permission },
+                callerHasPermission = ::callerHasPermission,
+            ),
+            receivers = ComponentEntryMapper.map(
+                components = pkg.receivers,
+                name = { it.name },
+                exported = { it.exported },
+                enabled = { componentEnabled(it.name, it.enabled) },
+                requiredPermission = { it.permission },
+                callerHasPermission = ::callerHasPermission,
+            ),
             apkPath = pkg.applicationInfo?.sourceDir.orEmpty(),
         )
     }
 
+    /**
+     * Re-query after an elevated command instead of optimistically flipping
+     * the old UI state. An unresolvable package is treated as disabled.
+     */
+    fun isInstalledAppEnabled(packageName: String): Boolean = runCatching {
+        @Suppress("DEPRECATION")
+        val info = pm.getApplicationInfo(packageName, PackageManager.MATCH_DISABLED_COMPONENTS)
+        ComponentEnabledState.effective(
+            info.enabled,
+            pm.getApplicationEnabledSetting(packageName),
+        )
+    }.getOrDefault(false)
+
     fun capabilities(): CapabilityState {
-        val dpm = context.getSystemService(DevicePolicyManager::class.java)
         return CapabilityState(
             usageAccess = hasUsageAccess(),
             shizukuInstalled = runCatching {
@@ -90,18 +151,19 @@ class AppRepository(private val context: Context) {
             }.isSuccess,
             shizukuRunning = ShizukuController.isRunning(),
             shizukuGranted = ShizukuController.hasPermission(),
-            deviceOwner = dpm.isDeviceOwnerApp(context.packageName),
         )
     }
 
-    fun hasUsageAccess(): Boolean {
+    /** Usage access is optional; AppOps/provider failures must never crash inventory UI. */
+    fun hasUsageAccess(): Boolean = runCatching {
         val ops = context.getSystemService(AppOpsManager::class.java)
-        return ops.checkOpNoThrow(
+            ?: return@runCatching false
+        ops.checkOpNoThrow(
             AppOpsManager.OPSTR_GET_USAGE_STATS,
             android.os.Process.myUid(),
             context.packageName,
         ) == AppOpsManager.MODE_ALLOWED
-    }
+    }.getOrDefault(false)
 
     fun openApp(packageName: String): Boolean {
         val intent = pm.getLaunchIntentForPackage(packageName) ?: return false
@@ -109,13 +171,47 @@ class AppRepository(private val context: Context) {
         return runCatching { context.startActivity(intent); true }.getOrDefault(false)
     }
 
-    fun launchActivity(packageName: String, className: String): Boolean = runCatching {
-        context.startActivity(
-            Intent().setComponent(ComponentName(packageName, className))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-        true
-    }.getOrDefault(false)
+    /**
+     * A component's declared permission may restrict cross-app interaction even
+     * when it is exported. This is a caller-UID check for display only; Android
+     * remains the authority and Shizuku must never bypass component permissions.
+     */
+    private fun callerHasPermission(permission: String?): Boolean =
+        ActivityLaunchSafety.callerHasPermission(permission) { required ->
+            context.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED
+        }
+
+    /**
+     * Activity Launcher uses ordinary Android permissions only. Re-check the
+     * component at click time: the list can be stale after an app update,
+     * component toggle or package disable. Never attempt private activities
+     * through Shizuku or assume startActivity means the target stayed open.
+     */
+    fun launchActivity(packageName: String, className: String): Boolean {
+        if (!ActivityLaunchSafety.validNames(packageName, className)) return false
+        return runCatching {
+            val component = ComponentName(packageName, className)
+            @Suppress("DEPRECATION")
+            val activity = pm.getActivityInfo(component, 0)
+            val componentEnabled = ComponentEnabledState.effective(
+                activity.enabled,
+                runCatching { pm.getComponentEnabledSetting(component) }.getOrNull(),
+            )
+            val appEnabled = ComponentEnabledState.effective(
+                activity.applicationInfo.enabled,
+                runCatching { pm.getApplicationEnabledSetting(packageName) }.getOrNull(),
+            )
+            if (!ActivityLaunchSafety.eligible(
+                    packageName, className, activity.exported, componentEnabled, appEnabled,
+                    callerHasPermission(activity.permission),
+                )
+            ) return false
+            context.startActivity(
+                Intent().setComponent(component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        }.getOrDefault(false)
+    }
 
     fun openAppInfo(packageName: String) {
         startSettings(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageName)
@@ -160,41 +256,327 @@ class AppRepository(private val context: Context) {
         }
     }
 
-    fun inspectApk(uri: Uri): ApkInspection {
-        val displayName = queryDisplayName(uri) ?: "selected.apk"
-        val cached = File(context.cacheDir, "inspect-${System.currentTimeMillis()}.apk")
-        context.contentResolver.openInputStream(uri).use { input ->
-            requireNotNull(input) { "تعذّر فتح الملف" }
-            cached.outputStream().use { input.copyTo(it) }
-        }
-        val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
-            PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
-            PackageManager.GET_SIGNING_CERTIFICATES
+    /**
+     * Read the installed package and all ordered APK source files as one
+     * best-effort identity snapshot. Do not trust a stale UI app entry.
+     * PackageManager metadata and file stamps are checked again after the
+     * exported SAF document has been independently reopened and verified.
+     */
+    @Throws(IOException::class)
+    private fun readInstalledPackageSnapshot(packageName: String): InstalledPackageSnapshot {
         @Suppress("DEPRECATION")
-        val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
-        val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
-        pkg.applicationInfo?.sourceDir = cached.absolutePath
-        pkg.applicationInfo?.publicSourceDir = cached.absolutePath
-        val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
-        val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
-        return ApkInspection(
-            fileName = displayName,
-            label = label,
-            packageName = pkg.packageName,
-            versionName = pkg.versionName.orEmpty().ifBlank { "—" },
-            versionCode = pkg.longVersionCode,
-            minSdk = minSdk,
-            targetSdk = pkg.applicationInfo?.targetSdkVersion ?: 0,
-            permissions = pkg.requestedPermissions?.sorted().orEmpty(),
-            activities = pkg.activities?.size ?: 0,
-            services = pkg.services?.size ?: 0,
-            receivers = pkg.receivers?.size ?: 0,
-            sizeBytes = cached.length(),
-            fileSha256 = sha256(cached),
-            signerSha256 = runCatching {
-                pkg.signingInfo?.apkContentsSigners.orEmpty().map { sha256(it.toByteArray()) }
-            }.getOrDefault(emptyList()),
-        ).also { cached.delete() }
+        val installed = pm.getPackageInfo(packageName, 0)
+        val info = installed.applicationInfo
+            ?: throw IOException("Installed package has no APK source information")
+        val paths = listOf(info.sourceDir) + info.splitSourceDirs.orEmpty().toList()
+        return InstalledPackageSnapshot.capture(
+            installed.packageName, installed.longVersionCode, installed.lastUpdateTime, paths,
+        ) { path ->
+            val file = File(path)
+            if (!file.isFile) throw IOException("Installed APK component disappeared")
+            InstalledPackageSnapshot.Component(path, file.length(), file.lastModified())
+        }
+    }
+
+    /**
+     * Export only the installed base APK to a user-selected SAF document.
+     * A split installation needs its additional split APKs to reinstall; the
+     * returned flag ensures the UI never advertises this as a full backup.
+     * The destination provider controls its own document and may leave a
+     * partial file if an I/O error occurs.
+     */
+    @Throws(IOException::class)
+    internal fun exportInstalledBaseApk(
+        packageName: String,
+        destination: Uri,
+        checkCancelled: () -> Unit = {},
+    ): InstalledApkExport.Result {
+        // Only called with the fresh URI returned by CreateDocument. A
+        // provider may leave an empty/partial document if reading the source,
+        // writing the destination or closing the stream fails.
+        return InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = {
+                InstalledApkExport.deleteDocumentIfConfirmed(
+                    isDocument = { DocumentsContract.isDocumentUri(context, destination) },
+                    delete = { DocumentsContract.deleteDocument(context.contentResolver, destination) },
+                )
+            },
+        ) {
+            checkCancelled()
+            val snapshot = readInstalledPackageSnapshot(packageName)
+            checkCancelled()
+            val base = snapshot.components.first()
+            val written = InstalledApkExport.copyBaseAndVerify(
+                openSource = { File(base.path).inputStream() },
+                openForWrite = {
+                    context.contentResolver.openOutputStream(destination, "wt")
+                        ?: throw IOException("Cannot open selected SAF destination")
+                },
+                openForRead = {
+                    context.contentResolver.openInputStream(destination)
+                        ?: throw IOException("Cannot reopen exported SAF base APK for verification")
+                },
+                expectedBytes = base.bytes,
+                hasSplits = snapshot.components.size > 1,
+                checkCancelled = checkCancelled,
+            )
+            checkCancelled()
+            snapshot.requireUnchanged { readInstalledPackageSnapshot(packageName) }
+            written
+        }
+    }
+
+    /**
+     * Export all installed APK components (base + splits) as a single SAF ZIP.
+     * Unlike Base APK export this preserves the split set, but NOT app data,
+     * installer session metadata, signatures verification or a restore action.
+     * All paths come from PackageManager; archive entry names are generated.
+     */
+    @Throws(IOException::class)
+    internal fun exportInstalledApkBundle(
+        packageName: String,
+        destination: Uri,
+        checkCancelled: () -> Unit = {},
+    ): InstalledApkBundleExport.Result {
+        return InstalledApkExport.withPartialDocumentCleanup(
+            cleanup = {
+                InstalledApkExport.deleteDocumentIfConfirmed(
+                    isDocument = { DocumentsContract.isDocumentUri(context, destination) },
+                    delete = { DocumentsContract.deleteDocument(context.contentResolver, destination) },
+                )
+            },
+        ) {
+            checkCancelled()
+            val snapshot = readInstalledPackageSnapshot(packageName)
+            checkCancelled()
+            val sources = snapshot.components.mapIndexed { index, component ->
+                val name = if (index == 0) "base.apk" else
+                    "split_${index.toString().padStart(3, '0')}.apk"
+                InstalledApkBundleExport.Source(name, component.bytes) {
+                    File(component.path).inputStream()
+                }
+            }
+            val written = InstalledApkBundleExport.writeAndVerify(
+                packageName = packageName,
+                sources = sources,
+                openForWrite = {
+                    context.contentResolver.openOutputStream(destination, "wt")
+                        ?: throw IOException("Cannot open selected SAF destination")
+                },
+                openForRead = {
+                    context.contentResolver.openInputStream(destination)
+                        ?: throw IOException("Cannot reopen exported SAF document for verification")
+                },
+                checkCancelled = checkCancelled,
+            )
+            checkCancelled()
+            snapshot.requireUnchanged { readInstalledPackageSnapshot(packageName) }
+            written
+        }
+    }
+
+    /** Read a user-selected exported ZIP via SAF; no extraction or installation. */
+    @Throws(IOException::class)
+    internal fun verifyInstalledApkBundle(uri: Uri): InstalledApkBundleVerifier.Result {
+        val input = context.contentResolver.openInputStream(uri)
+            ?: throw IOException("Cannot open APK bundle")
+        return InstalledApkBundleVerifier.verify(input)
+    }
+
+    fun inspectApk(uri: Uri): ApkInspection {
+        // SAF metadata is optional and untrusted: provider failures or spoofed
+        // labels must not prevent inspecting otherwise readable APK bytes.
+        val displayName = ApkDisplayName.safe(runCatching { queryDisplayName(uri) }.getOrNull())
+        // The URI belongs to an untrusted provider. Use a unique cache file,
+        // enforce a streaming size cap, and delete it on EVERY exit path.
+        return ApkCacheCopy.withTemporaryApk(context.cacheDir) { cached ->
+            val copied = context.contentResolver.openInputStream(uri).use { input ->
+                requireNotNull(input) { "تعذّر فتح الملف" }
+                cached.outputStream().use { output ->
+                    ApkCacheCopy.copyWithSha256(input, output)
+                }
+            }
+            // Bounded ZIP-structure guard: never extract untrusted entries.
+            // This does not verify APK signing or certify that the APK is safe.
+            ApkArchivePreflight.check(cached)
+            val flags = PackageManager.GET_PERMISSIONS or PackageManager.GET_ACTIVITIES or
+                PackageManager.GET_SERVICES or PackageManager.GET_RECEIVERS or
+                PackageManager.GET_PROVIDERS or PackageManager.GET_SIGNING_CERTIFICATES
+            @Suppress("DEPRECATION")
+            val archiveInfo = pm.getPackageArchiveInfo(cached.absolutePath, flags)
+            val pkg = requireNotNull(archiveInfo) { "الملف ليس APK صالحًا أو لا يمكن قراءته" }
+            pkg.applicationInfo?.sourceDir = cached.absolutePath
+            pkg.applicationInfo?.publicSourceDir = cached.absolutePath
+            val label = pkg.applicationInfo?.loadLabel(pm)?.toString().orEmpty().ifBlank { pkg.packageName }
+            val minSdk = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) pkg.applicationInfo?.minSdkVersion ?: 0 else 0
+            val activityExposure = ApkComponentExposure.count(
+                pkg.activities, { it.exported }, { it.permission },
+            )
+            val serviceExposure = ApkComponentExposure.count(
+                pkg.services, { it.exported }, { it.permission },
+            )
+            val receiverExposure = ApkComponentExposure.count(
+                pkg.receivers, { it.exported }, { it.permission },
+            )
+            val providerExposure = ApkComponentExposure.countProviders(
+                pkg.providers, { it.exported }, { it.readPermission },
+                { it.writePermission }, { it.grantUriPermissions },
+                { provider ->
+                    provider.pathPermissions.orEmpty().map { rule ->
+                        ApkComponentExposure.PathPermissionGate(rule.readPermission, rule.writePermission)
+                    }
+                },
+            )
+            // A permission declared by the APK itself is not automatically a strong
+            // gate: normal/dangerous permissions are not signature-level restrictions.
+            // Keep this separate from missing-permission counts and never infer reachability.
+            val nonSignatureAppPermissions = pkg.permissions.orEmpty().mapNotNull { permission ->
+                val baseLevel = PermissionInfoCompat.getProtection(permission)
+                val reviewableLevel = baseLevel == PermissionInfo.PROTECTION_NORMAL ||
+                    baseLevel == PermissionInfo.PROTECTION_DANGEROUS
+                permission.name.takeIf { reviewableLevel && PermissionNameSafety.isWellFormed(it) }
+            }.toSet()
+            val customPermissionComponentCount = listOf(
+                ApkCustomPermissionExposure.countComponents(
+                    pkg.activities, { it.exported }, { it.permission }, nonSignatureAppPermissions,
+                ),
+                ApkCustomPermissionExposure.countComponents(
+                    pkg.services, { it.exported }, { it.permission }, nonSignatureAppPermissions,
+                ),
+                ApkCustomPermissionExposure.countComponents(
+                    pkg.receivers, { it.exported }, { it.permission }, nonSignatureAppPermissions,
+                ),
+            ).sum()
+            val customPermissionProviderExposure = ApkCustomPermissionExposure.countProviders(
+                providers = pkg.providers,
+                exported = { it.exported },
+                readPermission = { it.readPermission },
+                writePermission = { it.writePermission },
+                pathPermissions = { provider ->
+                    provider.pathPermissions.orEmpty().map { rule ->
+                        ApkCustomPermissionExposure.PathPermissionGate(rule.readPermission, rule.writePermission)
+                    }
+                },
+                nonSignatureAppPermissions = nonSignatureAppPermissions,
+            )
+            // SigningInfo may be absent or partially unreadable on an OEM archive parser.
+            // Preserve the rest of the inspection and expose unknown metadata as unknown.
+            val signingInfo = runCatching { pkg.signingInfo }.getOrNull()
+            val signerSummary = ApkSignerSummary.from(
+                currentCertificates = runCatching {
+                    signingInfo?.apkContentsSigners?.map { it.toByteArray() }
+                }.getOrNull(),
+                historyCertificates = runCatching {
+                    signingInfo?.signingCertificateHistory?.map { it.toByteArray() }
+                }.getOrNull(),
+                hasMultipleSigners = runCatching { signingInfo?.hasMultipleSigners() }.getOrNull(),
+                hasPastSigningCertificates = runCatching {
+                    signingInfo?.hasPastSigningCertificates()
+                }.getOrNull(),
+            )
+            ApkInspection(
+                fileName = displayName,
+                label = label,
+                packageName = pkg.packageName,
+                versionName = pkg.versionName.orEmpty().ifBlank { "—" },
+                versionCode = pkg.longVersionCode,
+                minSdk = minSdk,
+                targetSdk = pkg.applicationInfo?.targetSdkVersion ?: 0,
+                permissions = pkg.requestedPermissions?.sorted().orEmpty(),
+                activities = pkg.activities?.size ?: 0,
+                services = pkg.services?.size ?: 0,
+                receivers = pkg.receivers?.size ?: 0,
+                providers = pkg.providers?.size ?: 0,
+                sizeBytes = copied.sizeBytes,
+                fileSha256 = copied.sha256,
+                signerSha256 = signerSummary.currentSha256,
+                hasMultipleSigners = signerSummary.hasMultipleSigners,
+                hasPastSigningCertificates = signerSummary.hasPastSigningCertificates,
+                signingHistorySha256 = signerSummary.signingHistorySha256,
+                signerCertificateDetails = signerSummary.currentCertificateDetails,
+                signingHistoryDetails = signerSummary.signingHistoryDetails,
+                exportedActivities = activityExposure.exported,
+                exportedServices = serviceExposure.exported,
+                exportedReceivers = receiverExposure.exported,
+                unguardedExportedActivities = activityExposure.withoutDeclaredPermission,
+                unguardedExportedServices = serviceExposure.withoutDeclaredPermission,
+                unguardedExportedReceivers = receiverExposure.withoutDeclaredPermission,
+                exportedProviders = providerExposure.exported,
+                providersWithoutReadPermission = providerExposure.withoutReadPermission,
+                providersWithoutWritePermission = providerExposure.withoutWritePermission,
+                providersGrantUriPermissions = providerExposure.uriGrantCapable,
+                providerPathPermissionRules = providerExposure.pathPermissionRules,
+                providerPathRulesWithoutReadPermission = providerExposure.pathRulesWithoutReadPermission,
+                providerPathRulesWithoutWritePermission = providerExposure.pathRulesWithoutWritePermission,
+                exportedComponentsUsingNonSignatureAppPermission = customPermissionComponentCount,
+                providerDirectionsUsingNonSignatureAppPermission = customPermissionProviderExposure.directionsUsingNonSignatureAppPermission,
+                providerPathRulesUsingNonSignatureAppPermission = customPermissionProviderExposure.pathRulesUsingNonSignatureAppPermission,
+            )
+        }
+    }
+
+    /**
+     * Best-effort defense against a SAF provider changing its APK after
+     * inspection. Read and hash again off the UI thread. This is not an
+     * atomic install snapshot; Android's installer independently reopens URI.
+     */
+    fun matchesInspectedApk(uri: Uri, inspection: ApkInspection): Boolean = runCatching {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            ApkInstallIntegrity.matches(input, inspection.sizeBytes, inspection.fileSha256)
+        } ?: false
+    }.getOrDefault(false)
+
+    /**
+     * Return a read-only URI for an app-private, byte-for-byte verified copy.
+     * Never give the installer the original mutable SAF URI: the provider may
+     * otherwise replace the APK between inspection and the installer's read.
+     */
+    internal fun prepareVerifiedInstall(
+        uri: Uri,
+        inspection: ApkInspection,
+        checkCancelled: () -> Unit = {},
+    ): VerifiedInstallSnapshot? {
+        var snapshot: File? = null
+        return try {
+            checkCancelled()
+            val directory = File(context.cacheDir, ApkInstallSnapshot.DIRECTORY)
+            val input = context.contentResolver.openInputStream(uri) ?: return null
+            // Close the SAF stream before constructing the installer URI. The
+            // snapshot reference is retained across close(), so a provider
+            // close failure cannot strand an otherwise verified cache file.
+            val file = ApkInstallSnapshot.createFromOwnedStream(
+                directory, input, inspection.sizeBytes, inspection.fileSha256, checkCancelled,
+            ) ?: return null
+            snapshot = file
+            checkCancelled()
+            val verifiedUri = FileProvider.getUriForFile(
+                context, "${context.packageName}.verifiedapks", file,
+            )
+            checkCancelled()
+            // Ownership transfers to the caller only after the last cancellation
+            // checkpoint. Until then every failure path must clean the snapshot.
+            snapshot = null
+            VerifiedInstallSnapshot(file, verifiedUri)
+        } catch (cancelled: java.util.concurrent.CancellationException) {
+            snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, cancelled) }
+            // Do not turn coroutine cancellation into a normal verification failure.
+            throw cancelled
+        } catch (failure: Exception) {
+            snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, failure) }
+            null
+        } catch (failure: Error) {
+            snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, failure) }
+            throw failure
+        }
+    }
+
+    /**
+     * Release a verified snapshot only when the installer activity was not
+     * successfully launched. Cleanup diagnostics are suppressed on the
+     * original failure instead of replacing it.
+     */
+    internal fun discardVerifiedInstall(snapshot: VerifiedInstallSnapshot, failure: Throwable) {
+        ApkInstallSnapshot.deleteAfterFailure(snapshot.file, failure)
     }
 
     private fun queryDisplayName(uri: Uri): String? {
@@ -205,28 +587,30 @@ class AppRepository(private val context: Context) {
         return null
     }
 
-    private fun usageByPackage() = if (!hasUsageAccess()) emptyMap() else {
-        val manager = context.getSystemService(UsageStatsManager::class.java)
+    private fun usageByPackage(): Map<String, UsageStatsValue> {
         val now = System.currentTimeMillis()
-        runCatching {
-            manager.queryAndAggregateUsageStats(now - 24 * 60 * 60 * 1000L, now)
-        }.getOrDefault(emptyMap())
+        val raw = UsageStatsSnapshot.load(
+            nowMillis = now,
+            hasAccess = ::hasUsageAccess,
+            query = { begin, end ->
+                val manager = context.getSystemService(UsageStatsManager::class.java)
+                    ?: throw IllegalStateException("UsageStatsManager unavailable")
+                manager.queryAndAggregateUsageStats(begin, end)
+            },
+        )
+        return UsageStatsSnapshot.sanitize(
+            nowMillis = now,
+            snapshot = raw.mapValues { (_, stats) ->
+                UsageStatsValue(
+                    totalTimeInForegroundMillis = stats.totalTimeInForeground,
+                    lastTimeUsedMillis = stats.lastTimeUsed,
+                )
+            },
+        )
     }
 
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes)
         .joinToString("") { "%02x".format(it) }
 
-    private fun sha256(file: File): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().buffered().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val count = input.read(buffer)
-                if (count <= 0) break
-                digest.update(buffer, 0, count)
-            }
-        }
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
 }

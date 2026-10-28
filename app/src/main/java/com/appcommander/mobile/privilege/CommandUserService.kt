@@ -1,21 +1,86 @@
 package com.appcommander.mobile.privilege
 
 import android.content.Context
+import android.content.pm.PackageManager
 import androidx.annotation.Keep
-import kotlin.concurrent.thread
 
 @Keep
 class CommandUserService() : ICommandService.Stub() {
     @Keep
-    constructor(context: Context) : this()
+    constructor(context: Context) : this() {
+        appPackageName = context.packageName
+        serviceContext = context.applicationContext
+    }
+
+    private var appPackageName = "com.appcommander.mobile"
+    private var serviceContext: Context? = null
 
     override fun destroy() {
         System.exit(0)
     }
 
     override fun execute(operation: Int, packageName: String, argument: String): String {
-        val pkg = safe(packageName)
-        val arg = argument.takeIf { it.isNotBlank() }?.let(::safe)
+        val invalid = PrivilegedRequestValidator.error(operation, packageName, argument)
+        if (invalid != null) return "exit=1\n" + invalid
+        val pkg = packageName
+        val arg = argument.takeIf { it.isNotEmpty() }
+        // Defense in depth: enforce critical-package safety in the privileged
+        // process too, not only in the ordinary app-side ShizukuController.
+        val dynamicReason = if (PrivilegedCommandPolicy.isDestructive(operation)) {
+            // A user-installed default launcher or keyboard may not be in the
+            // static critical-package list. Re-check from the elevated process.
+            // Fail closed if the elevated process cannot inspect the active
+            // launcher and input method. Static allowlists alone are not enough.
+            serviceContext?.let { CriticalPackageGuard.reason(it, pkg) }
+                ?: if (serviceContext == null) "Cannot verify critical packages" else null
+        } else null
+        if (!PrivilegedCommandPolicy.allows(operation, pkg, appPackageName) || dynamicReason != null) {
+            return "exit=1\n" + (dynamicReason ?: "Protected critical Android package: destructive operation denied")
+        }
+        // pm accepts a package/class pair even if the class name lives in
+        // a library namespace. Validate against the actual manifest inventory
+        // instead of guessing ownership from the Java namespace. Never run a
+        // privileged component command if PackageManager cannot verify it.
+        if (operation == PrivilegedOperation.ENABLE_COMPONENT ||
+            operation == PrivilegedOperation.DISABLE_COMPONENT) {
+            val declared = serviceContext?.let { context ->
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    val info = context.packageManager.getPackageInfo(
+                        pkg, PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
+                            PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS or
+                            PackageManager.MATCH_DISABLED_COMPONENTS,
+                    )
+                    val names = buildSet {
+                        info.activities?.forEach { add(it.name) }
+                        info.services?.forEach { add(it.name) }
+                        info.receivers?.forEach { add(it.name) }
+                        info.providers?.forEach { add(it.name) }
+                    }
+                    DeclaredComponentSafety.isDeclared(pkg, requireNotNull(arg), names)
+                }.getOrDefault(false)
+            } ?: false
+            if (!declared) return "exit=1\nComponent not declared by target package"
+        }
+        // Never forward a signature/normal/special permission to pm grant or
+        // revoke. Confirm the target actually requests a dangerous runtime
+        // permission in the elevated process; fail closed on visibility errors.
+        if (operation == PrivilegedOperation.GRANT_PERMISSION ||
+            operation == PrivilegedOperation.REVOKE_PERMISSION) {
+            val eligible = serviceContext?.let { context ->
+                runCatching {
+                    @Suppress("DEPRECATION")
+                    val info = context.packageManager.getPackageInfo(pkg, PackageManager.GET_PERMISSIONS)
+                    @Suppress("DEPRECATION")
+                    val level = context.packageManager.getPermissionInfo(requireNotNull(arg), 0).protectionLevel
+                    RuntimePermissionSafety.canToggle(
+                        requireNotNull(arg), info.requestedPermissions.orEmpty().toList(),
+                        info.applicationInfo?.targetSdkVersion ?: 0, level,
+                    )
+                }.getOrDefault(false)
+            } ?: false
+            if (!eligible) return "exit=1\nPermission is not a requested runtime permission"
+        }
         val command = when (operation) {
             PrivilegedOperation.FORCE_STOP -> arrayOf("am", "force-stop", "--user", "0", pkg)
             PrivilegedOperation.DISABLE_PACKAGE -> arrayOf("pm", "disable-user", "--user", "0", pkg)
@@ -32,27 +97,9 @@ class CommandUserService() : ICommandService.Stub() {
             PrivilegedOperation.DISABLE_COMPONENT -> arrayOf("pm", "disable-user", "--user", "0", "$pkg/${requireNotNull(arg)}")
             else -> error("Unsupported privileged operation")
         }
-        val process = Runtime.getRuntime().exec(command)
-        var stdout = ""
-        var stderr = ""
-        val outThread = thread(start = true, name = "command-stdout") {
-            stdout = process.inputStream.bufferedReader().use { it.readText() }
-        }
-        val errThread = thread(start = true, name = "command-stderr") {
-            stderr = process.errorStream.bufferedReader().use { it.readText() }
-        }
-        val code = process.waitFor()
-        outThread.join()
-        errThread.join()
-        return buildString {
-            append("exit=").append(code).append('\n')
-            if (stdout.isNotBlank()) append(stdout.trim()).append('\n')
-            if (stderr.isNotBlank()) append(stderr.trim())
-        }.trim()
+        // Typed argv only: bounded time and bounded stdout/stderr prevent
+        // hung package-manager commands from pinning a privileged Binder call.
+        return PrivilegedProcessRunner.runAllowed { Runtime.getRuntime().exec(command) }
     }
 
-    private fun safe(value: String): String {
-        require(value.matches(Regex("[A-Za-z0-9_.$]+"))) { "Unsafe command argument" }
-        return value
-    }
 }

@@ -2,7 +2,7 @@
 
 Version: 0.1.1 safe debug
 
-Date: 2026-10-18
+Date: 2026-10-28
 
 ## Completed
 
@@ -14,7 +14,7 @@ Date: 2026-10-18
 - Offline APK Inspector with metadata, permissions, components, SHA-256, signer fingerprints, and installer handoff.
 - Shizuku permission flow and official UserService command engine.
 - Shizuku commands for Force stop, freeze/unfreeze, background AppOps, runtime permissions, and component enable/disable.
-- Device Owner receiver and suspend/hide controller.
+- No Device Admin/Device Owner enrollment surface; privileged controls use the consent-gated Shizuku path only.
 - Critical-system-package guard without restricting controls for ordinary user or system apps.
 - Typed Shizuku operation gateway; arbitrary shell command strings are not accepted.
 - Recovery operations remain available for protected packages.
@@ -33,4 +33,308 @@ Date: 2026-10-18
 
 ## Device validation still required
 
-Install and exercise the debug build on physical devices. Start with Android 13 / HyperOS on Xiaomi Pad 5, then verify permission flows and Shizuku commands on the phone. Device Owner mode should only be tested on a suitable test device/profile because provisioning has system-level consequences.
+Install and exercise the debug build on physical devices. Start with Android 13 / HyperOS on Xiaomi Pad 5, then verify permission flows and Shizuku commands on the phone. Device Owner provisioning is out of scope; validate Shizuku and standard Android permission flows on a non-provisioned test device.
+
+
+## 2026-10-27 — N36 inventory metadata resilience (source/test PASS)
+
+- Production source commit: `075c1635ceb701ba771f3d330b44b197eb8d1d9c`.
+- Per-package label/version/update-time failures now preserve valid inventory identities with explicit fallbacks; top-level inventory-query failures still use the N35 retry state.
+- Five JVM tests cover exception/blank fallbacks, field preservation, invalid identity isolation, and sorting.
+- **PASS:** [source-only CI #40429462073](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40429462073), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 42s; 0 artifacts.
+- A docs-only head recheck is pending and will be reported in the PR thread without further source edits.
+- Xiaomi Pad 5/HyperOS, Shizuku, SAF provider behavior, and UI interaction: NOT TESTED.
+- No APK packaging/artifacts, merge, main write, root, or Device Owner.
+
+
+## 2026-10-27 — N37 optional UsageStats failure isolation (source/test PASS)
+
+- Production source/test head: a450c404ac7f7570d23bcd7b93b5a073803aabcb.
+- Usage access/AppOps and UsageStats provider failures now degrade only optional usage metadata; installed-app inventory remains independently loadable.
+- Six JVM regressions cover denied/throwing access, throwing/null provider results, successful 24-hour snapshot, and invalid clock boundaries.
+- **PASS:** [source-only CI #40434828097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40434828097), :app:testDebugUnitTest + :app:lintDebug, BUILD SUCCESSFUL in 1m 41s; 0 artifacts.
+- Xiaomi Pad 5/HyperOS, SAF, Shizuku and UI interaction: NOT TESTED. No APK packaging, merge, main write, root, or Device Owner.
+- Google Drive LIVE handoff/index: SYNC FAILED — connector unavailable; no Drive sync claimed.
+
+
+## 2026-10-27 — N38 verified-install cache clock safety
+
+- Added a fail-closed guard for negative/near-epoch wall clocks and retention intervals longer than observed time; prevents cutoff subtraction overflow from deleting valid verified APK snapshots.
+- Removed redundant cache cleanup after creating the installer FileProvider URI; cleanup remains before snapshot allocation.
+- Added three clock-boundary JVM regressions. **PASS:** exact PR-head source/JUnit/lint run [#40441604406](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40441604406), BUILD SUCCESSFUL in 1m 41s; 36 actionable tasks; zero artifacts.
+- Device SAF/installer behavior: NOT TESTED. No APK packaging or artifacts.
+
+## 2026-10-27 — N39 fail-closed snapshot expiry
+
+- Source/test head: `676454c507e057a42adc8460265a0ea85debb5c8`.
+- Expiry cleanup now treats denied directory listing, unknown/negative file metadata, and inaccessible entries as best-effort cleanup failures; verified install preparation is not aborted by optional cache cleanup.
+- **PASS:** [source-only CI #40446325452](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40446325452), `:app:testDebugUnitTest :app:lintDebug`; zero artifacts.
+- Xiaomi Pad 5 / HyperOS installer handoff: **NOT TESTED**. Google Drive LIVE sync: **SYNC FAILED** — connector unavailable.
+
+## 2026-10-27 — N40 APK signer lineage inspection
+
+- Source/test SHA: `feb1ee582dd9c7a59cb2184a9b1fb12c6785d377`.
+- APK Inspector now separates current signer fingerprints from platform-reported single-signer certificate-rotation history; multiple current signers are sorted for stable display and never mislabeled as a rotation chain.
+- Added pure JVM tests for no history, oldest-to-current rotation order, multiple signers, unavailable metadata, missing history bytes, and duplicate fingerprint normalization.
+- **PASS:** [source-only CI #40447641304](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40447641304), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 43s; **0 artifacts**.
+- Signing fingerprints/history are metadata only—not malware detection or an independent authenticity guarantee. Xiaomi Pad 5 / HyperOS and real APK archive behavior: **NOT TESTED**.
+- No APK packaging, signing, upload, release, merge, main write, root, Device Owner, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed; no LIVE document read/write or folder metadata verification is claimed.
+
+## 2026-10-27 — N46 optional UsageStats value sanitization
+
+- **Production/source + test SHA:** `e1718717ed390700af2be391cfd6d590fa134149`.
+- Added a pure JVM sanitizer for successful optional UsageStats snapshots. Blank package keys are dropped; negative durations/timestamps become zero; foreground duration is capped to the smaller of the requested 24-hour window and elapsed wall-clock time; future last-used timestamps are capped at now.
+- `AppRepository.usageByPackage()` now converts Android `UsageStats` values to the tested model and sanitizes them before rows are created. Existing denied-access/provider-failure fallback remains unchanged.
+- Three new JVM tests cover negative/oversized values, blank keys, near-epoch bounds, invalid clocks, and preservation of valid values.
+- **PASS:** [source-only CI #40478165225](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40478165225), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; job completed successfully. **Artifacts: 0**; no APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS real UsageStats and UI: **NOT TESTED**.
+- No APK packaging/signing/upload, merge, main write, root, Device Owner, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE document read/write or folder metadata verification is claimed.
+
+
+## 2026-10-27 — N47: fail-fast Shizuku request preflight
+- Production source changed: YES. Added a pure preflight gate before Shizuku permission checks and UserService binding; malformed package names are rejected before destructive app-side safety checks can throw.
+- Regression tests prove malformed package/operation/permission/component requests do not invoke dispatch, valid requests dispatch once, and controller ordering places validation before permission/Binder access.
+- **PASS — exact current source/test SHA:** a3f545ba00bc9970e96bc609352f44257ee9777b; source/JVM/Lint [CI #40484909419](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40484909419) succeeded.
+- **Artifacts: 0 confirmed.** No APK packaging, signing or upload.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS Shizuku/ADB flow, SAF providers, and physical-device commands. No root or Device Owner provisioning.
+- PR #1 remains Draft/open; no merge, main write or auto-merge. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is available; no LIVE read/write or folder metadata verification is claimed.
+
+## 2026-10-27 N48 — App-detail loading resilience
+
+- **Production/source + tests SHA:** `20c0a63b2ae12145f822ba2f9e7ca18d91019c02`.
+- Added `AppDetailsLoadState` and wired the real Compose detail sheet for initial loading, retry, and post-command refresh. An initial PackageManager/provider failure now stops the spinner and shows an Arabic retry card; failed refreshes preserve the last readable details.
+- Latest-request-wins generation checks reject stale success, failure, and cancellation results.
+- Five JVM tests cover initial failure, preserved successful snapshot, stale result rejection, retry/cancellation, and stale cancellation.
+- **PASS — source/JVM/lint CI:** [run #40491926201](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40491926201), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 10s; 36 actionable tasks.
+- **Artifacts: 0 confirmed.** Workflow performed source tests and lint only; no APK packaging/signing/upload.
+- **NOT TESTED:** Xiaomi Pad 5/HyperOS detail-sheet interaction, real PackageManager removal/update races, SAF and Shizuku on-device.
+- **SYNC FAILED:** Google Drive LIVE handoff/index unavailable because no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
+- PR #1 remains Draft/open. No APK build, merge, main write, root, Device Owner, or auto-merge.
+
+
+## 2026-10-27 — N49 SAF bundle source snapshot
+
+- **Source/test SHA:** `c9b34e22b84f87adec2cd79d474ecea30a14e150`; source/JVM/lint CI [#40501376446](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40501376446) **PASS**.
+- Both `write` and `writeAndVerify` now use one stable source descriptor snapshot across preflight and archive output. Two deterministic tests cover list mutation at provider-open and output-write callbacks.
+- **Artifacts: 0 confirmed**; no APK was built or uploaded.
+- SAF provider behavior on Xiaomi Pad 5/HyperOS and Shizuku device operations remain **NOT TESTED**.
+- Google Drive LIVE handoff/index: **SYNC FAILED** because the Drive/Docs connector is unavailable in this runtime; no sync is claimed.
+- PR #1 remains Draft/open, unmerged; no main write, root, Device Owner or auto-merge.
+
+
+## 2026-10-27 — N51 SAF cancellation cleanup reporting
+
+- Implemented in the PR branch: base-APK and bundle export paths now expose a manual-removal warning when cancellation carries an unconfirmed partial-document cleanup diagnostic, while rethrowing the same cancellation.
+- Source/test SHA: `b3a5a45f90dd4da7d90a15f5da66912c0ec51692`; source/JVM/Lint CI [#40521536855](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40521536855) **PASS**.
+- Three new JVM tests cover cancellation cleanup, provider deletion denial, and ordinary error-message mapping. No APK packaging or artifacts.
+- Current documentation-head recheck is pending; device/HyperOS and real SAF provider behavior remain **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable in this runtime; no Drive write is claimed.
+
+
+### N51 documentation-head recheck — PASS
+
+- PR head `cdb50c9ccb000623196d37878a3d597dfb0e32ed): [CI #40522694769](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40522694769), JVM tests + Android Lint passed in 1m 54s.
+- Checkout log confirms this PR head was tested; artifacts: 0. No APK packaging/signing/upload.
+- Physical-device and real SAF provider tests remain NOT TESTED.
+
+
+## 2026-10-27 — N52 temporary APK cache cleanup — VERIFIED
+
+- **Production/test SHA:** d2f756368d8bf25b813396d70574382090320c80.
+- **PASS:** source/JVM/Lint [CI #40526102343](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40526102343); :app:testDebugUnitTest :app:lintDebug --stacktrace; BUILD SUCCESSFUL in 2m 22s.
+- ApkCacheCopy.withTemporaryApk now verifies temp-file absence; if inspection succeeded but cleanup failed it throws a typed diagnostic, while an existing parser/cancellation failure remains primary with cleanup detail suppressed.
+- Three new deterministic JVM regressions passed. **Artifacts: 0**, no APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS remains **NOT TESTED**. Google Drive LIVE sync **SYNC FAILED** because no Drive/Docs connector is exposed.
+
+
+## 2026-10-27 — N53 strict UTF-8 APK-bundle metadata (verification pending)
+
+- InstalledApkBundleVerifier and ZipBundleStructure now reject malformed/unmappable UTF-8 in the canonical bundle manifest and ZIP central-directory entry names instead of accepting decoder replacement characters.
+- Added deterministic JVM regressions for malformed manifest bytes and malformed ZIP-name bytes.
+- **Exact source/test SHA:** `55420949d98f3b523ccb4163b9e89451e25c93f5`.
+- **PASS — source/JVM/Lint CI:** [#40536857801](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40536857801), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; **0 artifacts**.
+- Documentation-updated PR-head recheck: PENDING. No APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS and real SAF provider behavior: NOT TESTED. No merge, main write, root, or Device Owner.
+- Google Drive LIVE sync: SYNC FAILED — Drive/Docs connector unavailable; no LIVE read/write is claimed.
+
+
+## 2026-10-27 — N55 ZIP local/central header consistency (source/JVM/Lint PASS; docs-head recheck pending)
+
+- APK bundle verification now records raw local header flags/method/name bytes and checks them against central-directory metadata, closing a local-vs-central general-purpose flag mismatch.
+- Source/test SHA: `7cdd8f925b4592b516eace5b4fd8eca2cbe157f4`.
+- **PASS:** [CI #40556511097](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40556511097), `:app:testDebugUnitTest :app:lintDebug --stacktrace`; no APK packaging or artifacts.
+- Added regression: `rejectsLocalAndCentralGeneralPurposeFlagMismatch`.
+- Exact source/JVM/Lint checks passed. Do not treat the final documentation-updated PR head as verified until its own CI run succeeds.
+- Xiaomi Pad 5 / HyperOS, SAF providers, signature authenticity and malware detection: **NOT TESTED**. No APK artifact expected.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
+
+## 2026-10-27 — N56 shared ZIP entry-type safety (source/JVM/Lint PASS)
+
+- **Production/source + regression-test SHA:** `263c3a13303c6608046c54cba6d03085e5d62efa`.
+- Shared the host-aware Unix POSIX entry-type policy between APK preflight and the exported SAF bundle verifier. The bundle verifier now reads central-directory host-system and external-attribute fields and rejects Unix symlinks/special objects or file/directory path mismatches.
+- Tests cover accepted Unix regular-file metadata, rejected symlink/FIFO/directory mismatch, and direct policy behavior for regular files, directories, unknown type bits and non-Unix hosts.
+- **PASS:** [source/JVM/Lint CI #40559296718](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559296718), `:app:testDebugUnitTest :app:lintDebug --stacktrace`.
+- **Artifacts: 0.** No APK packaging, signing or upload.
+- Docs-updated PR-head recheck **PASS** on `140cb04d65e315e46b3eb0466c6d4d7f1d1c698f`: [CI #40559928664](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40559928664) succeeded; artifacts 0. Xiaomi Pad 5 / HyperOS and actual SAF provider behavior: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
+
+
+## 2026-10-27 — N59 ZIP version-header parity (source/test PASS; final docs head recheck pending)
+
+- Current PR #1 remains **open/Draft**, no merge or main write.
+- Production source: ZipBundleStructure validates local version-needed, central version-needed and central creator version for canonical ZIP32 output.
+- Crafted integration regressions reject local/central version-needed drift and unsupported creator version.
+- Production commit: `a269c43f6a41e3b65b9fd434ac638e3e2624fe21`; test commit: `668caf15514cc25fb2f735226f32e75a203a0f3d`.
+- **PASS — source/JVM/Lint on pre-ledger head `9ffeaddd284d44addfaf1fe05e753575196799c9`:** [CI #40581685497](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40581685497).
+- Latest acceptance ledger and N59 plan contain the source review, test criteria and exact evidence. Current docs-updated head recheck is pending; result will be recorded in the PR conversation.
+- APK artifacts: 0. Xiaomi Pad 5/HyperOS SAF, signer authenticity and malware detection: NOT TESTED. No new dependency/permission, root, Device Owner, APK build, merge, main write or auto-merge.
+- Google Drive LIVE sync: SYNC FAILED because this runtime has no Drive/Docs connector; no Drive read/write or folder metadata verification is claimed.
+
+### 2026-10-27 N60 — unsupported Shizuku opcodes (verification pending)
+
+- Production/test commits: `2b9b3600d77284083b16018722d29831bcc17b4b` / `ad8a56404bc4b21ae181c662271058d81b7b1e4d`.
+- `PrivilegedCommandPolicy.allows` now denies operation IDs outside the explicit supported set, including for ordinary package targets; supported recovery exceptions remain unchanged.
+- Added unknown-code regressions for integer extremes, zero, and code 14.
+- Plan: `docs/N60_SHIZUKU_UNKNOWN_OPERATION_FAIL_CLOSED_PLAN.md`; final docs-head JVM/Lint CI **PENDING**.
+- Device/HyperOS/Shizuku and real SAF provider checks: **NOT TESTED**; artifacts 0.
+- Google Drive LIVE sync: **SYNC FAILED** — connector unavailable; no LIVE read/write claimed.
+
+### 2026-10-27 N60 verification follow-up — source/JVM/Lint PASS
+
+- **PASS on PR head `30938366aed255507756d5578ea79c4e383337f4`:** [CI #40591001051](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40591001051), `:app:testDebugUnitTest` + `:app:lintDebug`, BUILD SUCCESSFUL in 1m 26s.
+- Artifact query returned 0. The verification-log append creates a new head; final-head recheck is tracked in PR #1 conversation.
+- Device/HyperOS/Shizuku/real SAF: **NOT TESTED**; Google Drive LIVE sync **SYNC FAILED** because no Drive/Docs connector is exposed.
+
+## 2026-10-28 — N61 cooperative SAF export cancellation
+
+- Implemented cancellable streaming checkpoints for Base APK and Base+Splits ZIP exports, including readback validation and central-directory scanning.
+- Added a visible Arabic cancel action while an export job is active. Cancellation remains distinct from ordinary I/O/integrity failures, and fresh-document cleanup stays scoped to the new CreateDocument URI.
+- JVM regression tests cover cancellation between chunks and cleanup/readback behavior.
+- CI PASS on source/test head 0dfe8b6775dbaedf1355b7f47eb6683842d6a001: run #40594740439 completed :app:testDebugUnitTest and :app:lintDebug successfully in 1m 49s. Device/HyperOS/real SAF provider behavior remains NOT TESTED; the following evidence-only docs commit gets its own CI recheck.
+- No APK packaging/artifacts, root, Device Owner, merge, or main write.
+
+
+## 2026-10-28 — N62 APK component-exposure review prompts (CI pending)
+
+- Production/source: extended ApkInspectionSignals to report exported Activities/Services/Receivers lacking a declared component permission and exported ContentProvider read/write/path-rule gaps; wired the actual Inspector UI to those counts.
+- Safety boundary: findings are Manifest-only review prompts, not malware detection or proof of runtime reachability. Negative counts are clamped; no dependency, permission, network access or APK execution added.
+- Tests: combined unguarded-component count, independent provider read/write gaps, zero-gap quiet path and malformed negative-count handling.
+- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md; source/JVM/Lint CI #40599249288 PASS and docs-head recheck #40599605539 PASS; artifact count 0.
+- Xiaomi Pad 5/HyperOS visual review and real APK corpus: NOT TESTED. No APK packaging, merge/main write, root, or Device Owner.
+
+
+## 2026-10-28 N63 — exported gates using APK-defined non-signature permissions
+- Implemented separate manifest-only counts for exported Activities/Services/Receivers and provider read/write/path gates protected by permissions defined in the APK at base level normal/dangerous; signature and external permissions are excluded.
+- Wired the repository, ApkInspection model, and Compose Inspector signal. Uses existing AndroidX core PermissionInfoCompat.getProtection rather than deprecated PermissionInfo fields.
+- Source/test commit: 2b2e9bd544e42434c37e31d20680e9359e757999. CI #40606895800 PASS: :app:testDebugUnitTest + :app:lintDebug; BUILD SUCCESSFUL in 1m 54s; artifact count 0.
+- Earlier CI #40606186749 failed only because the new source-to-UI contract test looked for the signal code in the UI file; corrected in dcf01ab8363c956f9d66a05f7c477bc8633ca2c2, whose CI #40606523662 passed. Device/HyperOS and real APK corpus: NOT TESTED.
+
+
+## 2026-10-28 N64 — installed component permission visibility (source/test PASS; final docs-head check follows)
+- Production change: Activities, Services, and Receivers now use a shared mapper that retains each declared component permission and whether this app holds it; App Details displays the permission gate in the component row.
+- Safety boundary: only Activities retain the existing launch callback and click-time Android recheck. Services/Receivers remain non-launchable from the list; Shizuku toggle protections are unchanged.
+- Tests: mapper unit tests cover null inventories, stable sorting, held/unheld/missing permissions and repository/UI wiring.
+- Source/test head `459a8e428837dd55eebff976339b5a8807cfe67d`: CI #40612329865 PASS (`:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 18s, 36 tasks); artifact query 0.
+- CI #40611844665 failed at generic array mapping; corrected with `components?.asList().orEmpty()`. CI #40612076457 then exposed an outdated source-contract test; the final test update is included in `459a8e4`.
+- Plan: `docs/N64_INSTALLED_COMPONENT_PERMISSION_VISIBILITY_PLAN.md`. Final docs-head CI is checked independently after this evidence update. Device/HyperOS: NOT TESTED. APK artifacts: 0.
+
+
+## 2026-10-28 N67 — preserve fatal errors in APK integrity verification (CI pending)
+- Changed the integrity preflight to convert ordinary exceptions to a fail-closed false result while allowing JVM Error subclasses to propagate; cancellation handling is unchanged.
+- Added a regression proving a provider-thrown AssertionError is not disguised as a checksum mismatch.
+- Plan: docs/N67_FATAL_ERROR_PROPAGATION_PLAN.md. JVM tests + Android Lint and final-head CI: pending.
+- Device/HyperOS/real SAF behavior: NOT TESTED. APK artifacts: 0. No APK packaging, root, Device Owner, merge or main write.
+
+## 2026-10-28 N67 — preserve fatal errors in APK integrity verification — source/test PASS
+- Source/test SHA: 5ca6f66331d0a0715e4fbb9340ae9a1f797b1f31.
+- App Commander source CI #40629333773 PASS; :app:testDebugUnitTest and :app:lintDebug completed successfully. Workflow does not package an APK.
+- The verifier now returns false for ordinary Exceptions but propagates JVM Errors; cancellation behavior is unchanged.
+- Real SAF provider, HyperOS and device install behavior: NOT TESTED. Documentation-only final-head recheck follows.
+
+## 2026-10-28 N68 — bound APK integrity recheck by inspected size
+
+- Source/test/plan commit: 1a8bd97a0410a6f06057afcf689bb07fd753197a.
+- PASS: App Commander source CI #40634636975; JVM unit tests and Android static lint completed successfully on the exact source/test SHA.
+- Production change: the re-read now uses the previously inspected byte count as maxBytes, rather than the global 512 MiB cap. A replacement stream larger than the recorded APK is rejected at the first 64 KiB read chunk that crosses that bound.
+- Regression: counting InputStream proves a 4 MiB replacement is rejected after one read for expectedSize=1. Existing matching-hash, same-size mismatch, cancellation, I/O-failure and JVM Error tests remain in the same suite.
+- Artifact query: 0. No APK packaging/build/upload was performed.
+- Xiaomi Pad 5/HyperOS, real SAF provider mutation and Android installer handoff: NOT TESTED.
+- Google Drive LIVE sync: SYNC FAILED — no Google Drive/Docs connector is exposed in this execution environment. No LIVE read/write or folder metadata verification is claimed.
+- No new permission/dependency, root, Device Owner, merge, or main write. Documentation-only follow-up does not change source behavior.
+
+## 2026-10-28 N70 — final-EOF cancellation in bounded APK copy
+
+- Source/test SHA: 1f2f128cccad515aed248e5a85980353055544b9.
+- PASS: source/JVM/Lint CI #40646249969; `:app:testDebugUnitTest :app:lintDebug --stacktrace`, BUILD SUCCESSFUL in 1m 51s.
+- Added final cooperative cancellation checkpoint after EOF; deterministic regression confirms cancellation arriving at EOF is not returned as a successful digest.
+- Artifact query: 0. No APK packaging/build/signing/upload.
+- Xiaomi Pad 5/HyperOS, real SAF providers, and Android installer handoff: NOT TESTED. No root, Device Owner, merge, or main write.
+- Google Drive LIVE sync: SYNC FAILED — no Google Drive/Docs connector is exposed.
+
+
+## 2026-10-28 — N72 APK Inspector cancellation and stale-result isolation
+
+- Final source/test SHA: bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- Generation-aware inspector state clears the prior APK/install URI before new inspection, rethrows cancellation, ignores stale completions, and keeps installer handoff exceptions from locking the UI busy.
+- Initial source CI #40660978319 FAIL exposed a stale assignment to the derived result; corrected in bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- **PASS:** source/JVM/lint CI #40661366429, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
+- APK packaging/build/upload: NOT PERFORMED. Xiaomi Pad 5/HyperOS, SAF provider and Shizuku device tests: NOT TESTED.
+- No root, Device Owner, merge or main write. Final docs-head recheck: pending.
+
+
+## 2026-10-28 N74 — cancellable verified-install snapshot
+
+- The SAF-to-private-cache install copy now observes coroutine cancellation between 64 KiB reads and at EOF. Cancellation propagates unchanged and partial snapshots are deleted before a URI can be handed to Android's installer.
+- Production/test SHA: `647868609d15a748f870695f27a04948ed771646`.
+- **PASS:** [source/JVM/Lint CI #40669431153](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40669431153), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 11s; artifacts 0.
+- **NOT TESTED:** real SAF cancellation, Xiaomi Pad 5 / HyperOS, Android installer handoff, Shizuku device flow.
+- No APK packaging/signing/upload, new permission/dependency, root, Device Owner, merge, or main write.
+
+
+## 2026-10-28 N75 — close-failure-safe verified APK snapshot handoff
+
+- Engineering question: can a SAF provider throw from `InputStream.close()` after the snapshot bytes have been verified, leaving a cache file that was never handed to the installer?
+- Production source commit: `ce9571fee2ae8685093e04a17cce27cdee8fb4f0`. Final source/test SHA: `7a8801c7da8fe4c241eb686755722c036c33e030` (adds the successful owned-stream close regression).
+- Added an owned-stream snapshot boundary that records the created file before close completes. Repository URI creation now happens only after stream close succeeds. Cancellation, URI failure and fatal error attempt verified cleanup; cleanup diagnostics are suppressed onto the original failure instead of replacing it.
+- Regression coverage proves successful owned-stream close, close-time IOException after exact bytes (same exception identity and no leftover snapshot), and cleanup failure preserving the primary CancellationException.
+- Earlier run on the production commit [#40677218786](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40677218786) PASS; final source/test run at the exact SHA [#40677641751](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40677641751) **PASS**, `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 54s.
+- Workflow artifacts: **0**. No APK packaging/signing/upload, no new dependency/permission, no root or Device Owner, no merge/main write.
+- Real SAF provider close failures, Xiaomi Pad 5/HyperOS and Android installer handoff: **NOT TESTED**. Shizuku device behavior remains NOT TESTED.
+- Google Drive LIVE handoff/index sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back is claimed.
+
+
+## 2026-10-28 N78 — independent Shizuku bind timeout
+- Source/test SHA: `226d1785c010d31638cba616e1522924858a645c`.
+- **PASS:** CI #40703499158 ran `:app:testDebugUnitTest :app:lintDebug`; BUILD SUCCESSFUL in 1m 25s; artifacts 0.
+- Bind timeout ownership is independent of the first awaiting coroutine. Cancellation no longer tears down a shared bind; a request-owned timer performs timeout cleanup only if that exact attempt remains current.
+- Device Shizuku/HyperOS behavior and real callback timing: NOT TESTED. No APK packaging/signing/upload.
+- Next: device validation of Shizuku bind/death/retry and SAF export/install handoff. Google Drive LIVE sync: SYNC FAILED (connector unavailable).
+
+## 2026-10-28 — N79 source checkpoint
+
+- Source/test SHA: `33acdb7ef28eecb9c59a38732c232a2f50791945`.
+- JVM tests + Android Lint CI #40708206028 PASS; artifacts 0; no APK package/sign/upload.
+- All Shizuku cleanup routes share a per-connection idempotency gate; successful cleanup runs once, while failed cleanup remains retryable.
+- Device Shizuku/HyperOS callback timing and SAF/installer handoff remain NOT TESTED.
+- Next: controlled device validation of bind/death/retry and SAF export/install handoff. Google Drive LIVE sync: SYNC FAILED (connector unavailable).
+
+
+## 2026-10-28 — N80 Shizuku bind-timeout job lifecycle
+
+- Production + regression-test SHA: `b006aaf4bc42e515e0b74d8eb1294d1b4bc1f9a9`.
+- Successful and failed bind completion now cancel/remove the attempt's delayed timeout job; a callback delivered before timer registration creates no timer. The timeout path marks itself before completing the shared waiter so it still performs its own cleanup.
+- **PASS:** source/JVM/Lint CI [#40713617339](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40713617339), BUILD SUCCESSFUL in 1m 58s; 0 artifacts.
+- The prior owner-cancellation regression still proves that cancelling one caller does not cancel the shared bind attempt; timeout remains attempt-owned.
+- Xiaomi Pad 5/HyperOS Shizuku callbacks and SAF/installer behavior: **NOT TESTED**.
+- No APK packaging/signing/upload, new permissions/dependencies, root, Device Owner, merge, main write or auto-merge. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is exposed.
+
+
+## 2026-10-28 — N85 APK network and boot permission review signals
+
+- Source/test SHA: `f14ef215aeac5d30dfb1debfbbecdf617f79ef89`; source/JVM/Lint CI #40749452576 PASS (`:app:testDebugUnitTest`, `:app:lintDebug`; BUILD SUCCESSFUL in 1m 54s).
+- APK Inspector now flags exact INTERNET and RECEIVE_BOOT_COMPLETED declarations as manifest-only review prompts. Duplicate declarations are deduplicated; descriptions do not claim actual network traffic or automatic startup.
+- No APK artifact/build. Xiaomi Pad 5/HyperOS, live APK behavior, SAF provider and Shizuku device flows remain NOT TESTED.
+- Product contract reaffirmed: no Device Admin/Device Owner enrollment surface; no root. PR #1 remains Draft/open, no merge/main write.
+- Google Drive LIVE sync: SYNC FAILED — Drive/Docs connector unavailable in this runtime; no Drive sync is claimed.
