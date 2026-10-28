@@ -108,6 +108,8 @@ internal object InstalledApkExport {
         val matches = openForRead().use { input ->
             ApkInstallIntegrity.matches(input, written.bytes, written.sha256, checkCancelled)
         }
+        // Preserve cooperative cancellation through stream close and the final success decision.
+        checkCancelled()
         if (!matches) throw IOException("Saved SAF base APK failed SHA-256 readback")
         return written
     }
