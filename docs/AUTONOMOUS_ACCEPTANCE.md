@@ -875,3 +875,9 @@ Updated: 2026-10-26
 - The regression confirms a sentinel AssertionError from the provider stream propagates as the same instance; ordinary I/O failures remain fail-closed and CancellationException remains propagated.
 - No APK packaging/signing/upload. Artifact query and final docs-head CI are checked separately.
 - Xiaomi Pad 5/HyperOS and real SAF provider behavior: NOT TESTED.
+
+## N68 — Bound APK integrity recheck by inspected size (2026-10-28)
+
+- Acceptance: expected metadata is validated first; exact-size/hash match remains accepted; mismatched hash or size fails closed; an oversized replacement is rejected after the first bounded read chunk crossing the previously inspected size; cancellation and JVM Error behavior remain unchanged.
+- Source/JVM tests + Android lint: PASS on SHA 1a8bd97a0410a6f06057afcf689bb07fd753197a; CI #40634636975 PASS; artifact count 0.
+- Xiaomi Pad 5/HyperOS, real SAF provider and installer handoff: NOT TESTED. Google Drive LIVE sync: SYNC FAILED — connector unavailable.

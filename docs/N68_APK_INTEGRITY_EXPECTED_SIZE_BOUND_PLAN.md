@@ -18,3 +18,12 @@ ApkInstallIntegrity.matches already knows the byte count recorded during APK ins
 
 - Real SAF provider behavior, Xiaomi Pad 5/HyperOS, and installer handoff remain NOT TESTED.
 - No new permissions, dependencies, root, Device Owner, merge, or main write.
+
+
+## Verification record — 2026-10-28
+
+- Source/test SHA: 1a8bd97a0410a6f06057afcf689bb07fd753197a.
+- PASS: App Commander source CI #40634636975 (JVM unit tests + Android static lint; no APK packaging).
+- Artifact query returned 0.
+- Real SAF provider, Xiaomi Pad 5/HyperOS and installer handoff remain NOT TESTED.
+- Google Drive LIVE sync: SYNC FAILED (Drive/Docs connector unavailable); no synchronization is claimed.

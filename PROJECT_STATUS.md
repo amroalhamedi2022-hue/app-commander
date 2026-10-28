@@ -252,3 +252,14 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - App Commander source CI #40629333773 PASS; :app:testDebugUnitTest and :app:lintDebug completed successfully. Workflow does not package an APK.
 - The verifier now returns false for ordinary Exceptions but propagates JVM Errors; cancellation behavior is unchanged.
 - Real SAF provider, HyperOS and device install behavior: NOT TESTED. Documentation-only final-head recheck follows.
+
+## 2026-10-28 N68 — bound APK integrity recheck by inspected size
+
+- Source/test/plan commit: 1a8bd97a0410a6f06057afcf689bb07fd753197a.
+- PASS: App Commander source CI #40634636975; JVM unit tests and Android static lint completed successfully on the exact source/test SHA.
+- Production change: the re-read now uses the previously inspected byte count as maxBytes, rather than the global 512 MiB cap. A replacement stream larger than the recorded APK is rejected at the first 64 KiB read chunk that crosses that bound.
+- Regression: counting InputStream proves a 4 MiB replacement is rejected after one read for expectedSize=1. Existing matching-hash, same-size mismatch, cancellation, I/O-failure and JVM Error tests remain in the same suite.
+- Artifact query: 0. No APK packaging/build/upload was performed.
+- Xiaomi Pad 5/HyperOS, real SAF provider mutation and Android installer handoff: NOT TESTED.
+- Google Drive LIVE sync: SYNC FAILED — no Google Drive/Docs connector is exposed in this execution environment. No LIVE read/write or folder metadata verification is claimed.
+- No new permission/dependency, root, Device Owner, merge, or main write. Documentation-only follow-up does not change source behavior.
