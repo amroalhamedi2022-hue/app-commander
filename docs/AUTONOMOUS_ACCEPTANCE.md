@@ -983,3 +983,14 @@ Updated: 2026-10-26
 - Workflow artifact query: **0**. No APK packaging/signing/upload, no new dependency or permission.
 - Xiaomi Pad 5/HyperOS and real Shizuku callback timing: **NOT TESTED**. No root, Device Owner, merge or `main` write.
 - Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back or folder metadata verification is claimed.
+
+## 2026-10-28 N79 — idempotent Shizuku bind cleanup (source/test PASS)
+
+- Open-source review: official Shizuku API documents that callbacks may still arrive after `unbindUserService(..., remove=false)`. A timeout and a late callback could therefore both reach cleanup for the same `ServiceConnection`.
+- Production change: a weakly keyed per-connection `UnbindOnce` gate serializes timeout/callback cleanup. Successful unbind is idempotent; a thrown platform exception leaves the gate retryable. Cleanup still uses `remove=false`, never killing the UserService.
+- JVM/source-contract tests cover duplicate cleanup, 32 concurrent requests, retry after a failed action, and the shared timeout/callback gate.
+- Source/test SHA: `33acdb7ef28eecb9c59a38732c232a2f50791945`.
+- **PASS — JVM tests + Android Lint:** [CI #40708206028](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40708206028), workflow completed successfully; job `source-checks`.
+- Artifact query: **0**. No APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS Shizuku callback timing remains **NOT TESTED**. No new permission/dependency, root, Device Owner, merge, `main` write or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — this runtime exposes no Google Drive/Docs connector; no Drive read/write/read-back or folder metadata verification is claimed.
