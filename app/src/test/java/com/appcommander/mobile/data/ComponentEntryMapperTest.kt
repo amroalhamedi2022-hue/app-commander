@@ -51,7 +51,7 @@ class ComponentEntryMapperTest {
         val checkedPermissions = mutableListOf<String?>()
         val mapped = ComponentEntryMapper.map(
             components = arrayOf(
-                Component("a.Activity", exported = true, enabled = true, permission = "  \\t "),
+                Component("a.Activity", exported = true, enabled = true, permission = "  \t "),
             ),
             name = { it.name },
             exported = { it.exported },
