@@ -107,14 +107,16 @@ class VerifiedInstallHandoffTest {
         val primary = CancellationException("cancelled while opening installer")
         val cleanup = SecurityException("cache deletion denied")
         var cleanupCalls = 0
-        val handoff = VerifiedInstallHandoff<String> { _, _ ->
+        var observedPrimary: Throwable? = null
+        val handoff = VerifiedInstallHandoff<String> { _, failure ->
+            observedPrimary = failure
             cleanupCalls++
             throw cleanup
         }
         handoff.record("verified-snapshot")
 
         assertTrue(handoff.discardIfNotTransferred(primary))
-        assertSame("primary cancellation must remain the original throwable", primary, primary)
+        assertSame("cleanup must receive the original cancellation", primary, observedPrimary)
         assertEquals(1, primary.suppressed.size)
         assertSame(cleanup, primary.suppressed.single())
         assertEquals(1, cleanupCalls)
