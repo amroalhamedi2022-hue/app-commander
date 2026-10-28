@@ -1057,3 +1057,14 @@ Updated: 2026-10-26
 - Artifact query: 0. No APK packaging/signing/upload.
 - Xiaomi Pad 5/HyperOS and real Shizuku callback timing: NOT TESTED. No new permission/dependency, root, Device Owner, merge, or main write.
 - Google Drive LIVE sync: SYNC FAILED — no Drive/Docs connector exposed; no Drive read/write/read-back or folder metadata verification is claimed.
+
+
+## 2026-10-28 N85 — APK network and boot permission signals (source/test PASS)
+
+- Exact source/test SHA: `f14ef215aeac5d30dfb1debfbbecdf617f79ef89`; production blob `2ac961de1c5889082b7621d4cf52713b7afb1735`; test blob `77051d8c6549c46d1aa4a01aaf9e361f2236c9da`.
+- Added manifest-only APK review signals for `android.permission.INTERNET` and `android.permission.RECEIVE_BOOT_COMPLETED`. Wording explicitly says permission declarations do not prove actual network traffic or app startup; duplicate declarations are deduplicated.
+- Android official permission reference reviewed: https://developer.android.com/reference/android/Manifest.permission. No copied implementation or dependency.
+- **PASS:** source/JVM/Lint [CI #40749452576](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40749452576); `:app:testDebugUnitTest` and `:app:lintDebug` completed; **BUILD SUCCESSFUL in 1m 54s**.
+- Artifacts: 0. No APK packaging/signing/upload or new app permission.
+- Xiaomi Pad 5/HyperOS and live APK behavior: **NOT TESTED**. PR #1 remains Draft/open; no root, Device Owner, merge, main write or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back is claimed.
