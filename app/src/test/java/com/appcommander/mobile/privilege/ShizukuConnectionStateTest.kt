@@ -138,4 +138,34 @@ class ShizukuConnectionStateTest {
         assertTrue(source.contains("Shizuku.unbindUserService(serviceArgs, connection, false)"))
         assertTrue(source.contains("connectionState.resetTimedOutAttempt(request)"))
     }
+    @Test fun duplicateConnectedCallbackCannotReplaceTheLiveBinderForSameAttempt() {
+        val state = ShizukuConnectionState<Any>()
+        val request = state.beginOrJoin()
+        val live = Any()
+        val duplicate = Any()
+
+        assertTrue(state.connectedIfCurrent(request.waiter, live))
+        assertTrue(state.connectedIfCurrent(request.waiter, duplicate))
+
+        assertSame("duplicate callback must not replace the active Binder", live, state.remoteCandidate())
+        assertSame(live, runBlocking { request.waiter.await() })
+        assertFalse(state.isBinding())
+    }
+
+    @Test fun beginOrJoinReusesBinderInstalledBetweenInitialProbeAndJoin() {
+        val state = ShizukuConnectionState<Any>()
+        val original = state.beginOrJoin()
+        val live = Any()
+        assertTrue(state.connectedIfCurrent(original.waiter, live))
+
+        // Models the race where the caller's remoteCandidate() returned null,
+        // then the callback connected before beginOrJoin acquired the lock.
+        val raced = state.beginOrJoin()
+
+        assertFalse("a live Binder must not trigger a redundant bind", raced.shouldBind)
+        assertSame(original.waiter, raced.waiter)
+        assertSame(live, runBlocking { raced.waiter.await() })
+        assertSame(live, state.remoteCandidate())
+    }
+
 }

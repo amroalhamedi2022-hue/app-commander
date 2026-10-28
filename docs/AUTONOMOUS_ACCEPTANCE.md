@@ -960,3 +960,14 @@ Updated: 2026-10-26
 - No new permissions/dependencies, root, Device Owner, merge, main write, auto-merge or paid service.
 - Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is exposed; no Drive read/write/read-back is claimed.
 
+
+## 2026-10-28 N77 — Shizuku duplicate-bind callback isolation
+
+- Engineering question: can a Binder callback race the initial remote probe and trigger redundant binding, or can a duplicate callback replace the active Binder?
+- Production change: `beginOrJoin` reuses a live Binder's waiter; `connectedIfCurrent` keeps duplicate callbacks idempotent and rejects redundant connection attempts without replacing the current Binder.
+- JVM regressions: duplicate callback preserves Binder identity; remote-probe/bind-request race reuses the active waiter; prior stale callback/timeout/retry cases remain covered.
+- Source/test/docs commit: **PENDING**.
+- `:app:testDebugUnitTest :app:lintDebug`: **PENDING**. APK artifacts: 0; no APK build.
+- Xiaomi Pad 5/HyperOS and real Shizuku reconnection: **NOT TESTED**.
+- No new permission/dependency, root, Device Owner, merge/main write or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back or folder metadata verification is claimed.

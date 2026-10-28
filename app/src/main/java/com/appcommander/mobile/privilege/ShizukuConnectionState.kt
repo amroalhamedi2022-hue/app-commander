@@ -26,6 +26,10 @@ internal class ShizukuConnectionState<T : Any> {
     }
 
     @Synchronized fun beginOrJoin(): BindingRequest<T> {
+        // The caller may have observed remote == null just before a successful
+        // callback installed a Binder. Reuse that completed request instead of
+        // starting a second platform binding in the gap between the two calls.
+        if (remote != null) return BindingRequest(pending, shouldBind = false)
         if (binding) return BindingRequest(pending, shouldBind = false)
         binding = true
         pending = CompletableDeferred()
@@ -38,6 +42,19 @@ internal class ShizukuConnectionState<T : Any> {
      */
     @Synchronized fun connectedIfCurrent(waiter: CompletableDeferred<T>, service: T): Boolean {
         if (pending !== waiter) return false
+        val existing = remote
+        if (existing != null) {
+            // Duplicate callback for an already completed bind is idempotent:
+            // keep the live Binder and do not unbind the active connection.
+            if (waiter.isCompleted) return true
+
+            // A connection won the race after the caller's initial remote
+            // probe. Complete this waiter with the existing Binder and reject
+            // the redundant new connection so its owner can unbind it.
+            binding = false
+            waiter.complete(existing)
+            return false
+        }
         remote = service
         binding = false
         if (!waiter.isCompleted) waiter.complete(service)
