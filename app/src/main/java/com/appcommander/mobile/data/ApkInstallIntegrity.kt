@@ -34,6 +34,9 @@ internal object ApkInstallIntegrity {
             val actual = ApkCacheCopy.copyWithSha256(
                 input, discard, maxBytes = expectedSize, checkCancelled = checkCancelled,
             )
+            // Cancellation can arrive after the final read returns EOF. Recheck
+            // before accepting the hash so a completed read cannot mask cancellation.
+            checkCancelled()
             actual.sizeBytes == expectedSize &&
                 actual.sha256.equals(expectedSha256, ignoreCase = true)
         } catch (cancelled: CancellationException) {
