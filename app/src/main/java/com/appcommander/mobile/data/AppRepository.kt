@@ -170,9 +170,9 @@ class AppRepository(private val context: Context) {
     }
 
     /**
-     * ActivityInfo.permission is enforced by Android for cross-app starts.
-     * A visible/exported activity may still be inaccessible to our UID.
-     * Do not request privileged grants or bypass this check through Shizuku.
+     * A component's declared permission may restrict cross-app interaction even
+     * when it is exported. This is a caller-UID check for display only; Android
+     * remains the authority and Shizuku must never bypass component permissions.
      */
     private fun callerHasPermission(permission: String?): Boolean =
         ActivityLaunchSafety.callerHasPermission(permission) { required ->
