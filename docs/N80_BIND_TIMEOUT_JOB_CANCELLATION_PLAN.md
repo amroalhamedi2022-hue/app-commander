@@ -33,3 +33,15 @@ Continue using the existing official Shizuku API integration; no third-party imp
 
 Source/test SHA and CI: pending. Final docs-head recheck: pending.  
 Google Drive LIVE sync must be marked SYNC FAILED if the Drive/Docs connector is unavailable; no sync is claimed without read-back verification.
+
+
+## Source/test evidence — 2026-10-28
+
+- Exact source + regression-test commit: `b006aaf4bc42e515e0b74d8eb1294d1b4bc1f9a9`.
+- **PASS:** [source/JVM/Lint CI #40713617339](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40713617339), `:app:testDebugUnitTest :app:lintDebug --stacktrace`, BUILD SUCCESSFUL in 1m 58s.
+- Regression coverage proves success and failure callbacks cancel the timer promptly, synchronous connection before timer registration creates no timer, and caller cancellation leaves the independent attempt timeout alive.
+- Artifact query: **0**. No APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS, real Shizuku callbacks, and SAF/installer flows: **NOT TESTED**.
+- Final documentation-head recheck: pending PR verification comment.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no read/write/read-back is claimed.
+- No new permissions/dependencies, root, Device Owner, merge, main write or auto-merge.
