@@ -22,6 +22,10 @@ object ShizukuController {
     private var args: Shizuku.UserServiceArgs? = null
     @Volatile private var appContext: Context? = null
     private val connectionState = ShizukuConnectionState<ICommandService>()
+    // The timeout and a late platform callback may both request cleanup for the
+    // same ServiceConnection. Weak keys retain the gate only while that attempt
+    // connection is still reachable.
+    private val unbindGates = java.util.WeakHashMap<ServiceConnection, UnbindOnce>()
     // A bind attempt outlives any single UI caller; its own timer owns stale-binding cleanup.
     private val bindingTimeoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val bindingTimeout = ShizukuBindingTimeout(
@@ -72,7 +76,14 @@ object ShizukuController {
 
     /** Remove only this callback; never request termination of the UserService. */
     private fun unbind(serviceArgs: Shizuku.UserServiceArgs, connection: ServiceConnection) {
-        runCatching { Shizuku.unbindUserService(serviceArgs, connection, false) }
+        val gate = synchronized(this) {
+            unbindGates.getOrPut(connection) { UnbindOnce() }
+        }
+        try {
+            gate.run { Shizuku.unbindUserService(serviceArgs, connection, false) }
+        } catch (_: Exception) {
+            // Best-effort release: the gate stays retryable if the platform call throws.
+        }
     }
 
     fun initialize(context: Context) {
