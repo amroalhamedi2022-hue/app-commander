@@ -319,3 +319,13 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - All Shizuku cleanup routes share a per-connection idempotency gate; successful cleanup runs once, while failed cleanup remains retryable.
 - Device Shizuku/HyperOS callback timing and SAF/installer handoff remain NOT TESTED.
 - Next: controlled device validation of bind/death/retry and SAF export/install handoff. Google Drive LIVE sync: SYNC FAILED (connector unavailable).
+
+
+## 2026-10-28 — N80 Shizuku bind-timeout job lifecycle
+
+- Production + regression-test SHA: `b006aaf4bc42e515e0b74d8eb1294d1b4bc1f9a9`.
+- Successful and failed bind completion now cancel/remove the attempt's delayed timeout job; a callback delivered before timer registration creates no timer. The timeout path marks itself before completing the shared waiter so it still performs its own cleanup.
+- **PASS:** source/JVM/Lint CI [#40713617339](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40713617339), BUILD SUCCESSFUL in 1m 58s; 0 artifacts.
+- The prior owner-cancellation regression still proves that cancelling one caller does not cancel the shared bind attempt; timeout remains attempt-owned.
+- Xiaomi Pad 5/HyperOS Shizuku callbacks and SAF/installer behavior: **NOT TESTED**.
+- No APK packaging/signing/upload, new permissions/dependencies, root, Device Owner, merge, main write or auto-merge. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is exposed.
