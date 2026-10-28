@@ -6,6 +6,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -57,6 +58,24 @@ internal class ShizukuBindingTimeout<T : Any>(
         if (existing != null) {
             job.cancel()
             return existing
+        }
+
+        // A parent scope can be cancelled after start() and after the immediate
+        // isCancelled check below, but before a LAZY coroutine enters its body.
+        // In that window the body/finally block is not guaranteed to run, so
+        // completion itself must fail the still-current bind closed.
+        job.invokeOnCompletion { cause ->
+            if (cause is CancellationException && !timeoutStarted.get()) {
+                val reset = synchronized(lock) {
+                    state.resetTimedOutAttempt(request)
+                }
+                synchronized(this) {
+                    if (scheduledJobs[request.waiter] === job) {
+                        scheduledJobs.remove(request.waiter)
+                    }
+                }
+                if (reset) onTimeout()
+            }
         }
 
         request.waiter.invokeOnCompletion {

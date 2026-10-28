@@ -111,6 +111,39 @@ class ShizukuBindingTimeoutTest {
             scope.cancel()
         }
     }
+    @Test fun cancellingParentAfterScheduleCannotStrandTheSharedWaiter() = runBlocking {
+        val parent = SupervisorJob()
+        val scope = CoroutineScope(parent + Dispatchers.Default)
+        val state = ShizukuConnectionState<String>()
+        val timeout = ShizukuBindingTimeout(scope, 60_000L, state, Any())
+        val cleanupCount = AtomicInteger()
+        try {
+            val request = state.beginOrJoin()
+            val timer = requireNotNull(timeout.schedule(request) { cleanupCount.incrementAndGet() })
+            assertFalse("bind should still be pending before parent cancellation", request.waiter.isCompleted)
+
+            // schedule() has returned, so its synchronous post-start cancellation
+            // check has already passed. This targets cancellation in the gap after
+            // that check, not the already-covered pre-cancelled-scope path.
+            parent.cancel()
+            withTimeout(1_000L) { timer.join() }
+
+            assertTrue("completion handler must wake all callers", request.waiter.isCompleted)
+            val failure = try {
+                request.waiter.await()
+                null
+            } catch (expected: IllegalStateException) {
+                expected
+            }
+            assertEquals("Shizuku bind attempt timed out", failure?.message)
+            assertFalse("a cancelled timer cannot leave binding=true", state.isBinding())
+            assertEquals("cleanup must run once for the current attempt", 1, cleanupCount.get())
+            assertTrue("a later request can retry", state.beginOrJoin().shouldBind)
+        } finally {
+            scope.cancel()
+        }
+    }
+
     @Test fun cancelledTimeoutScopeFailsCurrentAttemptClosedInsteadOfLeavingItBinding() = runBlocking {
         val state = ShizukuConnectionState<String>()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

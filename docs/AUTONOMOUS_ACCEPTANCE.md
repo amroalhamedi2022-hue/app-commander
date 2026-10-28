@@ -1047,3 +1047,13 @@ Updated: 2026-10-26
 - This entry is documentation-only and committed with `[skip ci]`; source/test content is unchanged from the tested SHA.
 - PR #1 remains Draft/open. No merge, `main` write, root, Device Owner, new permission or dependency.
 - Google Drive LIVE sync remains **SYNC FAILED**: no Drive/Docs connector is exposed in this runtime; no read/write/read-back or folder metadata verification is claimed.
+
+
+## 2026-10-28 — N84 Shizuku timeout parent-cancellation race (CI pending)
+
+- Engineering question: can cancelling the timeout scope after schedule() returns strand the shared waiter because a lazy coroutine is cancelled before its body/finally executes?
+- Production change: a completion handler now resets only the exact current bind attempt when its timeout job is cancelled before timeout firing; cleanup is gated by the state transition to avoid duplicate unbinds.
+- Regression: cancel parent after scheduling, then assert waiter completion, binding reset, one cleanup callback, and retry availability.
+- Source/test SHA and JVM/Lint CI: pending exact-commit verification.
+- Xiaomi Pad 5/HyperOS and real Shizuku timing: NOT TESTED. No APK packaging, new permissions/dependencies, root, Device Owner, merge or main write.
+- Google Drive LIVE sync: SYNC FAILED if the Drive/Docs connector is unavailable; no sync is claimed without read/write/read-back.
