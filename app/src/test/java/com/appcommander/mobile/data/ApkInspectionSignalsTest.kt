@@ -7,6 +7,24 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class ApkInspectionSignalsTest {
+    @Test fun networkAndBootPermissionsAreVisibleAsManifestReviewPromptsOnly() {
+        val findings = ApkInspectionSignals.evaluate(
+            targetSdk = 35,
+            permissions = listOf(
+                "android.permission.INTERNET",
+                "android.permission.RECEIVE_BOOT_COMPLETED",
+                "android.permission.INTERNET",
+            ),
+            signerSha256 = listOf("certificate"),
+        )
+        val byCode = findings.associateBy { it.code }
+        assertEquals(2, findings.size)
+        assertTrue(byCode.containsKey("android.permission.INTERNET"))
+        assertTrue(byCode.containsKey("android.permission.RECEIVE_BOOT_COMPLETED"))
+        assertTrue(byCode.getValue("android.permission.INTERNET").description.contains("لا يثبت"))
+        assertTrue(byCode.getValue("android.permission.RECEIVE_BOOT_COMPLETED").description.contains("تحقّق"))
+    }
+
     @Test fun emptyModernMetadataHasNoListedIndicatorsButNoSafetyClaim() {
         assertTrue(ApkInspectionSignals.evaluate(35, emptyList(), listOf("known-certificate-hash")).isEmpty())
         assertTrue(ApkInspectionSignals.DISCLAIMER.contains("ليست فحصًا"))
