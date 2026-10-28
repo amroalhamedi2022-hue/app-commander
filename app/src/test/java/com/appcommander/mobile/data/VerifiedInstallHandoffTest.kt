@@ -55,7 +55,7 @@ class VerifiedInstallHandoffTest {
         handoff.record(file)
         handoff.discardIfNotTransferred(primary)
 
-        assertSame(primary, primary)
+        assertEquals("installer launch failed", primary.message)
         assertEquals(1, primary.suppressed.size)
         assertSame(cleanup, primary.suppressed.single())
         assertTrue(file.exists())
