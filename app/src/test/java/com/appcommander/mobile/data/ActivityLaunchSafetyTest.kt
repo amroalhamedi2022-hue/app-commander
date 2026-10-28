@@ -100,14 +100,14 @@ class ActivityLaunchSafetyTest {
     @Test fun androidRepositoryAndComposeEnforcePermissionAtInventoryAndClickTime() {
         val repo = File("src/main/java/com/appcommander/mobile/data/AppRepository.kt").readText()
         val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
-        assertTrue(repo.contains("requiredPermission = it.permission"))
-        assertTrue(repo.contains("callerHasPermission = canAccessActivity(it.permission)"))
+        assertTrue(repo.contains("requiredPermission = { it.permission }"))
+        assertTrue(repo.contains("callerHasPermission = ::callerHasPermission"))
         assertTrue(repo.contains("ActivityLaunchSafety.callerHasPermission(permission)"))
         assertTrue(repo.contains("context.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED"))
-        assertTrue(repo.contains("canAccessActivity(activity.permission)"))
+        assertTrue(repo.contains("callerHasPermission(activity.permission)"))
         assertTrue(ui.contains("currentEnabled && component.callerHasPermission"))
-        assertTrue(ui.contains("launchPermissionGranted = component.callerHasPermission"))
-        assertTrue(ui.contains("إذن تشغيل غير متاح"))
+        assertTrue(ui.contains("callerHasPermission = component.callerHasPermission"))
+        assertTrue(ui.contains("التطبيق لا يملك الإذن"))
     }
 
     @Test fun repositoryAndUiRequireFreshPackageManagerChecksAndHonestFeedback() {
