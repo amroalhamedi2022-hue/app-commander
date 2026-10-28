@@ -75,6 +75,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.core.graphics.drawable.toBitmap
 import com.appcommander.mobile.data.ActivityLaunchSafety
 import com.appcommander.mobile.data.AppRepository
+import com.appcommander.mobile.data.VerifiedInstallHandoff
+import com.appcommander.mobile.data.VerifiedInstallSnapshot
 import com.appcommander.mobile.data.InstalledApkExport
 import com.appcommander.mobile.data.ComponentEnabledState
 import com.appcommander.mobile.model.ApkCertificateMetadata
@@ -672,33 +674,48 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                                 if (uri != null) {
                                     busy = true
                                     scope.launch {
+                                        val handoff = VerifiedInstallHandoff<VerifiedInstallSnapshot>(
+                                            repository::discardVerifiedInstall,
+                                        )
+                                        var primaryFailure: Throwable? = null
+                                        var failurePrefix = "تعذّر تجهيز نسخة التثبيت المتحقق منها: "
                                         try {
                                             val installContext = currentCoroutineContext()
-                                            val verifiedUri = withContext(Dispatchers.IO) {
+                                            val snapshot = withContext(Dispatchers.IO) {
                                                 repository.prepareVerifiedInstall(uri, apk) {
                                                     installContext.ensureActive()
-                                                }
+                                                }.also(handoff::record)
                                             }
-                                            if (verifiedUri == null) {
+                                            if (snapshot == null) {
                                                 error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."
                                                 inspectionState = inspectionState.copy(result = null)
                                                 selectedUri = null
                                             } else {
                                                 val install = Intent(Intent.ACTION_VIEW)
-                                                    .setDataAndType(verifiedUri, "application/vnd.android.package-archive")
+                                                    .setDataAndType(snapshot.uri, "application/vnd.android.package-archive")
                                                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                runCatching { context.startActivity(install) }
-                                                    .onFailure { error = "تعذّر فتح مثبّت أندرويد: " +
-                                                        (it.message ?: "خطأ غير معروف") }
+                                                failurePrefix = "تعذّر فتح مثبّت أندرويد: "
+                                                context.startActivity(install)
+                                                // Keep the immutable cache file for the installer only
+                                                // after startActivity returns successfully.
+                                                handoff.markTransferred()
                                             }
                                         } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            primaryFailure = cancelled
                                             throw cancelled
-                                        } catch (failure: Exception) {
-                                            error = "تعذّر تجهيز نسخة التثبيت المتحقق منها: " +
-                                                (failure.message ?: "خطأ غير معروف")
+                                        } catch (failure: Throwable) {
+                                            primaryFailure = failure
+                                            if (failure is Exception) {
+                                                error = failurePrefix + (failure.message ?: "خطأ غير معروف")
+                                            } else {
+                                                throw failure
+                                            }
                                         } finally {
-                                            // A provider or installer handoff exception must not
-                                            // leave the Inspector permanently locked in busy state.
+                                            // The reference is recorded inside the IO block, so a
+                                            // cancelled withContext return cannot orphan the snapshot.
+                                            handoff.discardIfNotTransferred(
+                                                primaryFailure ?: IllegalStateException("Installer handoff did not complete"),
+                                            )
                                             busy = false
                                         }
                                     }
