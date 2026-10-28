@@ -887,5 +887,6 @@ Updated: 2026-10-26
 - Production + regression SHA: d1a0b11b49fe528097485c4d4971cf8f6b284571.
 - `ApkInstallIntegrity.matches` rechecks cancellation after the final bounded read/hash and before accepting size/SHA-256.
 - Regression flips cancellation exactly when the stream returns EOF and asserts the same CancellationException instance propagates.
-- CI/final-head verification: PENDING. APK artifacts: 0 expected; no packaging requested.
+- PASS — source/JVM/Lint CI #40640901042 on final tested docs-head SHA 1a18303c4780d6ad3eeb8b4193afe31b8246e82d. The earlier source-only run #40640891995 was cancelled by concurrency; this later run completed successfully with the N69 test included.
+- APK artifacts: 0 confirmed; no packaging/signing/upload.
 - Xiaomi Pad 5/HyperOS, real SAF provider and installer handoff: NOT TESTED.
