@@ -36,4 +36,18 @@ class VerifiedInstallProviderContractTest {
         assertEquals("cache-path", elementEntries.single().tagName)
         assertEquals("${ApkInstallSnapshot.DIRECTORY}/", elementEntries.single().getAttribute("path"))
     }
+    @Test fun inspectorOwnsSnapshotUntilInstallerLaunchReturns() {
+        val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
+        val repository = File("src/main/java/com/appcommander/mobile/data/AppRepository.kt").readText()
+        assertTrue(repository.contains("internal data class VerifiedInstallSnapshot"))
+        assertTrue(repository.contains("VerifiedInstallSnapshot(file, verifiedUri)"))
+        assertTrue(repository.contains("discardVerifiedInstall(snapshot: VerifiedInstallSnapshot, failure: Throwable)"))
+        assertTrue(ui.contains("VerifiedInstallHandoff<VerifiedInstallSnapshot>"))
+        assertTrue(ui.contains(".also(handoff::record)"))
+        assertTrue(ui.contains("handoff.discardIfNotTransferred("))
+        val launch = ui.indexOf("context.startActivity(install)")
+        val transfer = ui.indexOf("handoff.markTransferred()")
+        assertTrue("ownership may transfer only after Android accepts the activity launch", launch >= 0 && transfer > launch)
+    }
+
 }
