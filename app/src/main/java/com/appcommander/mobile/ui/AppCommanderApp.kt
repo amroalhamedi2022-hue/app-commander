@@ -79,7 +79,6 @@ import com.appcommander.mobile.data.InstalledApkExport
 import com.appcommander.mobile.data.ComponentEnabledState
 import com.appcommander.mobile.model.ApkCertificateMetadata
 import com.appcommander.mobile.model.ApkCertificateParseStatus
-import com.appcommander.mobile.model.ApkInspection
 import com.appcommander.mobile.model.AppDetails
 import com.appcommander.mobile.model.AppEntry
 import com.appcommander.mobile.model.CapabilityState
@@ -451,26 +450,44 @@ private fun AppRow(app: AppEntry, onClick: () -> Unit) {
 private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var result by remember { mutableStateOf<ApkInspection?>(null) }
+    var inspectionState by remember { mutableStateOf(ApkInspectionLoadState()) }
+    val result = inspectionState.result
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
+    // This separate message is used for installer handoff failures. Inspection
+    // errors live in the generation-aware state below.
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var verifiedBundle by remember { mutableStateOf<com.appcommander.mobile.data.InstalledApkBundleVerifier.Result?>(null) }
     var bundleError by remember { mutableStateOf<String?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null && !busy) scope.launch {
-            // Never show an old inspection alongside a newly selected URI:
-            // that would let the install button launch an UNINSPECTED APK.
-            busy = true
+        if (uri != null && !busy) {
+            // Lock before launching the coroutine: rapid repeated taps cannot
+            // start overlapping inspections or race the installable URI.
+            val started = inspectionState.begin()
+            inspectionState = started
             selectedUri = null
-            result = null
             error = null
-            val inspected = runCatching {
-                withContext(Dispatchers.IO) { repository.inspectApk(uri) }
-            }.onFailure { error = it.message ?: "تعذّر فحص الملف" }.getOrNull()
-            result = inspected
-            selectedUri = if (inspected != null) uri else null
-            busy = false
+            busy = true
+            scope.launch {
+                try {
+                    val inspected = withContext(Dispatchers.IO) { repository.inspectApk(uri) }
+                    inspectionState = inspectionState.complete(started.generation, inspected)
+                    if (inspectionState.generation == started.generation) {
+                        selectedUri = uri
+                    }
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    inspectionState = inspectionState.cancel(started.generation)
+                    throw cancelled
+                } catch (failure: Exception) {
+                    inspectionState = inspectionState.fail(
+                        started.generation,
+                        failure.message ?: "تعذّر فحص الملف",
+                    )
+                } finally {
+                    // A stale request must not turn off a newer request's busy lock.
+                    if (inspectionState.generation == started.generation) busy = false
+                }
+            }
         }
     }
     val verifyBundlePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -529,6 +546,7 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                 }
             }
         }
+        inspectionState.error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
         error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
         result?.let { apk ->
             item { SectionTitle("نتيجة الفحص") }
