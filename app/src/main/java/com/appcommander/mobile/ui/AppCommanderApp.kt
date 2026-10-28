@@ -623,6 +623,9 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                             providersWithoutWritePermission = apk.providersWithoutWritePermission,
                             providerPathRulesWithoutReadPermission = apk.providerPathRulesWithoutReadPermission,
                             providerPathRulesWithoutWritePermission = apk.providerPathRulesWithoutWritePermission,
+                            exportedComponentsUsingNonSignatureAppPermission = apk.exportedComponentsUsingNonSignatureAppPermission,
+                            providerDirectionsUsingNonSignatureAppPermission = apk.providerDirectionsUsingNonSignatureAppPermission,
+                            providerPathRulesUsingNonSignatureAppPermission = apk.providerPathRulesUsingNonSignatureAppPermission,
                         )
                         if (signals.isEmpty()) {
                             Text("لا توجد مؤشرات من القائمة المحدودة؛ هذا لا يعني أن الملف آمن.")

@@ -68,6 +68,9 @@ object ApkInspectionSignals {
         providersWithoutWritePermission: Int = 0,
         providerPathRulesWithoutReadPermission: Int = 0,
         providerPathRulesWithoutWritePermission: Int = 0,
+        exportedComponentsUsingNonSignatureAppPermission: Int = 0,
+        providerDirectionsUsingNonSignatureAppPermission: Int = 0,
+        providerPathRulesUsingNonSignatureAppPermission: Int = 0,
     ): List<Finding> {
         val findings = mutableListOf<Finding>()
         if (targetSdk <= 0) {
@@ -124,6 +127,18 @@ object ApkInspectionSignals {
                     "$providersWithoutWrite دون إذن كتابة افتراضي؛ وقواعد مسارات بلا إذن فعّال: " +
                     "$pathRulesWithoutRead قراءة و$pathRulesWithoutWrite كتابة. " +
                     "قد تغيّر منح URI وفحوص وقت التشغيل إمكانية الوصول؛ راجع التفاصيل ولا تعتبرها حكمًا بثغرة.",
+            )
+        }
+        val customComponentGates = exportedComponentsUsingNonSignatureAppPermission.coerceAtLeast(0).toLong()
+        val customProviderDirections = providerDirectionsUsingNonSignatureAppPermission.coerceAtLeast(0).toLong()
+        val customProviderPathRules = providerPathRulesUsingNonSignatureAppPermission.coerceAtLeast(0).toLong()
+        if (customComponentGates + customProviderDirections + customProviderPathRules > 0L) {
+            findings += Finding(
+                "exported_gates_with_non_signature_app_permission",
+                "تستخدم $customComponentGates مكوّنات مُصدّرة و$customProviderDirections اتجاهات قراءة/كتابة و" +
+                    "$customProviderPathRules قواعد مسارات أذونات يعرّفها APK نفسه بمستوى normal أو dangerous، " +
+                    "وليس signature-level. قد يستطيع تطبيق آخر طلب بعض هذه الأذونات وفق قواعد Android؛ " +
+                    "هذا مؤشر للمراجعة ولا يثبت إمكانية الوصول الفعلية أو وجود ثغرة.",
             )
         }
         return findings

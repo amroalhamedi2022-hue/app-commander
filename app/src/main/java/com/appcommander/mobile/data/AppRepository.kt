@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.content.pm.PermissionInfo
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -412,6 +413,38 @@ class AppRepository(private val context: Context) {
                     }
                 },
             )
+            // A permission declared by the APK itself is not automatically a strong
+            // gate: normal/dangerous permissions are not signature-level restrictions.
+            // Keep this separate from missing-permission counts and never infer reachability.
+            val nonSignatureAppPermissions = pkg.permissions.orEmpty().mapNotNull { permission ->
+                val baseLevel = permission.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE
+                val reviewableLevel = baseLevel == PermissionInfo.PROTECTION_NORMAL ||
+                    baseLevel == PermissionInfo.PROTECTION_DANGEROUS
+                permission.name.takeIf { reviewableLevel && PermissionNameSafety.isWellFormed(it) }
+            }.toSet()
+            val customPermissionComponentCount = listOf(
+                ApkCustomPermissionExposure.countComponents(
+                    pkg.activities, { it.exported }, { it.permission }, nonSignatureAppPermissions,
+                ),
+                ApkCustomPermissionExposure.countComponents(
+                    pkg.services, { it.exported }, { it.permission }, nonSignatureAppPermissions,
+                ),
+                ApkCustomPermissionExposure.countComponents(
+                    pkg.receivers, { it.exported }, { it.permission }, nonSignatureAppPermissions,
+                ),
+            ).sum()
+            val customPermissionProviderExposure = ApkCustomPermissionExposure.countProviders(
+                providers = pkg.providers,
+                exported = { it.exported },
+                readPermission = { it.readPermission },
+                writePermission = { it.writePermission },
+                pathPermissions = { provider ->
+                    provider.pathPermissions.orEmpty().map { rule ->
+                        ApkCustomPermissionExposure.PathPermissionGate(rule.readPermission, rule.writePermission)
+                    }
+                },
+                nonSignatureAppPermissions = nonSignatureAppPermissions,
+            )
             // SigningInfo may be absent or partially unreadable on an OEM archive parser.
             // Preserve the rest of the inspection and expose unknown metadata as unknown.
             val signingInfo = runCatching { pkg.signingInfo }.getOrNull()
@@ -461,6 +494,9 @@ class AppRepository(private val context: Context) {
                 providerPathPermissionRules = providerExposure.pathPermissionRules,
                 providerPathRulesWithoutReadPermission = providerExposure.pathRulesWithoutReadPermission,
                 providerPathRulesWithoutWritePermission = providerExposure.pathRulesWithoutWritePermission,
+                exportedComponentsUsingNonSignatureAppPermission = customPermissionComponentCount,
+                providerDirectionsUsingNonSignatureAppPermission = customPermissionProviderExposure.directionsUsingNonSignatureAppPermission,
+                providerPathRulesUsingNonSignatureAppPermission = customPermissionProviderExposure.pathRulesUsingNonSignatureAppPermission,
             )
         }
     }

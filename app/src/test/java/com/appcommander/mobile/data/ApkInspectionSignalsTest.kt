@@ -136,8 +136,29 @@ class ApkInspectionSignalsTest {
             providersWithoutWritePermission = Int.MAX_VALUE,
             providerPathRulesWithoutReadPermission = -1,
             providerPathRulesWithoutWritePermission = -1,
+            exportedComponentsUsingNonSignatureAppPermission = -1,
+            providerDirectionsUsingNonSignatureAppPermission = -1,
+            providerPathRulesUsingNonSignatureAppPermission = -1,
         ).map { it.code }
         assertFalse(codes.contains("exported_components_without_declared_permission"))
         assertFalse(codes.contains("exported_provider_permission_review"))
+        assertFalse(codes.contains("exported_gates_with_non_signature_app_permission"))
     }
+    @Test fun nonSignatureAppDefinedPermissionGatesAreReviewPromptsNotVulnerabilityClaims() {
+        val finding = ApkInspectionSignals.evaluate(
+            targetSdk = 35,
+            permissions = emptyList(),
+            signerSha256 = listOf("certificate"),
+            exportedComponentsUsingNonSignatureAppPermission = 2,
+            providerDirectionsUsingNonSignatureAppPermission = 3,
+            providerPathRulesUsingNonSignatureAppPermission = 4,
+        ).single { it.code == "exported_gates_with_non_signature_app_permission" }
+
+        assertTrue(finding.description.contains("2 مكوّنات"))
+        assertTrue(finding.description.contains("3 اتجاهات"))
+        assertTrue(finding.description.contains("4 قواعد مسارات"))
+        assertTrue(finding.description.contains("normal أو dangerous"))
+        assertTrue(finding.description.contains("لا يثبت إمكانية الوصول الفعلية"))
+    }
+
 }

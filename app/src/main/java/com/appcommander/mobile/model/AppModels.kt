@@ -86,6 +86,11 @@ data class ApkInspection(
     val providerPathPermissionRules: Int = 0,
     val providerPathRulesWithoutReadPermission: Int = 0,
     val providerPathRulesWithoutWritePermission: Int = 0,
+    // Gates backed by permissions declared by this APK at normal/dangerous base level.
+    // These counts are review prompts, not proof that another app can reach the component.
+    val exportedComponentsUsingNonSignatureAppPermission: Int = 0,
+    val providerDirectionsUsingNonSignatureAppPermission: Int = 0,
+    val providerPathRulesUsingNonSignatureAppPermission: Int = 0,
     // X.509 certificate fields are descriptive metadata; they do not verify the APK signature.
     val signerCertificateDetails: List<ApkCertificateMetadata> = emptyList(),
     val signingHistoryDetails: List<ApkCertificateMetadata> = emptyList(),
