@@ -52,6 +52,27 @@ class ApkInstallSnapshotTest {
         assertTrue(directory.listFiles().orEmpty().isEmpty())
     }
 
+    @Test fun ownedStreamReturnsVerifiedSnapshotOnlyAfterSuccessfulClose() {
+        val bytes = "owned stream verified bytes".toByteArray()
+        var closed = false
+        val input = object : ByteArrayInputStream(bytes) {
+            override fun close() {
+                closed = true
+                super.close()
+            }
+        }
+        val directory = temp.newFolder("owned-stream-success")
+
+        val file = ApkInstallSnapshot.createFromOwnedStream(
+            directory, input, bytes.size.toLong(), sha(bytes),
+        )
+
+        assertTrue("provider stream must close before the snapshot is handed off", closed)
+        assertNotNull(file)
+        assertArrayEquals(bytes, file!!.readBytes())
+        assertEquals(1, directory.listFiles().orEmpty().size)
+    }
+
     @Test fun providerCloseFailureAfterVerifiedCopyRemovesSnapshotAndPreservesFailure() {
         val bytes = "verified bytes".toByteArray()
         val closeFailure = IOException("provider close failed")
