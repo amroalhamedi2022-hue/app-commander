@@ -830,3 +830,14 @@ Updated: 2026-10-26
 - Test-fixture review caught that the first test commit encoded the two literal characters backslash+t rather than a tab. Corrected the fixture to contain an actual tab before accepting CI evidence.
 - Corrected test commit: 06e82779584f4abad13ffe193bce3a69efeecf00.
 - The docs-updated head must be rechecked after this correction; prior N65 CI status is not accepted as final.
+
+
+### N65 final PR-head recheck — PASS
+
+- Tested docs-updated head: a9a0d99e8ad10a17797c18d3b3aaffb199905052.
+- **PASS:** CI #40617439588 completed `:app:testDebugUnitTest :app:lintDebug` successfully.
+- Corrected test fixture SHA: 06e82779584f4abad13ffe193bce3a69efeecf00; production SHA: 26c6fa4dc4eeaae1551d80989f44b6f415260471.
+- **Artifacts: 0** confirmed. No APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS, real installed PackageManager metadata, SAF provider behavior and Shizuku device operations remain **NOT TESTED**.
+- Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
+- Follow-up plan/ledger commits are documentation-only and marked [skip ci]; production/test source is unchanged from the tested head.
