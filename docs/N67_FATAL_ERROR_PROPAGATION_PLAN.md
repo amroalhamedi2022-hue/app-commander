@@ -19,7 +19,7 @@ Does the installer preflight turn every thrown Throwable into a normal content-m
 5. No APK assembly/signing/upload, no root/Device Owner, no main-branch write or merge.
 
 ## Evidence boundaries
-- JVM/Lint CI: pending on this commit.
+- Source/test SHA: 5ca6f66331d0a0715e4fbb9340ae9a1f797b1f31. App Commander source CI #40629333773 PASS; :app:testDebugUnitTest and :app:lintDebug completed successfully, without APK packaging. This later documentation-only commit will receive a separate final-head recheck.
 - Xiaomi Pad 5/HyperOS, live PackageManager and real SAF provider behavior: NOT TESTED.
 - APK artifacts: 0.
 - Google Drive LIVE sync: SYNC FAILED if no Drive/Docs connector is exposed; no sync is claimed without read-back verification.

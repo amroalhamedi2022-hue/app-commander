@@ -246,3 +246,9 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Added a regression proving a provider-thrown AssertionError is not disguised as a checksum mismatch.
 - Plan: docs/N67_FATAL_ERROR_PROPAGATION_PLAN.md. JVM tests + Android Lint and final-head CI: pending.
 - Device/HyperOS/real SAF behavior: NOT TESTED. APK artifacts: 0. No APK packaging, root, Device Owner, merge or main write.
+
+## 2026-10-28 N67 — preserve fatal errors in APK integrity verification — source/test PASS
+- Source/test SHA: 5ca6f66331d0a0715e4fbb9340ae9a1f797b1f31.
+- App Commander source CI #40629333773 PASS; :app:testDebugUnitTest and :app:lintDebug completed successfully. Workflow does not package an APK.
+- The verifier now returns false for ordinary Exceptions but propagates JVM Errors; cancellation behavior is unchanged.
+- Real SAF provider, HyperOS and device install behavior: NOT TESTED. Documentation-only final-head recheck follows.

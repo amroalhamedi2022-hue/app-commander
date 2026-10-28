@@ -868,3 +868,10 @@ Updated: 2026-10-26
 - JVM/Lint and final PR-head CI: PENDING at commit creation; exact SHA/run IDs will be recorded in the PR conversation after verification.
 - Xiaomi Pad 5/HyperOS and real SAF provider behavior: NOT TESTED. APK build/artifacts: 0. No root, Device Owner, merge or main write.
 - Google Drive LIVE sync: SYNC FAILED if no connector is available; no Drive sync is claimed.
+
+### N67 verification — source/test PASS (2026-10-28)
+- Production + regression test + plan/status commit: 5ca6f66331d0a0715e4fbb9340ae9a1f797b1f31.
+- PASS — App Commander source CI #40629333773 completed successfully; job source-checks ran :app:testDebugUnitTest and :app:lintDebug.
+- The regression confirms a sentinel AssertionError from the provider stream propagates as the same instance; ordinary I/O failures remain fail-closed and CancellationException remains propagated.
+- No APK packaging/signing/upload. Artifact query and final docs-head CI are checked separately.
+- Xiaomi Pad 5/HyperOS and real SAF provider behavior: NOT TESTED.
