@@ -14,6 +14,10 @@ object ApkInspectionSignals {
         "وجود بصمة شهادة لا يثبت أن الحزمة آمنة. راجع المصدر قبل التثبيت."
 
     private val permissionIndicators = linkedMapOf(
+        "android.permission.INTERNET" to
+            "يطلب الوصول إلى الشبكة؛ هذا لا يثبت أنه يرسل بيانات أو يتصل بخادم.",
+        "android.permission.RECEIVE_BOOT_COMPLETED" to
+            "يطلب استقبال إشعار اكتمال إقلاع الجهاز؛ تحقّق من المكوّنات وسلوكها قبل استنتاج التشغيل التلقائي.",
         "android.permission.REQUEST_INSTALL_PACKAGES" to
             "يطلب إمكانية تثبيت تطبيقات أخرى بعد موافقة النظام.",
         "android.permission.SYSTEM_ALERT_WINDOW" to
