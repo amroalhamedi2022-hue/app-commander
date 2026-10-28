@@ -948,3 +948,15 @@ Updated: 2026-10-26
 - Workflow artifacts: **0**. No APK packaging/signing/upload, no new dependency/permission, no root or Device Owner, no merge/main write.
 - Real SAF provider close failures, Xiaomi Pad 5/HyperOS and Android installer handoff: **NOT TESTED**. Shizuku device behavior remains NOT TESTED.
 - Google Drive LIVE handoff/index sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back is claimed.
+
+## 2026-10-28 — N76 verified APK snapshot ownership through installer handoff
+
+- Engineering question: can a prepared snapshot be orphaned on cancelled `withContext` return or failed `startActivity`, and can cleanup race the installer's asynchronous read?
+- Production change: repository returns a file+URI handle; `VerifiedInstallHandoff` records it inside the IO block, retains ownership until `startActivity` returns, cleans up on failure/cancellation and preserves primary exceptions with suppressed cleanup diagnostics.
+- Tests: cleanup-on-cancel/failure exactly once, successful launch retains the snapshot, cleanup failure is suppressed, null preparation has no cleanup target, and UI/repository source-contract ordering.
+- Source/test SHA and final PR-head CI: pending.
+- APK packaging/artifacts: 0 / not performed. Xiaomi Pad 5/HyperOS and real installer timing: **NOT TESTED**.
+- Android FileProvider and OWASP URI-grant guidance reviewed; private provider subtree and read-only grant unchanged.
+- No new permissions/dependencies, root, Device Owner, merge, main write, auto-merge or paid service.
+- Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is exposed; no Drive read/write/read-back is claimed.
+
