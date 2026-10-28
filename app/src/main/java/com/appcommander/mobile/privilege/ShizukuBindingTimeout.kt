@@ -75,6 +75,21 @@ internal class ShizukuBindingTimeout<T : Any>(
         }
 
         job.start()
+        if (job.isCancelled) {
+            // A lazy job whose parent scope was already cancelled never enters
+            // its body/finally block. Reset the still-current attempt here so
+            // callers cannot remain bound to a waiter with no live timeout.
+            val reset = synchronized(lock) {
+                state.resetTimedOutAttempt(request)
+            }
+            synchronized(this) {
+                if (scheduledJobs[request.waiter] === job) {
+                    scheduledJobs.remove(request.waiter)
+                }
+            }
+            if (reset) onTimeout()
+            return null
+        }
         return job
     }
 

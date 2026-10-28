@@ -111,4 +111,28 @@ class ShizukuBindingTimeoutTest {
             scope.cancel()
         }
     }
+    @Test fun cancelledTimeoutScopeFailsCurrentAttemptClosedInsteadOfLeavingItBinding() = runBlocking {
+        val state = ShizukuConnectionState<String>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        scope.cancel()
+        val timeout = ShizukuBindingTimeout(scope, 2_000L, state, Any())
+        val cleanupCount = AtomicInteger()
+        val request = state.beginOrJoin()
+
+        val timer = timeout.schedule(request) { cleanupCount.incrementAndGet() }
+
+        assertNull("a cancelled parent scope cannot own a running timeout job", timer)
+        assertTrue("the shared waiter must finish rather than hang forever", request.waiter.isCompleted)
+        val failure = try {
+            request.waiter.await()
+            null
+        } catch (expected: IllegalStateException) {
+            expected
+        }
+        assertEquals("Shizuku bind attempt timed out", failure?.message)
+        assertFalse("a timerless attempt must not remain in binding state", state.isBinding())
+        assertEquals("the failed attempt is cleaned up exactly once", 1, cleanupCount.get())
+        assertTrue("a later attempt must be able to bind", state.beginOrJoin().shouldBind)
+    }
+
 }
