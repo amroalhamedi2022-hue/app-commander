@@ -791,4 +791,12 @@ Updated: 2026-10-26
 - Regression tests cover unguarded Activity/Service/Receiver aggregation, provider read/write and effective path-rule gaps, no-finding zero cases, and malformed negative counts.
 - Android Developers documentation reviewed for android:exported and component permissions; no code copied and no dependency added.
 - Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md. - Source/test commit: 1d33aad9b5c0fb40e0bbafd71ea7bbe06eef0878. Initial CI #40598847529 failed only because the new test omitted the JUnit assertNotNull import; follow-up added it.
-- **PASS:** source/JVM/Lint CI #40599249288 ran :app:testDebugUnitTest and :app:lintDebug; log reports BUILD SUCCESSFUL in 1m 46s. Artifact query: 0. Final docs-head recheck: PENDING. Device/HyperOS and real APK corpus: NOT TESTED.
+- **PASS:** source/JVM/Lint CI #40599249288 ran :app:testDebugUnitTest and :app:lintDebug; log reports BUILD SUCCESSFUL in 1m 46s. Artifact query: 0. Final docs-head recheck #40599605539 PASS; artifact query 0. Device/HyperOS and real APK corpus: NOT TESTED.
+
+
+## 2026-10-28 N63 — app-defined non-signature component gates (source/test PASS)
+- Engineering question: distinguish a missing gate from a gate backed by an APK-defined normal/dangerous permission without claiming that manifest metadata proves runtime access or a vulnerability.
+- Production source: ApkCustomPermissionExposure counts exported Activities/Services/Receivers and provider read/write/path gates whose permission is defined by the inspected APK at base level normal/dangerous. Repository, model, and Compose Inspector UI are wired. Permission levels use existing AndroidX PermissionInfoCompat.getProtection; no dependency, manifest permission, network access, or APK execution was added.
+- Test history: initial CI #40606186749 FAIL because a source-to-UI test looked for the signal code in the wrong file. Corrected test in commit dcf01ab8363c956f9d66a05f7c477bc8633ca2c2; CI #40606523662 PASS. Follow-up commit 2b2e9bd544e42434c37e31d20680e9359e757999 switched to the non-deprecated compatibility API.
+- **PASS:** final source/JVM/Lint CI #40606895800 ran ./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace and logged BUILD SUCCESSFUL in 1m 54s. Artifact query: 0.
+- Xiaomi Pad 5/HyperOS visual review and real APK-corpus validation: NOT TESTED. APK packaging/artifacts: 0.

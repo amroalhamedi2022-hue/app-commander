@@ -25,7 +25,8 @@ No third-party implementation was copied and no dependency or permission was add
 - Actual repository JVM tests and Android Lint pass on the source commit and final docs-updated PR head; no APK packaging is needed for this metadata-only question.
 
 ## Evidence
-- Source/test commit: PENDING.
-- JVM + Android Lint CI: PENDING.
+- Final source/test commit: 2b2e9bd544e42434c37e31d20680e9359e757999.
+- Initial CI #40606186749 failed because the integration test searched for the signal code in the UI source instead of the evaluator; corrected test commit dcf01ab8363c956f9d66a05f7c477bc8633ca2c2 passed CI #40606523662.
+- Final JVM + Android Lint CI #40606895800: PASS; ran `./gradlew :app:testDebugUnitTest :app:lintDebug --stacktrace`, `BUILD SUCCESSFUL in 1m 54s`. No APK artifact.
 - Xiaomi Pad 5/HyperOS rendering and real APK-corpus behavior: NOT TESTED.
-- APK artifacts: 0 expected.
+- APK artifacts: 0; no packaging or upload.

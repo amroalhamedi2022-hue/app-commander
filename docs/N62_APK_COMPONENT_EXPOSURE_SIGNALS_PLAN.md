@@ -24,6 +24,6 @@ No third-party implementation was copied and no new dependency was added.
 
 ## Evidence
 - Source + JVM regression + UI wiring commit: 1d33aad9b5c0fb40e0bbafd71ea7bbe06eef0878. Initial CI #40598847529 failed because of a missing JUnit assertNotNull import; fixed in the follow-up.
-- **PASS:** CI #40599249288 ran :app:testDebugUnitTest and :app:lintDebug; BUILD SUCCESSFUL in 1m 46s; artifact count 0. Final docs-head recheck: PENDING.
+- **PASS:** CI #40599249288 ran :app:testDebugUnitTest and :app:lintDebug; BUILD SUCCESSFUL in 1m 46s; artifact count 0. Final docs-head recheck #40599605539 PASS; artifact query 0.
 - Xiaomi Pad 5/HyperOS visual and real APK corpus: NOT TESTED.
 - APK packaging/artifacts: 0 expected; no build requested.

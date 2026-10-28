@@ -2,7 +2,7 @@
 
 Version: 0.1.1 safe debug
 
-Date: 2026-10-18
+Date: 2026-10-28
 
 ## Completed
 
@@ -221,5 +221,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Production/source: extended ApkInspectionSignals to report exported Activities/Services/Receivers lacking a declared component permission and exported ContentProvider read/write/path-rule gaps; wired the actual Inspector UI to those counts.
 - Safety boundary: findings are Manifest-only review prompts, not malware detection or proof of runtime reachability. Negative counts are clamped; no dependency, permission, network access or APK execution added.
 - Tests: combined unguarded-component count, independent provider read/write gaps, zero-gap quiet path and malformed negative-count handling.
-- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md; source/JVM/Lint CI: PENDING.
-- Xiaomi Pad 5/HyperOS visual review and real APK corpus: NOT TESTED. APK artifacts: 0; no merge/main write/root/Device Owner.
+- Plan: docs/N62_APK_COMPONENT_EXPOSURE_SIGNALS_PLAN.md; source/JVM/Lint CI #40599249288 PASS and docs-head recheck #40599605539 PASS; artifact count 0.
+- Xiaomi Pad 5/HyperOS visual review and real APK corpus: NOT TESTED. No APK packaging, merge/main write, root, or Device Owner.
+
+
+## 2026-10-28 N63 — exported gates using APK-defined non-signature permissions
+- Implemented separate manifest-only counts for exported Activities/Services/Receivers and provider read/write/path gates protected by permissions defined in the APK at base level normal/dangerous; signature and external permissions are excluded.
+- Wired the repository, ApkInspection model, and Compose Inspector signal. Uses existing AndroidX core PermissionInfoCompat.getProtection rather than deprecated PermissionInfo fields.
+- Source/test commit: 2b2e9bd544e42434c37e31d20680e9359e757999. CI #40606895800 PASS: :app:testDebugUnitTest + :app:lintDebug; BUILD SUCCESSFUL in 1m 54s; artifact count 0.
+- Earlier CI #40606186749 failed only because the new source-to-UI contract test looked for the signal code in the UI file; corrected in dcf01ab8363c956f9d66a05f7c477bc8633ca2c2, whose CI #40606523662 passed. Device/HyperOS and real APK corpus: NOT TESTED.
