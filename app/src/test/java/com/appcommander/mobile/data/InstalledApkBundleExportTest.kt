@@ -454,4 +454,46 @@ class InstalledApkBundleExportTest {
         assertFalse(InstalledApkExport.cleanupWasUnconfirmed(thrown))
     }
 
+
+    @Test fun cancellationAfterBundleReadbackCloseTriggersScopedCleanup() {
+        val base = byteArrayOf(3, 1, 4, 1, 5)
+        val saved = ByteArrayOutputStream()
+        var outputClosed = false
+        var readbackClosed = false
+        var deletes = 0
+        val cancelled = CancellationException("cancel after bundle readback")
+        val thrown = assertThrows(CancellationException::class.java) {
+            InstalledApkExport.withPartialDocumentCleanup(
+                cleanup = { deletes++; true },
+            ) {
+                InstalledApkBundleExport.writeAndVerify(
+                    "com.example.cancel",
+                    listOf(source("base.apk", base)),
+                    openForWrite = {
+                        object : OutputStream() {
+                            override fun write(b: Int) { saved.write(b) }
+                            override fun write(b: ByteArray, off: Int, len: Int) { saved.write(b, off, len) }
+                            override fun close() { outputClosed = true }
+                        }
+                    },
+                    openForRead = {
+                        assertTrue(outputClosed)
+                        object : ByteArrayInputStream(saved.toByteArray()) {
+                            override fun close() {
+                                readbackClosed = true
+                                super.close()
+                            }
+                        }
+                    },
+                    checkCancelled = {
+                        if (readbackClosed) throw cancelled
+                    },
+                )
+            }
+        }
+        assertSame(cancelled, thrown)
+        assertTrue(readbackClosed)
+        assertEquals("only the fresh partial SAF document is cleaned", 1, deletes)
+        assertFalse(InstalledApkExport.cleanupWasUnconfirmed(thrown))
+    }
 }
