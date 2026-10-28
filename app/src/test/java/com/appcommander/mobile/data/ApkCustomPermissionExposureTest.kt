@@ -97,7 +97,7 @@ class ApkCustomPermissionExposureTest {
         val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
         val signals = File("src/main/java/com/appcommander/mobile/data/ApkInspectionSignals.kt").readText()
         val model = File("src/main/java/com/appcommander/mobile/model/AppModels.kt").readText()
-        assertTrue(repo.contains("PermissionInfo.PROTECTION_MASK_BASE"))
+        assertTrue(repo.contains("PermissionInfoCompat.getProtection(permission)"))
         assertTrue(repo.contains("PermissionInfo.PROTECTION_DANGEROUS"))
         assertTrue(repo.contains("ApkCustomPermissionExposure.countComponents"))
         assertTrue(repo.contains("ApkCustomPermissionExposure.countProviders"))

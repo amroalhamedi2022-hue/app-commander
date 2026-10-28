@@ -25,6 +25,7 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PermissionInfoCompat
 
 class AppRepository(private val context: Context) {
     private val pm = context.packageManager
@@ -417,7 +418,7 @@ class AppRepository(private val context: Context) {
             // gate: normal/dangerous permissions are not signature-level restrictions.
             // Keep this separate from missing-permission counts and never infer reachability.
             val nonSignatureAppPermissions = pkg.permissions.orEmpty().mapNotNull { permission ->
-                val baseLevel = permission.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE
+                val baseLevel = PermissionInfoCompat.getProtection(permission)
                 val reviewableLevel = baseLevel == PermissionInfo.PROTECTION_NORMAL ||
                     baseLevel == PermissionInfo.PROTECTION_DANGEROUS
                 permission.name.takeIf { reviewableLevel && PermissionNameSafety.isWellFormed(it) }
