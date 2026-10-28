@@ -1026,3 +1026,14 @@ Updated: 2026-10-26
 - Source/test + JVM/Lint CI: PENDING until exact-commit GitHub Actions evidence is observed.
 - Xiaomi Pad 5/HyperOS, real SAF provider/installer handoff and Shizuku: NOT TESTED. No APK packaging/signing/upload, new permission/dependency, root, Device Owner, merge or main write.
 - Google Drive LIVE sync: SYNC FAILED unless the LIVE documents can be read, updated, and read back in the confirmed folder; no Drive sync is claimed here.
+
+
+## 2026-10-28 — N83 verification (source/JVM/Lint PASS)
+
+- Production change: `VerifiedInstallHandoff.discardIfNotTransferred` preserves the primary failure/cancellation and suppresses a thrown cleanup error, while sealing the handoff in `CLEANED`.
+- Production + regression test branch head: `611aaa5ccc08b1016999746cc9bbb911fe5bad68`; the source change is in parent `e89af930a6b9487d64f48c0043ed1861f775c4e7`, with a follow-up correcting the test's primary-throwable identity assertion.
+- **PASS:** [JVM + Android Lint CI #40735717349](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40735717349), completed successfully on the exact PR head.
+- Regressions cover thrown cleanup, primary cancellation identity, exactly-once cleanup, terminal-state sealing and reentrant transitions.
+- Artifact query: 0; no APK packaging/signing/upload. Xiaomi Pad 5/HyperOS, real SAF/installer and Shizuku device flows: NOT TESTED.
+- Current change is documentation-only; final-head CI will be verified after this append. No permission/dependency, root, Device Owner, merge or main write.
+- Google Drive LIVE: SYNC FAILED — no Drive/Docs connector exposed; no read/write/read-back is claimed.
