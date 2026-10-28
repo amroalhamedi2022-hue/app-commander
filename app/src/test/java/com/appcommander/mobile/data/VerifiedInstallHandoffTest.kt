@@ -3,6 +3,9 @@ package com.appcommander.mobile.data
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.CancellationException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -24,8 +27,8 @@ class VerifiedInstallHandoffTest {
         // Mirrors the IO block recording ownership before its cancellable
         // withContext result is dispatched back to the UI coroutine.
         handoff.record(file)
-        handoff.discardIfNotTransferred(cancellation)
-        handoff.discardIfNotTransferred(cancellation)
+        assertTrue(handoff.discardIfNotTransferred(cancellation))
+        assertFalse(handoff.discardIfNotTransferred(cancellation))
 
         assertEquals(listOf(file), discarded)
         assertSame(cancellation, causes.single())
@@ -37,8 +40,8 @@ class VerifiedInstallHandoffTest {
         val handoff = VerifiedInstallHandoff<File> { snapshot, _ -> discarded += snapshot }
 
         handoff.record(file)
-        handoff.markTransferred()
-        handoff.discardIfNotTransferred(IllegalStateException("unused"))
+        assertTrue(handoff.markTransferred())
+        assertFalse(handoff.discardIfNotTransferred(IllegalStateException("unused")))
 
         assertTrue(discarded.isEmpty())
         assertTrue("installer snapshot must remain available after launch", file.exists())
@@ -53,7 +56,7 @@ class VerifiedInstallHandoffTest {
         }
 
         handoff.record(file)
-        handoff.discardIfNotTransferred(primary)
+        assertTrue(handoff.discardIfNotTransferred(primary))
 
         assertEquals("installer launch failed", primary.message)
         assertEquals(1, primary.suppressed.size)
@@ -66,8 +69,38 @@ class VerifiedInstallHandoffTest {
         val handoff = VerifiedInstallHandoff<String> { _, _ -> cleanupCalls++ }
 
         handoff.record(null)
-        handoff.discardIfNotTransferred(IllegalStateException("no snapshot"))
+        assertFalse(handoff.discardIfNotTransferred(IllegalStateException("no snapshot")))
 
         assertEquals(0, cleanupCalls)
     }
+
+    @Test fun concurrentTransferAndCleanupHaveExactlyOneWinner() {
+        repeat(64) { iteration ->
+            val file = temp.newFile("race-$iteration.apk")
+            val cleanupCount = AtomicInteger()
+            val handoff = VerifiedInstallHandoff<File> { _, _ -> cleanupCount.incrementAndGet() }
+            handoff.record(file)
+
+            val start = CountDownLatch(1)
+            val transferred = AtomicBoolean(false)
+            val cleanupClaimed = AtomicBoolean(false)
+            val transferThread = Thread {
+                start.await()
+                transferred.set(handoff.markTransferred())
+            }
+            val cleanupThread = Thread {
+                start.await()
+                cleanupClaimed.set(handoff.discardIfNotTransferred(IOException("race")))
+            }
+            transferThread.start()
+            cleanupThread.start()
+            start.countDown()
+            transferThread.join()
+            cleanupThread.join()
+
+            assertTrue("exactly one terminal transition must win", transferred.get() xor cleanupClaimed.get())
+            assertEquals(if (transferred.get()) 0 else 1, cleanupCount.get())
+        }
+    }
+
 }

@@ -698,7 +698,9 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                                                 context.startActivity(install)
                                                 // Keep the immutable cache file for the installer only
                                                 // after startActivity returns successfully.
-                                                handoff.markTransferred()
+                                                check(handoff.markTransferred()) {
+                                                    "Verified install snapshot ownership was already released"
+                                                }
                                             }
                                         } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                             primaryFailure = cancelled
