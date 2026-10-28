@@ -99,19 +99,30 @@ class AppRepository(private val context: Context) {
                     ),
                 )
             }.sortedBy { it.name },
-            activities = pkg.activities.orEmpty().map {
-                ComponentEntry(
-                    it.name, it.exported, componentEnabled(it.name, it.enabled),
-                    requiredPermission = it.permission,
-                    callerHasPermission = canAccessActivity(it.permission),
-                )
-            }.sortedBy { it.name },
-            services = pkg.services.orEmpty().map {
-                ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
-            }.sortedBy { it.name },
-            receivers = pkg.receivers.orEmpty().map {
-                ComponentEntry(it.name, it.exported, componentEnabled(it.name, it.enabled))
-            }.sortedBy { it.name },
+            activities = ComponentEntryMapper.map(
+                components = pkg.activities,
+                name = { it.name },
+                exported = { it.exported },
+                enabled = { componentEnabled(it.name, it.enabled) },
+                requiredPermission = { it.permission },
+                callerHasPermission = ::callerHasPermission,
+            ),
+            services = ComponentEntryMapper.map(
+                components = pkg.services,
+                name = { it.name },
+                exported = { it.exported },
+                enabled = { componentEnabled(it.name, it.enabled) },
+                requiredPermission = { it.permission },
+                callerHasPermission = ::callerHasPermission,
+            ),
+            receivers = ComponentEntryMapper.map(
+                components = pkg.receivers,
+                name = { it.name },
+                exported = { it.exported },
+                enabled = { componentEnabled(it.name, it.enabled) },
+                requiredPermission = { it.permission },
+                callerHasPermission = ::callerHasPermission,
+            ),
             apkPath = pkg.applicationInfo?.sourceDir.orEmpty(),
         )
     }
@@ -163,7 +174,7 @@ class AppRepository(private val context: Context) {
      * A visible/exported activity may still be inaccessible to our UID.
      * Do not request privileged grants or bypass this check through Shizuku.
      */
-    private fun canAccessActivity(permission: String?): Boolean =
+    private fun callerHasPermission(permission: String?): Boolean =
         ActivityLaunchSafety.callerHasPermission(permission) { required ->
             context.checkSelfPermission(required) == PackageManager.PERMISSION_GRANTED
         }
@@ -190,7 +201,7 @@ class AppRepository(private val context: Context) {
             )
             if (!ActivityLaunchSafety.eligible(
                     packageName, className, activity.exported, componentEnabled, appEnabled,
-                    canAccessActivity(activity.permission),
+                    callerHasPermission(activity.permission),
                 )
             ) return false
             context.startActivity(
