@@ -994,3 +994,12 @@ Updated: 2026-10-26
 - Artifact query: **0**. No APK packaging/signing/upload.
 - Xiaomi Pad 5/HyperOS Shizuku callback timing remains **NOT TESTED**. No new permission/dependency, root, Device Owner, merge, `main` write or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — this runtime exposes no Google Drive/Docs connector; no Drive read/write/read-back or folder metadata verification is claimed.
+
+
+## N81 — Cancelled Shizuku timeout scope fails closed (2026-10-28)
+
+- Production + regression test SHA: `f614afa7f23688498ad0e5aee52a1f307608edb5`.
+- If the timeout coroutine's parent scope is already cancelled, the bind attempt is reset and cleaned up instead of leaving a pending waiter with no live timeout job.
+- **PASS:** source/JVM/Lint CI [#40722107650](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40722107650), BUILD SUCCESSFUL in 1m 43s; artifact count 0.
+- Xiaomi Pad 5/HyperOS Shizuku and real SAF/installer flows: NOT TESTED. No APK packaging, root, Device Owner, merge, or main write.
+- Google Drive LIVE: SYNC FAILED (Drive/Docs connector unavailable; no read/write/read-back performed).

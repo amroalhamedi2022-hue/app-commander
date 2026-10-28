@@ -29,5 +29,12 @@ No third-party implementation, dependency, permission, root, or Device Owner pat
 
 ## Evidence
 
-Source/test SHA and CI: pending. Final-head verification: pending.  
-Google Drive LIVE sync: SYNC FAILED if the Drive/Docs connector is unavailable; no sync is claimed without read-back verification.
+## Verification — 2026-10-28
+
+- Exact production + regression-test commit: `f614afa7f23688498ad0e5aee52a1f307608edb5`.
+- **PASS:** source/JVM/Lint CI [#40722107650](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40722107650), `:app:testDebugUnitTest :app:lintDebug --stacktrace`, BUILD SUCCESSFUL in 1m 43s.
+- **PASS:** artifact query returned 0; no APK packaging/signing/upload.
+- Regression cancels the timeout parent scope before scheduling and verifies the shared waiter completes exceptionally, binding state resets, cleanup executes exactly once, and a subsequent attempt can bind.
+- Xiaomi Pad 5/HyperOS Shizuku callbacks and real SAF/installer behavior: **NOT TESTED**.
+- No new permission/dependency, root, Device Owner, merge, main write, or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no LIVE read/write/read-back or folder metadata verification was possible.
