@@ -6,7 +6,9 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import com.appcommander.mobile.BuildConfig
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import rikka.shizuku.Shizuku
@@ -15,10 +17,19 @@ data class CommandResult(val success: Boolean, val output: String)
 
 object ShizukuController {
     const val REQUEST_CODE = 9411
+    private const val BIND_TIMEOUT_MILLIS = 8_000L
 
     private var args: Shizuku.UserServiceArgs? = null
     @Volatile private var appContext: Context? = null
     private val connectionState = ShizukuConnectionState<ICommandService>()
+    // A bind attempt outlives any single UI caller; its own timer owns stale-binding cleanup.
+    private val bindingTimeoutScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val bindingTimeout = ShizukuBindingTimeout(
+        scope = bindingTimeoutScope,
+        timeoutMillis = BIND_TIMEOUT_MILLIS,
+        state = connectionState,
+        lock = this@ShizukuController,
+    )
 
     /**
      * Each platform callback is bound to one request generation. Old Shizuku
@@ -175,6 +186,7 @@ object ShizukuController {
                 attemptConnection = attempt
                 try {
                     Shizuku.bindUserService(serviceArgs, attempt)
+                    bindingTimeout.schedule(request) { unbind(serviceArgs, attempt) }
                 } catch (_: Exception) {
                     connectionState.failIfCurrent(request.waiter, "Shizuku service bind failed")
                     bindFailedConnection = attempt
@@ -182,17 +194,7 @@ object ShizukuController {
             }
         }
         bindFailedConnection?.let { unbind(serviceArgs, it) }
-        try {
-            return withTimeout(8_000) { request.waiter.await() }
-        } catch (failure: Exception) {
-            // Only the owner can reset/unbind this attempt. A joiner's own
-            // timeout must not cancel a bind that another caller still awaits.
-            val reset = synchronized(this) {
-                connectionState.resetTimedOutAttempt(request)
-            }
-            if (reset) attemptConnection?.let { unbind(serviceArgs, it) }
-            throw failure
-        }
+        return withTimeout(BIND_TIMEOUT_MILLIS) { request.waiter.await() }
     }
 
     private fun safe(value: String): String {

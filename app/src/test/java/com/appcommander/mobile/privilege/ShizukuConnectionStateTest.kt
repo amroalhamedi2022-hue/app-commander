@@ -136,8 +136,26 @@ class ShizukuConnectionStateTest {
         assertTrue(source.contains("connectionState.failIfCurrent(waiter, \"Shizuku binding died\")"))
         assertTrue(source.contains("connectionState.failIfCurrent(waiter, \"Shizuku returned no service\")"))
         assertTrue(source.contains("Shizuku.unbindUserService(serviceArgs, connection, false)"))
-        assertTrue(source.contains("connectionState.resetTimedOutAttempt(request)"))
+        assertTrue(source.contains("bindingTimeout.schedule(request)"))
+        assertTrue(source.contains("withTimeout(BIND_TIMEOUT_MILLIS)"))
+        assertFalse("Caller cancellation must not own shared bind cleanup",
+            source.contains("connectionState.resetTimedOutAttempt(request)"))
     }
+    @Test fun bindTimeoutIsOwnedByTheSharedAttemptNotTheAwaitingCoroutine() {
+        val controller = java.io.File(
+            "src/main/java/com/appcommander/mobile/privilege/ShizukuController.kt",
+        ).readText()
+        val timeout = java.io.File(
+            "src/main/java/com/appcommander/mobile/privilege/ShizukuBindingTimeout.kt",
+        ).readText()
+
+        assertTrue(controller.contains("bindingTimeout.schedule(request)"))
+        assertTrue(controller.contains("withTimeout(BIND_TIMEOUT_MILLIS)"))
+        assertFalse(controller.contains("connectionState.resetTimedOutAttempt(request)"))
+        assertTrue(timeout.contains("delay(timeoutMillis)"))
+        assertTrue(timeout.contains("state.resetTimedOutAttempt(request)"))
+    }
+
     @Test fun duplicateConnectedCallbackCannotReplaceTheLiveBinderForSameAttempt() {
         val state = ShizukuConnectionState<Any>()
         val request = state.beginOrJoin()
