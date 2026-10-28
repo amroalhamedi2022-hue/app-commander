@@ -1049,11 +1049,11 @@ Updated: 2026-10-26
 - Google Drive LIVE sync remains **SYNC FAILED**: no Drive/Docs connector is exposed in this runtime; no read/write/read-back or folder metadata verification is claimed.
 
 
-## 2026-10-28 — N84 Shizuku timeout parent-cancellation race (CI pending)
+## 2026-10-28 — N84 Shizuku timeout parent-cancellation race (source/JVM/Lint PASS)
 
-- Engineering question: can cancelling the timeout scope after schedule() returns strand the shared waiter because a lazy coroutine is cancelled before its body/finally executes?
-- Production change: a completion handler now resets only the exact current bind attempt when its timeout job is cancelled before timeout firing; cleanup is gated by the state transition to avoid duplicate unbinds.
-- Regression: cancel parent after scheduling, then assert waiter completion, binding reset, one cleanup callback, and retry availability.
-- Source/test SHA and JVM/Lint CI: pending exact-commit verification.
-- Xiaomi Pad 5/HyperOS and real Shizuku timing: NOT TESTED. No APK packaging, new permissions/dependencies, root, Device Owner, merge or main write.
-- Google Drive LIVE sync: SYNC FAILED if the Drive/Docs connector is unavailable; no sync is claimed without read/write/read-back.
+- Exact source/test commit: 5d7e7f069cf43b7c6742638d456696d3325587af.
+- PASS — [JVM unit tests + Android Static Lint CI #40740169654](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40740169654); job source-checks completed successfully, BUILD SUCCESSFUL in 1m 44s (36 tasks).
+- The regression cancels the parent only after schedule() returns, then verifies the shared waiter completes, binding state resets, cleanup runs once, and a fresh attempt is possible. Existing Shizuku state/timeout/unbind tests remain green.
+- Artifact query: 0. No APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS and real Shizuku callback timing: NOT TESTED. No new permission/dependency, root, Device Owner, merge, or main write.
+- Google Drive LIVE sync: SYNC FAILED — no Drive/Docs connector exposed; no Drive read/write/read-back or folder metadata verification is claimed.
