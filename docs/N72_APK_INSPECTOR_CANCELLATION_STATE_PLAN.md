@@ -8,7 +8,8 @@ The APK file-picker callback used runCatching, which catches CancellationExcepti
 ## Implementation
 - Add a pure generation-aware ApkInspectionLoadState used by the Inspector UI.
 - Clear the previous inspection and selected install URI synchronously before starting a new inspection.
-- Lock busy before launching work, explicitly rethrow coroutine cancellation, and clear loading only for the request generation that owns the lock.
+- Lock busy before launching work, explicitly rethrow inspection cancellation, and clear loading only for the request generation that owns the lock.
+- Wrap the installer handoff in cancellation-aware try/catch/finally so provider failures show a retryable message and cannot leave the Inspector permanently busy; clear the selected result only when integrity revalidation explicitly fails.
 - Ignore stale success/failure/cancellation completions so they cannot restore an older APK result or unlock a newer request.
 - Add JVM regressions for new-request invalidation, cancellation, stale completions, and retry after failure.
 
@@ -17,7 +18,8 @@ The APK file-picker callback used runCatching, which catches CancellationExcepti
 2. Cancellation stops the current load without inventing a parse error and is rethrown to coroutine machinery.
 3. An older generation cannot overwrite the newer result/error/loading state.
 4. Ordinary inspection failures remain retryable and never leave a stale result available for install.
-5. :app:testDebugUnitTest and :app:lintDebug pass; no APK packaging or artifact upload.
+5. Installer preparation/provider exceptions are surfaced without leaving the UI busy; cancellation is rethrown.
+6. :app:testDebugUnitTest and :app:lintDebug pass; no APK packaging or artifact upload.
 
 ## Evidence
 - Source/test commit: CI pending.

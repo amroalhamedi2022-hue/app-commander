@@ -671,22 +671,32 @@ private fun InspectorScreen(padding: PaddingValues, repository: AppRepository) {
                                 if (uri != null) {
                                     busy = true
                                     scope.launch {
-                                        val verifiedUri = withContext(Dispatchers.IO) {
-                                            repository.prepareVerifiedInstall(uri, apk)
+                                        try {
+                                            val verifiedUri = withContext(Dispatchers.IO) {
+                                                repository.prepareVerifiedInstall(uri, apk)
+                                            }
+                                            if (verifiedUri == null) {
+                                                error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."
+                                                inspectionState = inspectionState.copy(result = null)
+                                                selectedUri = null
+                                            } else {
+                                                val install = Intent(Intent.ACTION_VIEW)
+                                                    .setDataAndType(verifiedUri, "application/vnd.android.package-archive")
+                                                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                runCatching { context.startActivity(install) }
+                                                    .onFailure { error = "تعذّر فتح مثبّت أندرويد: " +
+                                                        (it.message ?: "خطأ غير معروف") }
+                                            }
+                                        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                            throw cancelled
+                                        } catch (failure: Exception) {
+                                            error = "تعذّر تجهيز نسخة التثبيت المتحقق منها: " +
+                                                (failure.message ?: "خطأ غير معروف")
+                                        } finally {
+                                            // A provider or installer handoff exception must not
+                                            // leave the Inspector permanently locked in busy state.
+                                            busy = false
                                         }
-                                        if (verifiedUri == null) {
-                                            error = "تغيّر الملف أو تعذّر إنشاء نسخة تثبيت متحقق منها؛ افحص الملف من جديد."
-                                            result = null
-                                            selectedUri = null
-                                        } else {
-                                            val install = Intent(Intent.ACTION_VIEW)
-                                                .setDataAndType(verifiedUri, "application/vnd.android.package-archive")
-                                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                            runCatching { context.startActivity(install) }
-                                                .onFailure { error = "تعذّر فتح مثبّت أندرويد: " +
-                                                    (it.message ?: "خطأ غير معروف") }
-                                        }
-                                        busy = false
                                     }
                                 }
                             },
