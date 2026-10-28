@@ -12,7 +12,8 @@ internal object ComponentEntryMapper {
         requiredPermission: (T) -> String?,
         callerHasPermission: (String?) -> Boolean,
     ): List<ComponentEntry> = components?.asList().orEmpty().map { component ->
-        val permission = requiredPermission(component)
+        // PackageManager metadata can be null or blank; normalize it before any permission lookup.
+        val permission = requiredPermission(component)?.takeIf { it.isNotBlank() }
         ComponentEntry(
             name = name(component),
             exported = exported(component),
