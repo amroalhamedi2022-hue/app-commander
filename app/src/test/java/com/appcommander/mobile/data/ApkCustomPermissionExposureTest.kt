@@ -95,6 +95,7 @@ class ApkCustomPermissionExposureTest {
     @Test fun repositoryModelAndInspectorUiAreConnected() {
         val repo = File("src/main/java/com/appcommander/mobile/data/AppRepository.kt").readText()
         val ui = File("src/main/java/com/appcommander/mobile/ui/AppCommanderApp.kt").readText()
+        val signals = File("src/main/java/com/appcommander/mobile/data/ApkInspectionSignals.kt").readText()
         val model = File("src/main/java/com/appcommander/mobile/model/AppModels.kt").readText()
         assertTrue(repo.contains("PermissionInfo.PROTECTION_MASK_BASE"))
         assertTrue(repo.contains("PermissionInfo.PROTECTION_DANGEROUS"))
@@ -102,7 +103,7 @@ class ApkCustomPermissionExposureTest {
         assertTrue(repo.contains("ApkCustomPermissionExposure.countProviders"))
         assertTrue(repo.contains("exportedComponentsUsingNonSignatureAppPermission = customPermissionComponentCount"))
         assertTrue(ui.contains("exportedComponentsUsingNonSignatureAppPermission = apk.exportedComponentsUsingNonSignatureAppPermission"))
-        assertTrue(ui.contains("exported_gates_with_non_signature_app_permission"))
+        assertTrue(signals.contains("exported_gates_with_non_signature_app_permission"))
         assertTrue(model.contains("val providerDirectionsUsingNonSignatureAppPermission: Int = 0"))
     }
 }
