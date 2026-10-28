@@ -93,6 +93,9 @@ internal object ApkCacheCopy {
             digest.update(buffer, 0, count)
             total += count
         }
+        // EOF may be returned at the same instant the caller cancels. Do not
+        // let a completed read turn a cancelled export into a successful result.
+        checkCancelled()
         if (total == 0L) throw IOException("APK file is empty")
         return CopyResult(total, digest.digest().joinToString("") { "%02x".format(it) })
     }

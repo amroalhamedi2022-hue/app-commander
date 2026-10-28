@@ -223,4 +223,30 @@ class ApkCacheCopyTest {
         assertEquals("only the first 64 KiB chunk should have been copied", 64 * 1024, output.size())
     }
 
+
+    @Test fun cancellationArrivingOnTheFinalEofReadIsNotReportedAsCopySuccess() {
+        val bytes = byteArrayOf(0x41)
+        var cancelled = false
+        val input = object : ByteArrayInputStream(bytes) {
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                val count = super.read(buffer, offset, length)
+                if (count < 0) cancelled = true
+                return count
+            }
+        }
+        val cancellation = CancellationException("cancelled at final EOF")
+
+        val thrown = assertThrows(CancellationException::class.java) {
+            ApkCacheCopy.copyWithSha256(
+                input,
+                ByteArrayOutputStream(),
+                checkCancelled = {
+                    if (cancelled) throw cancellation
+                },
+            )
+        }
+
+        assertSame(cancellation, thrown)
+    }
+
 }
