@@ -54,21 +54,59 @@ class ShizukuBindingTimeoutTest {
         }
     }
 
-    @Test fun successfulConnectionMakesScheduledTimeoutANoop() = runBlocking {
+    @Test fun successfulConnectionCancelsScheduledTimeoutImmediately() = runBlocking {
         val state = ShizukuConnectionState<String>()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val timeout = ShizukuBindingTimeout(scope, 100L, state, Any())
+        val timeout = ShizukuBindingTimeout(scope, 2_000L, state, Any())
         val unbindCount = AtomicInteger()
         try {
             val request = state.beginOrJoin()
-            val timer = timeout.schedule(request) { unbindCount.incrementAndGet() }
+            val timer = requireNotNull(timeout.schedule(request) { unbindCount.incrementAndGet() })
             assertTrue(state.connectedIfCurrent(request.waiter, "live-service"))
             assertEquals("live-service", request.waiter.await())
 
-            timer?.join()
+            withTimeout(500L) { timer.join() }
+            assertTrue("successful completion should cancel the delayed job", timer.isCancelled)
             assertEquals("live-service", state.remoteCandidate())
             assertEquals(0, unbindCount.get())
             assertFalse(state.isBinding())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test fun failedCurrentBindingCancelsTimerAndAllowsRetry() = runBlocking {
+        val state = ShizukuConnectionState<String>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val timeout = ShizukuBindingTimeout(scope, 2_000L, state, Any())
+        val unbindCount = AtomicInteger()
+        try {
+            val request = state.beginOrJoin()
+            val timer = requireNotNull(timeout.schedule(request) { unbindCount.incrementAndGet() })
+            assertTrue(state.failIfCurrent(request.waiter, "simulated disconnect"))
+
+            withTimeout(500L) { timer.join() }
+            assertTrue("failure should cancel its no-longer-needed timer", timer.isCancelled)
+            assertEquals(0, unbindCount.get())
+            assertTrue("failed binding must still be retryable", state.beginOrJoin().shouldBind)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test fun synchronousConnectionBeforeSchedulingCreatesNoTimer() = runBlocking {
+        val state = ShizukuConnectionState<String>()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val timeout = ShizukuBindingTimeout(scope, 2_000L, state, Any())
+        val unbindCount = AtomicInteger()
+        try {
+            val request = state.beginOrJoin()
+            assertTrue(state.connectedIfCurrent(request.waiter, "already-live"))
+            val timer = timeout.schedule(request) { unbindCount.incrementAndGet() }
+
+            assertNull("completed synchronous bind should not schedule a timer", timer)
+            assertEquals(0, unbindCount.get())
+            assertEquals("already-live", state.remoteCandidate())
         } finally {
             scope.cancel()
         }
