@@ -38,3 +38,14 @@ The regression crosses generic component mapping and the permission-check callba
 - Xiaomi Pad 5 / HyperOS and real installed-package metadata: NOT TESTED.
 - APK artifacts: 0 expected; no APK build requested.
 - Google Drive LIVE sync: SYNC FAILED if the Drive/Docs connector is unavailable; no sync claim without read-back and folder metadata verification.
+
+
+## Final PR-head verification — 2026-10-28
+
+- Production source commit: 26c6fa4dc4eeaae1551d80989f44b6f415260471.
+- Corrected regression test commit (actual tab fixture): 06e82779584f4abad13ffe193bce3a69efeecf00.
+- Exact docs-updated PR head tested: a9a0d99e8ad10a17797c18d3b3aaffb199905052.
+- **PASS:** source/JVM tests + Android lint CI #40617439588.
+- Artifact query: 0. The workflow runs only `:app:testDebugUnitTest :app:lintDebug`; no APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS and live PackageManager metadata: NOT TESTED.
+- Follow-up ledger/plan commits are documentation-only and marked [skip ci]; source and tests are unchanged from the verified head.
