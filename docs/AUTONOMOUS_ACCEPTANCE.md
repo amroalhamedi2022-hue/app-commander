@@ -823,3 +823,10 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS and real PackageManager data: NOT TESTED. APK packaging/artifacts: 0; no APK build requested.
 - No merge, main write, release, root, Device Owner or auto-merge.
 - Google Drive LIVE handoff/index: SYNC FAILED if connector unavailable; no LIVE read/write or folder metadata verification is claimed.
+
+
+### N65 fixture review note
+
+- Test-fixture review caught that the first test commit encoded the two literal characters backslash+t rather than a tab. Corrected the fixture to contain an actual tab before accepting CI evidence.
+- Corrected test commit: 06e82779584f4abad13ffe193bce3a69efeecf00.
+- The docs-updated head must be rechecked after this correction; prior N65 CI status is not accepted as final.
