@@ -971,3 +971,15 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS and real Shizuku reconnection: **NOT TESTED**.
 - No new permission/dependency, root, Device Owner, merge/main write or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back or folder metadata verification is claimed.
+
+
+## 2026-10-28 N78 — shared Shizuku bind timeout ownership (source/test PASS)
+
+- Engineering question: can cancellation of the first coroutine awaiting Shizuku binding reset a shared request while another caller is still waiting?
+- Production change: an independent `CoroutineScope(SupervisorJob() + Dispatchers.IO)` timer now owns each actual bind attempt's timeout. Caller cancellation stops only that caller's wait; it no longer resets the shared request or unbinds it. The timer resets/unbinds only if the exact request is still current and no live Binder has arrived.
+- JVM regressions: cancelling the owner leaves the shared waiter pending for a joiner until the independent timeout; the timeout wakes the joiner and unbinds once; successful connection makes the scheduled timeout a no-op. Existing stale/duplicate callback tests remain.
+- Source/test/plan SHA: `226d1785c010d31638cba616e1522924858a645c`.
+- **PASS — JVM tests + Android Lint:** [CI #40703499158](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40703499158); `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 25s.
+- Workflow artifact query: **0**. No APK packaging/signing/upload, no new dependency or permission.
+- Xiaomi Pad 5/HyperOS and real Shizuku callback timing: **NOT TESTED**. No root, Device Owner, merge or `main` write.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back or folder metadata verification is claimed.

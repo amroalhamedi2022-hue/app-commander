@@ -303,3 +303,11 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Workflow artifacts: **0**. No APK packaging/signing/upload, no new dependency/permission, no root or Device Owner, no merge/main write.
 - Real SAF provider close failures, Xiaomi Pad 5/HyperOS and Android installer handoff: **NOT TESTED**. Shizuku device behavior remains NOT TESTED.
 - Google Drive LIVE handoff/index sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back is claimed.
+
+
+## 2026-10-28 N78 — independent Shizuku bind timeout
+- Source/test SHA: `226d1785c010d31638cba616e1522924858a645c`.
+- **PASS:** CI #40703499158 ran `:app:testDebugUnitTest :app:lintDebug`; BUILD SUCCESSFUL in 1m 25s; artifacts 0.
+- Bind timeout ownership is independent of the first awaiting coroutine. Cancellation no longer tears down a shared bind; a request-owned timer performs timeout cleanup only if that exact attempt remains current.
+- Device Shizuku/HyperOS behavior and real callback timing: NOT TESTED. No APK packaging/signing/upload.
+- Next: device validation of Shizuku bind/death/retry and SAF export/install handoff. Google Drive LIVE sync: SYNC FAILED (connector unavailable).
