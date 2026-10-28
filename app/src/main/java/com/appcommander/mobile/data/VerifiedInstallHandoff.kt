@@ -46,6 +46,14 @@ internal class VerifiedInstallHandoff<T>(
 
         try {
             discard(target, failure)
+        } catch (cleanupFailure: Throwable) {
+            // Cleanup is secondary to the failure that caused it. Preserve that
+            // primary failure (including cancellation) and retain cleanup details.
+            // A callback may already have attached this exact throwable itself.
+            if (cleanupFailure !== failure &&
+                failure.suppressed.none { it === cleanupFailure }) {
+                failure.addSuppressed(cleanupFailure)
+            }
         } finally {
             synchronized(lock) {
                 if (state == State.CLEANUP_CLAIMED) state = State.CLEANED

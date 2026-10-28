@@ -103,4 +103,50 @@ class VerifiedInstallHandoffTest {
         }
     }
 
+    @Test fun throwingCleanupIsSuppressedAndCannotReopenOwnership() {
+        val primary = CancellationException("cancelled while opening installer")
+        val cleanup = SecurityException("cache deletion denied")
+        var cleanupCalls = 0
+        val handoff = VerifiedInstallHandoff<String> { _, _ ->
+            cleanupCalls++
+            throw cleanup
+        }
+        handoff.record("verified-snapshot")
+
+        assertTrue(handoff.discardIfNotTransferred(primary))
+        assertSame("primary cancellation must remain the original throwable", primary, primary)
+        assertEquals(1, primary.suppressed.size)
+        assertSame(cleanup, primary.suppressed.single())
+        assertEquals(1, cleanupCalls)
+
+        assertFalse(handoff.discardIfNotTransferred(primary))
+        assertFalse(handoff.markTransferred())
+        assertEquals("cleanup must remain exactly once after its callback throws", 1, cleanupCalls)
+        try {
+            handoff.record("replacement")
+            fail("a cleaned handoff must remain terminal")
+        } catch (_: IllegalStateException) {
+            // Expected: terminal state cannot be reopened after cleanup failure.
+        }
+    }
+
+    @Test fun reentrantCleanupCannotTransferOrClaimTheSameSnapshotAgain() {
+        lateinit var handoff: VerifiedInstallHandoff<String>
+        var transferDuringCleanup = true
+        var cleanupDuringCleanup = true
+        var cleanupCalls = 0
+        handoff = VerifiedInstallHandoff { _, _ ->
+            cleanupCalls++
+            transferDuringCleanup = handoff.markTransferred()
+            cleanupDuringCleanup = handoff.discardIfNotTransferred(IOException("reentrant"))
+        }
+        handoff.record("verified-snapshot")
+
+        assertTrue(handoff.discardIfNotTransferred(IOException("primary")))
+        assertFalse(transferDuringCleanup)
+        assertFalse(cleanupDuringCleanup)
+        assertEquals(1, cleanupCalls)
+        assertFalse(handoff.markTransferred())
+    }
+
 }

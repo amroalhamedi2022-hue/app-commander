@@ -1016,3 +1016,13 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS, real SAF provider and Android installer timing, and Shizuku device behavior: **NOT TESTED**.
 - No new permissions/dependencies, root, Device Owner, merge, `main` write or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector exposed; no Drive read/write/read-back or folder metadata verification.
+
+
+## 2026-10-28 — N83 cleanup failure preservation at verified installer handoff (CI pending)
+
+- Production change: `VerifiedInstallHandoff.discardIfNotTransferred` now preserves the primary failure/cancellation and attaches thrown cleanup failures as suppressed diagnostics; the state still seals in CLEANED.
+- Regression tests: throwing cleanup, exactly-once callback, no transfer/re-record after cleanup failure, and reentrant cleanup/transfer attempts.
+- Plan: `docs/N83_HANDOFF_CLEANUP_FAILURE_PRESERVATION_PLAN.md`.
+- Source/test + JVM/Lint CI: PENDING until exact-commit GitHub Actions evidence is observed.
+- Xiaomi Pad 5/HyperOS, real SAF provider/installer handoff and Shizuku: NOT TESTED. No APK packaging/signing/upload, new permission/dependency, root, Device Owner, merge or main write.
+- Google Drive LIVE sync: SYNC FAILED unless the LIVE documents can be read, updated, and read back in the confirmed folder; no Drive sync is claimed here.
