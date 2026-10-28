@@ -23,6 +23,8 @@ Does App Commander retain and display the manifest permission required by instal
 - Xiaomi Pad 5/HyperOS UI and actual installed-package behavior: NOT TESTED.
 
 ## Evidence
-- Source/test SHA: PENDING.
-- JVM + Android Lint CI: PENDING.
+- Final source/test head: `459a8e428837dd55eebff976339b5a8807cfe67d`.
+- **PASS:** CI #40612329865 ran `:app:testDebugUnitTest :app:lintDebug --stacktrace`; `BUILD SUCCESSFUL in 1m 18s`, 36 tasks. Artifact query: 0.
+- Failure/fix history: CI #40611844665 exposed Kotlin's non-reified `Array<T>.orEmpty()` limitation; changed to `components?.asList().orEmpty()`. CI #40612076457 then caught a stale source-contract assertion after the component mapper refactor; updated `ActivityLaunchSafetyTest` in the final source/test head.
+- The final docs-updated PR head is independently checked by the workflow attached to the resulting PR head; no APK packaging is involved.
 - APK artifacts: 0; no APK build requested.
