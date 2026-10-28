@@ -68,6 +68,27 @@ class ApkInstallIntegrityTest {
         assertEquals(chunkSize, bytesReturned)
     }
 
+    @Test fun propagatesCancellationThatArrivesAtEndOfStream() {
+        val bytes = byteArrayOf(0x41)
+        var cancelled = false
+        val input = object : ByteArrayInputStream(bytes) {
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                val count = super.read(buffer, offset, length)
+                if (count < 0) cancelled = true
+                return count
+            }
+        }
+        val cancellation = java.util.concurrent.CancellationException("cancelled at EOF")
+
+        val thrown = assertThrows(java.util.concurrent.CancellationException::class.java) {
+            ApkInstallIntegrity.matches(input, bytes.size.toLong(), hash(bytes)) {
+                if (cancelled) throw cancellation
+            }
+        }
+
+        assertSame(cancellation, thrown)
+    }
+
     @Test fun doesNotDowngradeUnexpectedErrorsToIntegrityMismatch() {
         val fatal = AssertionError("unexpected provider implementation failure")
         val broken = object : InputStream() {
