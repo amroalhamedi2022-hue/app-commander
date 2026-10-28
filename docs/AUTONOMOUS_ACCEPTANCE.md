@@ -841,3 +841,12 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS, real installed PackageManager metadata, SAF provider behavior and Shizuku device operations remain **NOT TESTED**.
 - Google Drive LIVE handoff/index: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no LIVE read/write or folder metadata verification is claimed.
 - Follow-up plan/ledger commits are documentation-only and marked [skip ci]; production/test source is unchanged from the tested head.
+
+
+## N66 — Final cancellation gate after SAF readback (2026-10-28)
+
+- **Production source changed: YES.** Both base APK and Base+Splits export now re-check cooperative cancellation after independent SAF readback has closed and before returning success.
+- Integration regressions cancel exactly after the readback stream closes and verify that the same CancellationException remains primary and scoped cleanup runs once.
+- Source/JVM/Lint CI: **PENDING** on the exact source/test commit; APK artifacts remain 0.
+- Xiaomi Pad 5 / HyperOS SAF provider cancellation: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** if the Drive/Docs connector is unavailable; no sync claim without read-back verification.
