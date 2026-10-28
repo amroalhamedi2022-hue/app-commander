@@ -311,3 +311,11 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Bind timeout ownership is independent of the first awaiting coroutine. Cancellation no longer tears down a shared bind; a request-owned timer performs timeout cleanup only if that exact attempt remains current.
 - Device Shizuku/HyperOS behavior and real callback timing: NOT TESTED. No APK packaging/signing/upload.
 - Next: device validation of Shizuku bind/death/retry and SAF export/install handoff. Google Drive LIVE sync: SYNC FAILED (connector unavailable).
+
+## 2026-10-28 — N79 source checkpoint
+
+- Source/test SHA: `33acdb7ef28eecb9c59a38732c232a2f50791945`.
+- JVM tests + Android Lint CI #40708206028 PASS; artifacts 0; no APK package/sign/upload.
+- All Shizuku cleanup routes share a per-connection idempotency gate; successful cleanup runs once, while failed cleanup remains retryable.
+- Device Shizuku/HyperOS callback timing and SAF/installer handoff remain NOT TESTED.
+- Next: controlled device validation of bind/death/retry and SAF export/install handoff. Google Drive LIVE sync: SYNC FAILED (connector unavailable).
