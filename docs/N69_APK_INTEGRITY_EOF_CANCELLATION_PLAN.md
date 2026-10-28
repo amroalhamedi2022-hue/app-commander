@@ -22,7 +22,8 @@ Date: 2026-10-28. App Commander PR #1 remains open Draft; no merge.
 ## Evidence
 
 - Production + regression test commit: d1a0b11b49fe528097485c4d4971cf8f6b284571.
-- CI and final-head recheck: pending; record exact run IDs after completion.
+- PASS — source/JVM/Lint workflow #40640901042 on docs-head SHA 1a18303c4780d6ad3eeb8b4193afe31b8246e82d; `source-checks` completed successfully.
+- Log contains BUILD SUCCESSFUL: true. Artifact count: 0.
 - Xiaomi Pad 5/HyperOS, real SAF providers, and installer handoff: NOT TESTED.
 - Open API reference checked: Java `InputStream.read(byte[])` returns -1 at EOF; https://docs.oracle.com/en/java/javase/24/docs/api/java.base/java/io/InputStream.html. No third-party implementation copied.
 - No root, Device Owner, merge, main write, or paid service.
