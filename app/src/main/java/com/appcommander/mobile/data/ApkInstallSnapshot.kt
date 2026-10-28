@@ -58,10 +58,64 @@ internal object ApkInstallSnapshot {
             // Keep the snapshot unverified until the final cancellation check
             // succeeds; cancellation at EOF must delete it too.
             checkCancelled()
-            verified = matches
-            return if (verified) file else null
-        } finally {
-            if (!verified) file.delete()
+            if (!matches) {
+                deleteUnverified(file)
+                return null
+            }
+            verified = true
+            return file
+        } catch (failure: Throwable) {
+            if (!verified) deleteAfterFailure(file, failure)
+            throw failure
+        }
+    }
+
+    /**
+     * Create and close a provider stream as one ownership boundary. If close()
+     * fails after the bytes were verified, the snapshot is still not handed off:
+     * delete it and preserve the original close failure.
+     */
+    @Throws(IOException::class)
+    fun createFromOwnedStream(
+        directory: File,
+        input: InputStream,
+        expectedSize: Long,
+        expectedSha256: String,
+        checkCancelled: () -> Unit = {},
+    ): File? {
+        var snapshot: File? = null
+        try {
+            return input.use { stream ->
+                create(directory, stream, expectedSize, expectedSha256, checkCancelled)
+                    .also { snapshot = it }
+            }
+        } catch (failure: Throwable) {
+            snapshot?.let { deleteAfterFailure(it, failure) }
+            throw failure
+        }
+    }
+
+    private fun deleteUnverified(file: File) {
+        if (file.exists() && !file.delete() && file.exists()) {
+            throw IOException("Cannot delete unverified APK snapshot")
+        }
+    }
+
+    /**
+     * Best-effort cleanup that never masks the original failure. If deletion
+     * cannot be confirmed, retain the cleanup error as suppressed diagnostics.
+     */
+    internal fun deleteAfterFailure(
+        file: File,
+        failure: Throwable,
+        delete: (File) -> Boolean = { it.delete() },
+    ) {
+        try {
+            if (file.exists() && !delete(file) && file.exists()) {
+                throw IOException("Cannot delete failed verified APK snapshot")
+            }
+        } catch (cleanupFailure: Throwable) {
+            if (cleanupFailure !== failure) failure.addSuppressed(cleanupFailure)
         }
     }
 

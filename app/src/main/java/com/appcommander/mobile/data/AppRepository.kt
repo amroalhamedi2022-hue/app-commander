@@ -534,33 +534,37 @@ class AppRepository(private val context: Context) {
         inspection: ApkInspection,
         checkCancelled: () -> Unit = {},
     ): Uri? {
+        var snapshot: File? = null
         return try {
             checkCancelled()
             val directory = File(context.cacheDir, ApkInstallSnapshot.DIRECTORY)
             val input = context.contentResolver.openInputStream(uri) ?: return null
-            input.use { stream ->
-                val file = ApkInstallSnapshot.create(
-                    directory, stream, inspection.sizeBytes, inspection.fileSha256, checkCancelled,
-                ) ?: return null
-                try {
-                    checkCancelled()
-                    val verifiedUri = FileProvider.getUriForFile(
-                        context, "${context.packageName}.verifiedapks", file,
-                    )
-                    checkCancelled()
-                    verifiedUri
-                } catch (failure: Throwable) {
-                    // Cancellation and provider failures must never leave an
-                    // installer-visible snapshot behind.
-                    file.delete()
-                    throw failure
-                }
-            }
+            // Close the SAF stream before constructing the installer URI. The
+            // snapshot reference is retained across close(), so a provider
+            // close failure cannot strand an otherwise verified cache file.
+            val file = ApkInstallSnapshot.createFromOwnedStream(
+                directory, input, inspection.sizeBytes, inspection.fileSha256, checkCancelled,
+            ) ?: return null
+            snapshot = file
+            checkCancelled()
+            val verifiedUri = FileProvider.getUriForFile(
+                context, "${context.packageName}.verifiedapks", file,
+            )
+            checkCancelled()
+            // Ownership transfers to the caller only after the last cancellation
+            // checkpoint. Until then every failure path must clean the snapshot.
+            snapshot = null
+            verifiedUri
         } catch (cancelled: java.util.concurrent.CancellationException) {
+            snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, cancelled) }
             // Do not turn coroutine cancellation into a normal verification failure.
             throw cancelled
-        } catch (_: Exception) {
+        } catch (failure: Exception) {
+            snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, failure) }
             null
+        } catch (failure: Error) {
+            snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, failure) }
+            throw failure
         }
     }
 

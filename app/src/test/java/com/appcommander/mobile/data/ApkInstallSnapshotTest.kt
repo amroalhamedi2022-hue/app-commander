@@ -52,6 +52,51 @@ class ApkInstallSnapshotTest {
         assertTrue(directory.listFiles().orEmpty().isEmpty())
     }
 
+    @Test fun providerCloseFailureAfterVerifiedCopyRemovesSnapshotAndPreservesFailure() {
+        val bytes = "verified bytes".toByteArray()
+        val closeFailure = IOException("provider close failed")
+        val input = object : InputStream() {
+            private val delegate = ByteArrayInputStream(bytes)
+            override fun read(): Int = delegate.read()
+            override fun read(buffer: ByteArray, offset: Int, length: Int): Int =
+                delegate.read(buffer, offset, length)
+            override fun close() { throw closeFailure }
+        }
+        val directory = temp.newFolder("close-failure-after-copy")
+
+        val thrown = assertThrows(IOException::class.java) {
+            ApkInstallSnapshot.createFromOwnedStream(
+                directory, input, bytes.size.toLong(), sha(bytes),
+            )
+        }
+
+        assertSame(closeFailure, thrown)
+        assertTrue("verified bytes must be deleted if the provider stream cannot close",
+            directory.listFiles().orEmpty().isEmpty())
+    }
+
+    @Test fun cleanupFailureIsSuppressedWithoutReplacingPrimaryCancellation() {
+        val directory = temp.newFolder("cleanup-diagnostic")
+        val file = directory.resolve("verified-stuck.apk").apply { writeText("verified") }
+        val cancellation = CancellationException("cancelled before installer handoff")
+
+        val thrown = assertThrows(CancellationException::class.java) {
+            try {
+                throw cancellation
+            } catch (failure: Throwable) {
+                ApkInstallSnapshot.deleteAfterFailure(file, failure) {
+                    throw SecurityException("simulated cache delete denial")
+                }
+                throw failure
+            }
+        }
+
+        assertSame(cancellation, thrown)
+        assertEquals(1, thrown.suppressed.size)
+        assertTrue(thrown.suppressed.single() is SecurityException)
+        assertTrue("the injected delete failure leaves the fixture for diagnostics", file.exists())
+    }
+
     @Test fun removesSnapshotIfSafReadThrows() {
         val directory = temp.newFolder("provider-failure")
         val broken = object : InputStream() {
