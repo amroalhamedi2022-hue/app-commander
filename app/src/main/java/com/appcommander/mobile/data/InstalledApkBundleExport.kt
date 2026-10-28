@@ -58,6 +58,9 @@ internal object InstalledApkBundleExport {
         val written = writeValidated(packageName, sourceSnapshot, destination, declaredTotal, checkCancelled)
         checkCancelled()
         val verified = InstalledApkBundleVerifier.verify(openForRead(), checkCancelled)
+        // Cancellation may arrive after the verifier consumes the final byte and closes the SAF stream.
+        // Do not publish success if the user cancelled during final validation/close.
+        checkCancelled()
         if (verified.packageName != written.packageName ||
             verified.totalApkBytes != written.totalApkBytes ||
             verified.entries != written.entries
