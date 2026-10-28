@@ -25,10 +25,16 @@ Source inspection found both base-APK and Base+Splits export paths performed coo
 5. Free PR CI runs :app:testDebugUnitTest :app:lintDebug on the exact source/test commit; no APK build or artifact.
 6. SAF provider behavior on Xiaomi Pad 5 / HyperOS remains NOT TESTED.
 
-## Evidence at commit creation
+## Final evidence — PASS
 
-- Production source and two integration regressions: included in this milestone.
-- Source/JVM/Lint CI: PENDING.
-- APK artifacts: 0; packaging not requested.
+- Exact production+integration-test SHA: 57881df55a68b92b4836953ee251c1e83aff4aa4.
+- GitHub Actions source/JVM/Lint run #40623215209: PASS; :app:testDebugUnitTest and :app:lintDebug completed successfully on the exact SHA.
+- Artifacts: 0; no APK packaging, signing or upload.
 - Device/SAF provider behavior: NOT TESTED.
-- Google Drive LIVE: SYNC FAILED unless connector read/write/read-back can be verified.
+- Google Drive LIVE: SYNC FAILED; no Drive/Docs connector was available for read/write/read-back verification.
+
+## Source review
+
+- The cancellation gate follows Kotlin's documented cooperative-cancellation model: https://github.com/Kotlin/kotlinx.coroutines/blob/master/docs/topics/coroutines-cancellation.md
+- The readback/close boundary is grounded in Android's Storage Access Framework provider model: https://developer.android.com/guide/topics/providers/document-provider
+- No third-party implementation code or new dependency was copied into the project.
