@@ -33,7 +33,10 @@ internal object ApkInstallIntegrity {
                 actual.sha256.equals(expectedSha256, ignoreCase = true)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
+            // Provider I/O/security failures mean the bytes could not be verified.
+            // Do not swallow JVM Errors (for example OutOfMemoryError or AssertionError)
+            // as if they were an ordinary checksum mismatch.
             false
         }
     }

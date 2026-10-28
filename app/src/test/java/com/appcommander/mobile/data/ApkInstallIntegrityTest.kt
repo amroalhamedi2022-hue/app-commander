@@ -45,4 +45,18 @@ class ApkInstallIntegrityTest {
         }
         assertFalse(ApkInstallIntegrity.matches(stalled, 1, hash(byteArrayOf(1))))
     }
+
+    @Test fun doesNotDowngradeUnexpectedErrorsToIntegrityMismatch() {
+        val fatal = AssertionError("unexpected provider implementation failure")
+        val broken = object : InputStream() {
+            override fun read(): Int = throw fatal
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw fatal
+        }
+
+        val thrown = assertThrows(AssertionError::class.java) {
+            ApkInstallIntegrity.matches(broken, 1, hash(byteArrayOf(1)))
+        }
+        assertSame(fatal, thrown)
+    }
+
 }

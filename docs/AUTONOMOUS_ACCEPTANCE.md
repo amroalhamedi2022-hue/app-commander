@@ -859,3 +859,12 @@ Updated: 2026-10-26
 - **Artifacts: 0**; the workflow did not assemble, sign or upload an APK.
 - **NOT TESTED:** Xiaomi Pad 5 / HyperOS SAF provider cancellation, cloud-backed document providers and real-device export UX.
 - Google Drive LIVE: **SYNC FAILED**; this runtime has no Google Drive/Docs connector, so no document read/write/read-back was possible.
+
+
+## 2026-10-28 N67 — APK integrity must not swallow JVM Errors
+- Production fix: ApkInstallIntegrity.matches still returns false for ordinary Exception failures and still rethrows CancellationException, but no longer swallows JVM Error subclasses as a normal integrity mismatch.
+- Regression: a provider stream throws a sentinel AssertionError; the same instance must propagate.
+- Plan: docs/N67_FATAL_ERROR_PROPAGATION_PLAN.md.
+- JVM/Lint and final PR-head CI: PENDING at commit creation; exact SHA/run IDs will be recorded in the PR conversation after verification.
+- Xiaomi Pad 5/HyperOS and real SAF provider behavior: NOT TESTED. APK build/artifacts: 0. No root, Device Owner, merge or main write.
+- Google Drive LIVE sync: SYNC FAILED if no connector is available; no Drive sync is claimed.

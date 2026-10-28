@@ -239,3 +239,10 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Source/test head `459a8e428837dd55eebff976339b5a8807cfe67d`: CI #40612329865 PASS (`:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 18s, 36 tasks); artifact query 0.
 - CI #40611844665 failed at generic array mapping; corrected with `components?.asList().orEmpty()`. CI #40612076457 then exposed an outdated source-contract test; the final test update is included in `459a8e4`.
 - Plan: `docs/N64_INSTALLED_COMPONENT_PERMISSION_VISIBILITY_PLAN.md`. Final docs-head CI is checked independently after this evidence update. Device/HyperOS: NOT TESTED. APK artifacts: 0.
+
+
+## 2026-10-28 N67 — preserve fatal errors in APK integrity verification (CI pending)
+- Changed the integrity preflight to convert ordinary exceptions to a fail-closed false result while allowing JVM Error subclasses to propagate; cancellation handling is unchanged.
+- Added a regression proving a provider-thrown AssertionError is not disguised as a checksum mismatch.
+- Plan: docs/N67_FATAL_ERROR_PROPAGATION_PLAN.md. JVM tests + Android Lint and final-head CI: pending.
+- Device/HyperOS/real SAF behavior: NOT TESTED. APK artifacts: 0. No APK packaging, root, Device Owner, merge or main write.
