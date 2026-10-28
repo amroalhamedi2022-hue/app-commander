@@ -811,3 +811,15 @@ Updated: 2026-10-26
 - CI #40611844665 initially failed on generic-array mapping; fixed with `components?.asList().orEmpty()`. CI #40612076457 exposed a stale static contract assertion after the mapper refactor; corrected in the source/test head above.
 - Final docs-updated head is independently checked by the attached PR workflow; APK packaging/artifacts remain 0.
 - Xiaomi Pad 5/HyperOS visual behavior and real installed-package validation: NOT TESTED. APK packaging/artifacts: 0.
+
+
+## 2026-10-28 N65 — blank component permission normalization
+
+- Engineering question and acceptance criteria: docs/N65_BLANK_COMPONENT_PERMISSION_NORMALIZATION_PLAN.md.
+- Production source changed: YES — null/empty/whitespace-only required permissions normalize to null before caller-permission lookup; valid nonblank values remain byte-for-byte unchanged.
+- Regression: records the callback argument and asserts whitespace-only metadata cannot be passed into permission checking.
+- Source commit: 26c6fa4dc4eeaae1551d80989f44b6f415260471; test commit: f66e9cb636d769c2c2e692f4bf17e6a3f00d5878; plan commit: 4ddb34a71f00b41dedcdffc7de4d02908756df4c.
+- Exact source/test and docs-updated PR-head CI: PENDING.
+- Xiaomi Pad 5/HyperOS and real PackageManager data: NOT TESTED. APK packaging/artifacts: 0; no APK build requested.
+- No merge, main write, release, root, Device Owner or auto-merge.
+- Google Drive LIVE handoff/index: SYNC FAILED if connector unavailable; no LIVE read/write or folder metadata verification is claimed.
