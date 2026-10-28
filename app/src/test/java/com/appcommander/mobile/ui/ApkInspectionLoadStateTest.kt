@@ -74,4 +74,46 @@ class ApkInspectionLoadStateTest {
         assertNull(retry.result)
         assertNull(retry.error)
     }
+    @Test fun cancelledGenerationCannotLaterCompleteOrFail() {
+        val started = ApkInspectionLoadState().begin()
+        val cancelled = started.cancel(started.generation)
+
+        assertSame(cancelled, cancelled.complete(started.generation, apk("late.apk")))
+        assertSame(cancelled, cancelled.fail(started.generation, "late error"))
+        assertSame(cancelled, cancelled.cancel(started.generation))
+        assertNull(cancelled.result)
+        assertNull(cancelled.error)
+        assertFalse(cancelled.loading)
+    }
+
+    @Test fun completedGenerationAcceptsOnlyItsFirstTerminalTransition() {
+        val started = ApkInspectionLoadState().begin()
+        val completed = started.complete(started.generation, apk("accepted.apk"))
+
+        assertSame(completed, completed.complete(started.generation, apk("duplicate.apk")))
+        assertSame(completed, completed.fail(started.generation, "late failure"))
+        assertSame(completed, completed.cancel(started.generation))
+        assertEquals("accepted.apk", completed.result?.fileName)
+        assertNull(completed.error)
+        assertFalse(completed.loading)
+    }
+
+    @Test fun failedGenerationCannotBeRestoredByLateSuccessAndRetryStillWorks() {
+        val started = ApkInspectionLoadState().begin()
+        val failed = started.fail(started.generation, "invalid APK")
+
+        assertSame(failed, failed.complete(started.generation, apk("late.apk")))
+        assertSame(failed, failed.cancel(started.generation))
+        assertSame(failed, failed.fail(started.generation, "second error"))
+        assertNull(failed.result)
+        assertEquals("invalid APK", failed.error)
+        assertFalse(failed.loading)
+
+        val retry = failed.begin()
+        val success = retry.complete(retry.generation, apk("retry.apk"))
+        assertEquals("retry.apk", success.result?.fileName)
+        assertNull(success.error)
+        assertFalse(success.loading)
+    }
+
 }
