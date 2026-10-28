@@ -11,7 +11,7 @@ internal object ComponentEntryMapper {
         enabled: (T) -> Boolean,
         requiredPermission: (T) -> String?,
         callerHasPermission: (String?) -> Boolean,
-    ): List<ComponentEntry> = components.orEmpty().map { component ->
+    ): List<ComponentEntry> = components?.asList().orEmpty().map { component ->
         val permission = requiredPermission(component)
         ComponentEntry(
             name = name(component),
