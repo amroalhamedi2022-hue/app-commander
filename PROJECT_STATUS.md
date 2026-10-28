@@ -14,7 +14,7 @@ Date: 2026-10-28
 - Offline APK Inspector with metadata, permissions, components, SHA-256, signer fingerprints, and installer handoff.
 - Shizuku permission flow and official UserService command engine.
 - Shizuku commands for Force stop, freeze/unfreeze, background AppOps, runtime permissions, and component enable/disable.
-- Device Owner receiver and suspend/hide controller.
+- No Device Admin/Device Owner enrollment surface; privileged controls use the consent-gated Shizuku path only.
 - Critical-system-package guard without restricting controls for ordinary user or system apps.
 - Typed Shizuku operation gateway; arbitrary shell command strings are not accepted.
 - Recovery operations remain available for protected packages.
@@ -33,7 +33,7 @@ Date: 2026-10-28
 
 ## Device validation still required
 
-Install and exercise the debug build on physical devices. Start with Android 13 / HyperOS on Xiaomi Pad 5, then verify permission flows and Shizuku commands on the phone. Device Owner mode should only be tested on a suitable test device/profile because provisioning has system-level consequences.
+Install and exercise the debug build on physical devices. Start with Android 13 / HyperOS on Xiaomi Pad 5, then verify permission flows and Shizuku commands on the phone. Device Owner provisioning is out of scope; validate Shizuku and standard Android permission flows on a non-provisioned test device.
 
 
 ## 2026-10-27 — N36 inventory metadata resilience (source/test PASS)
@@ -329,3 +329,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - The prior owner-cancellation regression still proves that cancelling one caller does not cancel the shared bind attempt; timeout remains attempt-owned.
 - Xiaomi Pad 5/HyperOS Shizuku callbacks and SAF/installer behavior: **NOT TESTED**.
 - No APK packaging/signing/upload, new permissions/dependencies, root, Device Owner, merge, main write or auto-merge. Google Drive LIVE sync: **SYNC FAILED** because no Drive/Docs connector is exposed.
+
+
+## 2026-10-28 — N85 APK network and boot permission review signals
+
+- Source/test SHA: `f14ef215aeac5d30dfb1debfbbecdf617f79ef89`; source/JVM/Lint CI #40749452576 PASS (`:app:testDebugUnitTest`, `:app:lintDebug`; BUILD SUCCESSFUL in 1m 54s).
+- APK Inspector now flags exact INTERNET and RECEIVE_BOOT_COMPLETED declarations as manifest-only review prompts. Duplicate declarations are deduplicated; descriptions do not claim actual network traffic or automatic startup.
+- No APK artifact/build. Xiaomi Pad 5/HyperOS, live APK behavior, SAF provider and Shizuku device flows remain NOT TESTED.
+- Product contract reaffirmed: no Device Admin/Device Owner enrollment surface; no root. PR #1 remains Draft/open, no merge/main write.
+- Google Drive LIVE sync: SYNC FAILED — Drive/Docs connector unavailable in this runtime; no Drive sync is claimed.
