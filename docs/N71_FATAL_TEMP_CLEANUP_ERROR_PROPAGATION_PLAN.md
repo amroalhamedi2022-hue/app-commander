@@ -23,4 +23,4 @@ Date: 2026-10-28
 - Artifact count: 0. APK packaging/signing/upload: NOT PERFORMED.
 - Xiaomi Pad 5/HyperOS, real SAF provider and Android installer handoff, and Shizuku device flow: NOT TESTED.
 - This change follows the JDK `Throwable` contract for `Error` and suppressed failures; no external code/dependency copied.
-- Final documentation-head CI: pending.
+- Final documentation-head CI is recorded in the PR verification comment added after this plan update.
