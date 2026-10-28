@@ -27,6 +27,8 @@ import java.security.MessageDigest
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PermissionInfoCompat
 
+internal data class VerifiedInstallSnapshot(val file: File, val uri: Uri)
+
 class AppRepository(private val context: Context) {
     private val pm = context.packageManager
 
@@ -529,11 +531,11 @@ class AppRepository(private val context: Context) {
      * Never give the installer the original mutable SAF URI: the provider may
      * otherwise replace the APK between inspection and the installer's read.
      */
-    fun prepareVerifiedInstall(
+    internal fun prepareVerifiedInstall(
         uri: Uri,
         inspection: ApkInspection,
         checkCancelled: () -> Unit = {},
-    ): Uri? {
+    ): VerifiedInstallSnapshot? {
         var snapshot: File? = null
         return try {
             checkCancelled()
@@ -554,7 +556,7 @@ class AppRepository(private val context: Context) {
             // Ownership transfers to the caller only after the last cancellation
             // checkpoint. Until then every failure path must clean the snapshot.
             snapshot = null
-            verifiedUri
+            VerifiedInstallSnapshot(file, verifiedUri)
         } catch (cancelled: java.util.concurrent.CancellationException) {
             snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, cancelled) }
             // Do not turn coroutine cancellation into a normal verification failure.
@@ -566,6 +568,15 @@ class AppRepository(private val context: Context) {
             snapshot?.let { ApkInstallSnapshot.deleteAfterFailure(it, failure) }
             throw failure
         }
+    }
+
+    /**
+     * Release a verified snapshot only when the installer activity was not
+     * successfully launched. Cleanup diagnostics are suppressed on the
+     * original failure instead of replacing it.
+     */
+    internal fun discardVerifiedInstall(snapshot: VerifiedInstallSnapshot, failure: Throwable) {
+        ApkInstallSnapshot.deleteAfterFailure(snapshot.file, failure)
     }
 
     private fun queryDisplayName(uri: Uri): String? {
