@@ -230,3 +230,10 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Wired the repository, ApkInspection model, and Compose Inspector signal. Uses existing AndroidX core PermissionInfoCompat.getProtection rather than deprecated PermissionInfo fields.
 - Source/test commit: 2b2e9bd544e42434c37e31d20680e9359e757999. CI #40606895800 PASS: :app:testDebugUnitTest + :app:lintDebug; BUILD SUCCESSFUL in 1m 54s; artifact count 0.
 - Earlier CI #40606186749 failed only because the new source-to-UI contract test looked for the signal code in the UI file; corrected in dcf01ab8363c956f9d66a05f7c477bc8633ca2c2, whose CI #40606523662 passed. Device/HyperOS and real APK corpus: NOT TESTED.
+
+
+## 2026-10-28 N64 — installed component permission visibility (CI PENDING)
+- Production change: Activities, Services, and Receivers now use a shared mapper that retains each declared component permission and whether this app holds it; App Details displays the permission gate in the component row.
+- Safety boundary: only Activities retain the existing launch callback and click-time Android recheck. Services/Receivers remain non-launchable from the list; Shizuku toggle protections are unchanged.
+- Tests: mapper unit tests cover null inventories, stable sorting, held/unheld/missing permissions and repository/UI wiring.
+- Plan: `docs/N64_INSTALLED_COMPONENT_PERMISSION_VISIBILITY_PLAN.md`. JVM/Lint and final docs-head CI: PENDING. Device/HyperOS: NOT TESTED. APK artifacts: 0.
