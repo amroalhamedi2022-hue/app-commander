@@ -43,10 +43,19 @@ internal object ApkCacheCopy {
                     "Temporary APK cache file could not be removed",
                 )
             } catch (cleanupFailure: Throwable) {
-                TemporaryApkCleanupDiagnostic(
-                    "Temporary APK cache cleanup failed",
-                    cleanupFailure,
-                )
+                if (cleanupFailure is Error) {
+                    // Never downgrade a fatal JVM Error to an ordinary cleanup IOException.
+                    // If inspection already failed, keep it primary and preserve the Error as suppressed.
+                    val original = primaryFailure
+                    if (original == null) throw cleanupFailure
+                    if (original !== cleanupFailure) original.addSuppressed(cleanupFailure)
+                    null
+                } else {
+                    TemporaryApkCleanupDiagnostic(
+                        "Temporary APK cache cleanup failed",
+                        cleanupFailure,
+                    )
+                }
             }
             if (cleanupDiagnostic != null) {
                 val original = primaryFailure
