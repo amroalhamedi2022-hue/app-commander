@@ -29,6 +29,12 @@ The current code creates the verified snapshot inside `input.use { ... }`, but i
 6. Xiaomi Pad 5/HyperOS, real SAF provider close failures and Android installer handoff remain NOT TESTED.
 7. No new permission/dependency, root, Device Owner, merge/main write or paid service.
 
-## Evidence
+## Evidence — 2026-10-28
 
-CI is pending for the source/test commit. This milestone tests an exception boundary not proven by ordinary source inspection; device/provider behavior remains a separate gate.
+- Production source commit: `ce9571fee2ae8685093e04a17cce27cdee8fb4f0`.
+- Final source/test SHA: `7a8801c7da8fe4c241eb686755722c036c33e030`.
+- **PASS:** [CI #40677641751](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40677641751), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 54s.
+- Earlier production-only run [#40677218786](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40677218786) also passed; the final run includes the additional successful-close regression.
+- Artifacts: 0. No APK packaging/signing/upload, no new dependency/permission, root, Device Owner, merge or main write.
+- Real SAF provider close failure, Xiaomi Pad 5/HyperOS and installer handoff: **NOT TESTED**.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.

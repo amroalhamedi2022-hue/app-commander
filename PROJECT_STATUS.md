@@ -291,3 +291,15 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - **PASS:** [source/JVM/Lint CI #40669431153](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40669431153), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 11s; artifacts 0.
 - **NOT TESTED:** real SAF cancellation, Xiaomi Pad 5 / HyperOS, Android installer handoff, Shizuku device flow.
 - No APK packaging/signing/upload, new permission/dependency, root, Device Owner, merge, or main write.
+
+
+## 2026-10-28 N75 — close-failure-safe verified APK snapshot handoff
+
+- Engineering question: can a SAF provider throw from `InputStream.close()` after the snapshot bytes have been verified, leaving a cache file that was never handed to the installer?
+- Production source commit: `ce9571fee2ae8685093e04a17cce27cdee8fb4f0`. Final source/test SHA: `7a8801c7da8fe4c241eb686755722c036c33e030` (adds the successful owned-stream close regression).
+- Added an owned-stream snapshot boundary that records the created file before close completes. Repository URI creation now happens only after stream close succeeds. Cancellation, URI failure and fatal error attempt verified cleanup; cleanup diagnostics are suppressed onto the original failure instead of replacing it.
+- Regression coverage proves successful owned-stream close, close-time IOException after exact bytes (same exception identity and no leftover snapshot), and cleanup failure preserving the primary CancellationException.
+- Earlier run on the production commit [#40677218786](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40677218786) PASS; final source/test run at the exact SHA [#40677641751](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40677641751) **PASS**, `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 54s.
+- Workflow artifacts: **0**. No APK packaging/signing/upload, no new dependency/permission, no root or Device Owner, no merge/main write.
+- Real SAF provider close failures, Xiaomi Pad 5/HyperOS and Android installer handoff: **NOT TESTED**. Shizuku device behavior remains NOT TESTED.
+- Google Drive LIVE handoff/index sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back is claimed.
