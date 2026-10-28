@@ -31,7 +31,9 @@ Cleanup callbacks can throw synchronously, and reentrant callbacks can attempt a
 ## Verification status
 
 - Production + regression source/test PR head: `611aaa5ccc08b1016999746cc9bbb911fe5bad68` (production helper in parent `e89af930a6b9487d64f48c0043ed1861f775c4e7`, followed by a test assertion identity correction).
-- **PASS:** JVM tests + Android Static Lint — [CI #40735717349](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40735717349), completed successfully on the exact PR head.
+- **PASS:** JVM tests + Android Static Lint — [CI #40735717349](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40735717349), completed successfully on the exact source/test PR head.
+- **PASS:** evidence/documentation-head JVM + Lint recheck — [CI #40736351671](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40736351671), BUILD SUCCESSFUL; job `source-checks` completed successfully.
+- Artifact query on the evidence head: **0**. This final ledger-only update uses `[skip ci]`; no production/test source changes follow the tested heads.
 - Artifacts: **0**; the source-check workflow does not package/sign/upload APKs.
-- Final documentation-head recheck: pending after this evidence update.
+- Final ledger-only update: source/test behavior unchanged; `[skip ci]` avoids spending another free CI run on documentation-only changes.
 - Google Drive LIVE sync: no claim without a successful read/write/read-back in the confirmed folder.
