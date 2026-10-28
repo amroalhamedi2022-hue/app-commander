@@ -881,3 +881,11 @@ Updated: 2026-10-26
 - Acceptance: expected metadata is validated first; exact-size/hash match remains accepted; mismatched hash or size fails closed; an oversized replacement is rejected after the first bounded read chunk crossing the previously inspected size; cancellation and JVM Error behavior remain unchanged.
 - Source/JVM tests + Android lint: PASS on SHA 1a8bd97a0410a6f06057afcf689bb07fd753197a; CI #40634636975 PASS; artifact count 0.
 - Xiaomi Pad 5/HyperOS, real SAF provider and installer handoff: NOT TESTED. Google Drive LIVE sync: SYNC FAILED — connector unavailable.
+
+## N69 — APK integrity EOF cancellation race (2026-10-28)
+
+- Production + regression SHA: d1a0b11b49fe528097485c4d4971cf8f6b284571.
+- `ApkInstallIntegrity.matches` rechecks cancellation after the final bounded read/hash and before accepting size/SHA-256.
+- Regression flips cancellation exactly when the stream returns EOF and asserts the same CancellationException instance propagates.
+- CI/final-head verification: PENDING. APK artifacts: 0 expected; no packaging requested.
+- Xiaomi Pad 5/HyperOS, real SAF provider and installer handoff: NOT TESTED.
