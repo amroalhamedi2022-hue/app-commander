@@ -22,12 +22,15 @@ internal data class ApkInspectionLoadState(
         error = null,
     )
 
+    private fun ownsActiveRequest(requestGeneration: Long): Boolean =
+        requestGeneration == generation && loading
+
     fun complete(requestGeneration: Long, inspection: ApkInspection): ApkInspectionLoadState =
-        if (requestGeneration != generation) this
+        if (!ownsActiveRequest(requestGeneration)) this
         else copy(result = inspection, loading = false, error = null)
 
     fun fail(requestGeneration: Long, message: String): ApkInspectionLoadState =
-        if (requestGeneration != generation) this
+        if (!ownsActiveRequest(requestGeneration)) this
         else copy(
             result = null,
             loading = false,
@@ -35,6 +38,6 @@ internal data class ApkInspectionLoadState(
         )
 
     fun cancel(requestGeneration: Long): ApkInspectionLoadState =
-        if (requestGeneration != generation) this
+        if (!ownsActiveRequest(requestGeneration)) this
         else copy(result = null, loading = false, error = null)
 }
