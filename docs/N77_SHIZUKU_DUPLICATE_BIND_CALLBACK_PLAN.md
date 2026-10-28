@@ -29,8 +29,9 @@ The race spans two synchronized state-machine calls and platform callbacks. A JV
 
 ## Evidence
 
-- Source/test/docs commit: pending.
-- JVM and lint CI: pending.
-- APK artifacts: 0; no APK build requested.
-- Device Shizuku callback behavior: **NOT TESTED**.
-- Google Drive LIVE sync: **SYNC FAILED** if no Drive/Docs connector is exposed; no sync claim without read-back verification.
+- Exact source/test/docs commit: `ca874ff64d694fe8fab80e6d8afff209d1bc7dab`.
+- **PASS — JVM tests + Android static lint:** [CI #40692700079](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40692700079); `:app:testDebugUnitTest` and `:app:lintDebug`, `BUILD SUCCESSFUL in 1m 47s`.
+- Artifact query: **0**. No APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS and actual Shizuku reconnect callbacks: **NOT TESTED**.
+- The evidence append triggers a final documentation-head CI recheck; its result will be recorded in the PR conversation to avoid a docs-only commit loop.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no sync is claimed.

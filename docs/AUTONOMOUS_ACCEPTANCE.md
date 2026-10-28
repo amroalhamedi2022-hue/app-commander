@@ -966,8 +966,8 @@ Updated: 2026-10-26
 - Engineering question: can a Binder callback race the initial remote probe and trigger redundant binding, or can a duplicate callback replace the active Binder?
 - Production change: `beginOrJoin` reuses a live Binder's waiter; `connectedIfCurrent` keeps duplicate callbacks idempotent and rejects redundant connection attempts without replacing the current Binder.
 - JVM regressions: duplicate callback preserves Binder identity; remote-probe/bind-request race reuses the active waiter; prior stale callback/timeout/retry cases remain covered.
-- Source/test/docs commit: **PENDING**.
-- `:app:testDebugUnitTest :app:lintDebug`: **PENDING**. APK artifacts: 0; no APK build.
+- Exact source/test/docs commit: `ca874ff64d694fe8fab80e6d8afff209d1bc7dab`.
+- **PASS — JVM tests + Android static lint:** [CI #40692700079](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40692700079); `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 47s. APK artifacts: 0; no APK build.
 - Xiaomi Pad 5/HyperOS and real Shizuku reconnection: **NOT TESTED**.
 - No new permission/dependency, root, Device Owner, merge/main write or auto-merge.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime; no Drive read/write/read-back or folder metadata verification is claimed.
