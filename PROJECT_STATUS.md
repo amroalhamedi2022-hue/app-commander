@@ -263,3 +263,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Xiaomi Pad 5/HyperOS, real SAF provider mutation and Android installer handoff: NOT TESTED.
 - Google Drive LIVE sync: SYNC FAILED — no Google Drive/Docs connector is exposed in this execution environment. No LIVE read/write or folder metadata verification is claimed.
 - No new permission/dependency, root, Device Owner, merge, or main write. Documentation-only follow-up does not change source behavior.
+
+## 2026-10-28 N70 — final-EOF cancellation in bounded APK copy
+
+- Source/test SHA: 1f2f128cccad515aed248e5a85980353055544b9.
+- PASS: source/JVM/Lint CI #40646249969; `:app:testDebugUnitTest :app:lintDebug --stacktrace`, BUILD SUCCESSFUL in 1m 51s.
+- Added final cooperative cancellation checkpoint after EOF; deterministic regression confirms cancellation arriving at EOF is not returned as a successful digest.
+- Artifact query: 0. No APK packaging/build/signing/upload.
+- Xiaomi Pad 5/HyperOS, real SAF providers, and Android installer handoff: NOT TESTED. No root, Device Owner, merge, or main write.
+- Google Drive LIVE sync: SYNC FAILED — no Google Drive/Docs connector is exposed.

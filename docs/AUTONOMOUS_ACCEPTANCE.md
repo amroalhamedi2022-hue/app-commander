@@ -892,3 +892,13 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS, real SAF provider and installer handoff: NOT TESTED.
 
 - Google Drive LIVE handoff/index: SYNC FAILED — this runtime exposes no Google Drive/Docs connector; no LIVE read/write/read-back or folder metadata verification was possible.
+
+
+## N70 — final-EOF cancellation in bounded APK copy (2026-10-28)
+
+- Production + regression-test SHA: `1f2f128cccad515aed248e5a85980353055544b9`.
+- `ApkCacheCopy.copyWithSha256` now performs one final cancellation check after EOF and before returning the byte count/SHA-256.
+- Regression flips cancellation on the final EOF read and verifies the same `CancellationException` object propagates. Existing copy, hash, size-limit, stall, and between-chunk cancellation tests remain in the suite.
+- **PASS:** source/JVM/Lint CI #40646249969; `:app:testDebugUnitTest` and `:app:lintDebug`, BUILD SUCCESSFUL in 1m 51s. Artifact query: 0.
+- Xiaomi Pad 5/HyperOS, real SAF provider behavior, and installer handoff: **NOT TESTED**. No APK packaging/signing/upload, permission or dependency change.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed.
