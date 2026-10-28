@@ -272,3 +272,13 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - Artifact query: 0. No APK packaging/build/signing/upload.
 - Xiaomi Pad 5/HyperOS, real SAF providers, and Android installer handoff: NOT TESTED. No root, Device Owner, merge, or main write.
 - Google Drive LIVE sync: SYNC FAILED — no Google Drive/Docs connector is exposed.
+
+
+## 2026-10-28 — N72 APK Inspector cancellation and stale-result isolation
+
+- Final source/test SHA: bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- Generation-aware inspector state clears the prior APK/install URI before new inspection, rethrows cancellation, ignores stale completions, and keeps installer handoff exceptions from locking the UI busy.
+- Initial source CI #40660978319 FAIL exposed a stale assignment to the derived result; corrected in bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- **PASS:** source/JVM/lint CI #40661366429, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
+- APK packaging/build/upload: NOT PERFORMED. Xiaomi Pad 5/HyperOS, SAF provider and Shizuku device tests: NOT TESTED.
+- No root, Device Owner, merge or main write. Final docs-head recheck: pending.

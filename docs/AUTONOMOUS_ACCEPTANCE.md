@@ -912,3 +912,14 @@ Updated: 2026-10-26
 - Xiaomi Pad 5/HyperOS, real SAF provider/installer handoff, and Shizuku device flow: **NOT TESTED**.
 - Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector is exposed in this runtime.
 - Final documentation-head CI is recorded in the PR verification comment added after this evidence update.
+
+
+## 2026-10-28 — N72 APK Inspector cancellation and stale-result isolation
+
+- Final source/test SHA: bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- Replaced the inspector's broad runCatching with explicit cancellation handling and a generation-aware state. New selections synchronously clear the prior inspection/install URI; stale completions cannot overwrite newer results or unlock their busy state.
+- Hardened installer handoff with cancellation-aware try/catch/finally; provider/preparation exceptions now produce a retryable message and cannot leave the Inspector permanently busy.
+- Initial source commit 413389a77fe554492e1e55be8e8f52aa01b2621a **FAILED** CI because the UI still assigned to the now-derived result value. Corrected in bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- **PASS:** final source/JVM/lint CI [#40661366429](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40661366429): :app:testDebugUnitTest :app:lintDebug, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
+- APK packaging/build/upload: NOT PERFORMED. Xiaomi Pad 5/HyperOS cancellation, installer handoff, SAF provider and Shizuku device behavior: NOT TESTED.
+- No root, Device Owner, external API, merge, or main write. Final docs-head recheck: pending.

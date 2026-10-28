@@ -22,7 +22,11 @@ The APK file-picker callback used runCatching, which catches CancellationExcepti
 6. :app:testDebugUnitTest and :app:lintDebug pass; no APK packaging or artifact upload.
 
 ## Evidence
-- Source/test commit: CI pending.
+- Final source/test SHA: bd7d2b81bbb2751b3a335e0f537053f8794e85a0.
+- Initial CI #40660978319 FAIL: the UI still assigned to the derived result; corrected in the follow-up commit.
+- Final source/JVM/lint CI [#40661366429](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40661366429): PASS, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
+- APK packaging/build/upload: NOT PERFORMED.
+- Final docs-head recheck: pending.
 - Xiaomi Pad 5 / HyperOS UI cancellation and installer handoff: NOT TESTED.
 - SAF provider and Shizuku device behavior: NOT TESTED.
 - No root, Device Owner, external API, or paid service added.
