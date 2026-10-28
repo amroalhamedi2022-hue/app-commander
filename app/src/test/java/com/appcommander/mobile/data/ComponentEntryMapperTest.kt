@@ -66,7 +66,7 @@ class ComponentEntryMapperTest {
         assertTrue(repository.contains("services = ComponentEntryMapper.map("))
         assertTrue(repository.contains("receivers = ComponentEntryMapper.map("))
         assertTrue(ui.contains("requiredPermission?.takeIf { it.isNotBlank() }"))
-        assertTrue(ui.contains("Text(\"إذن: $permission\""))
+        assertTrue(ui.contains("إذن: \$permission"))
         assertTrue(ui.contains("callerHasPermission = component.callerHasPermission"))
     }
 }
