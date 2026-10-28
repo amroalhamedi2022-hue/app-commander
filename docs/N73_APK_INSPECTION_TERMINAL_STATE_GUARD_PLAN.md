@@ -23,3 +23,13 @@ Source inspection is not enough: `ApkInspectionLoadState` currently compares onl
 
 ## Boundaries
 No new permissions, dependencies, root, Device Owner, or paid service. No merge or main-branch write.
+
+## Evidence
+
+- Production state-machine commit: `823d57443d2562f6e9819236db9dc5aa97bd2b7c`.
+- Regression-test commit / source-test CI head: `46503cc9876c599253e4db26ebb0a6633273ca85`.
+- **PASS — JVM unit tests + Android static lint:** [CI #40663951308](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40663951308), `:app:testDebugUnitTest :app:lintDebug`, completed successfully.
+- Final documentation-head recheck: pending after this evidence update.
+- Artifacts: 0 at source-test stage. No APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS, real SAF providers/installer handoff, and Shizuku device flow: NOT TESTED.
+- No new permissions/dependencies, root, Device Owner, merge, main-branch write, or paid service.
