@@ -249,4 +249,51 @@ class ApkCacheCopyTest {
         assertSame(cancellation, thrown)
     }
 
+    @Test fun fatalCleanupErrorPropagatesUnchangedAfterSuccessfulInspection() {
+        val directory = Files.createTempDirectory("apk-inspection-fatal-cleanup").toFile()
+        val fatal = AssertionError("fatal cleanup failure")
+        var cached: java.io.File? = null
+        try {
+            val thrown = assertThrows(AssertionError::class.java) {
+                ApkCacheCopy.withTemporaryApk(
+                    directory,
+                    deleteTemporary = { file -> cached = file; throw fatal },
+                ) { file ->
+                    file.writeText("temporary APK")
+                    "inspected"
+                }
+            }
+            assertSame(fatal, thrown)
+            assertTrue(cached!!.exists())
+        } finally {
+            cached?.delete()
+            directory.deleteRecursively()
+        }
+    }
+
+    @Test fun fatalCleanupErrorIsSuppressedWithoutReplacingInspectionFailure() {
+        val directory = Files.createTempDirectory("apk-inspection-primary-fatal-cleanup").toFile()
+        val original = IllegalStateException("invalid APK")
+        val fatal = AssertionError("fatal cleanup failure")
+        var cached: java.io.File? = null
+        try {
+            val thrown = assertThrows(IllegalStateException::class.java) {
+                ApkCacheCopy.withTemporaryApk(
+                    directory,
+                    deleteTemporary = { file -> cached = file; throw fatal },
+                ) { file ->
+                    file.writeText("partial APK")
+                    throw original
+                }
+            }
+            assertSame(original, thrown)
+            assertEquals(1, thrown.suppressed.size)
+            assertSame(fatal, thrown.suppressed.single())
+            assertTrue(cached!!.exists())
+        } finally {
+            cached?.delete()
+            directory.deleteRecursively()
+        }
+    }
+
 }
