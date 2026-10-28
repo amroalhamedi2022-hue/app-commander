@@ -954,7 +954,7 @@ Updated: 2026-10-26
 - Engineering question: can a prepared snapshot be orphaned on cancelled `withContext` return or failed `startActivity`, and can cleanup race the installer's asynchronous read?
 - Production change: repository returns a file+URI handle; `VerifiedInstallHandoff` records it inside the IO block, retains ownership until `startActivity` returns, cleans up on failure/cancellation and preserves primary exceptions with suppressed cleanup diagnostics.
 - Tests: cleanup-on-cancel/failure exactly once, successful launch retains the snapshot, cleanup failure is suppressed, null preparation has no cleanup target, and UI/repository source-contract ordering.
-- Source/test SHA and final PR-head CI: pending.
+- **PASS:** final source/test PR head `6346ef6f67e6c8adecd33d22cc0078ce37b88088`; GitHub Actions [#40684620267](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40684620267) completed `:app:testDebugUnitTest :app:lintDebug` successfully (BUILD SUCCESSFUL in 1m 48s). Artifact query: 0. The docs evidence append triggers an independent final docs-head recheck, to be recorded in the PR conversation.
 - APK packaging/artifacts: 0 / not performed. Xiaomi Pad 5/HyperOS and real installer timing: **NOT TESTED**.
 - Android FileProvider and OWASP URI-grant guidance reviewed; private provider subtree and read-only grant unchanged.
 - No new permissions/dependencies, root, Device Owner, merge, main write, auto-merge or paid service.
