@@ -1003,3 +1003,16 @@ Updated: 2026-10-26
 - **PASS:** source/JVM/Lint CI [#40722107650](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40722107650), BUILD SUCCESSFUL in 1m 43s; artifact count 0.
 - Xiaomi Pad 5/HyperOS Shizuku and real SAF/installer flows: NOT TESTED. No APK packaging, root, Device Owner, merge, or main write.
 - Google Drive LIVE: SYNC FAILED (Drive/Docs connector unavailable; no read/write/read-back performed).
+
+
+## 2026-10-28 N82 — linearizable verified-install snapshot ownership
+
+- Engineering question: can concurrent installer transfer and failure cleanup both claim the same verified APK snapshot?
+- Replaced separate atomic flags with a synchronized state machine. Transfer and cleanup are mutually exclusive; cleanup is claimed once and invoked outside the lock. The UI checks that transfer succeeded after `startActivity` returns.
+- Regression: 64 concurrent transfer-vs-cleanup races plus strengthened success, cancellation, cleanup diagnostics and null-preparation tests; source-contract ordering remains covered.
+- Production + regression-test SHA: `4754de66a04a29a0b9c38db2d8614e8b001d2659`.
+- **PASS:** source/JVM/Lint CI [#40732821049](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40732821049), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 57s.
+- Artifact query: 0; no APK packaging/signing/upload.
+- Xiaomi Pad 5/HyperOS, real SAF provider and Android installer timing, and Shizuku device behavior: **NOT TESTED**.
+- No new permissions/dependencies, root, Device Owner, merge, `main` write or auto-merge.
+- Google Drive LIVE sync: **SYNC FAILED** — no Drive/Docs connector exposed; no Drive read/write/read-back or folder metadata verification.
