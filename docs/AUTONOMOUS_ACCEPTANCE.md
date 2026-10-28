@@ -923,3 +923,16 @@ Updated: 2026-10-26
 - **PASS:** final source/JVM/lint CI [#40661366429](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40661366429): :app:testDebugUnitTest :app:lintDebug, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
 - APK packaging/build/upload: NOT PERFORMED. Xiaomi Pad 5/HyperOS cancellation, installer handoff, SAF provider and Shizuku device behavior: NOT TESTED.
 - No root, Device Owner, external API, merge, or main write. Final docs-head recheck: recorded in the PR verification comment for the final documentation head; source/test code remains unchanged after the source/test SHA above.
+
+
+## 2026-10-28 N74 — cancellation-safe verified APK install snapshot
+
+- Source/test SHA: `647868609d15a748f870695f27a04948ed771646`.
+- `ApkInstallSnapshot.create` now forwards cooperative cancellation to the bounded streaming copy, checks before cache allocation and after EOF, and does not mark the file verified until the final cancellation check passes.
+- The install UI passes its coroutine context to the IO worker; `AppRepository.prepareVerifiedInstall` rethrows cancellation instead of converting it to a normal null verification result and deletes the snapshot if cancellation arrives during URI creation.
+- Two JVM integration regressions cover mid-copy cancellation and EOF cancellation, exception identity, and partial-file cleanup.
+- **PASS:** source/JVM/Lint [CI #40669431153](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40669431153), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 11s.
+- Artifacts: **0**. No APK packaging/signing/upload.
+- Xiaomi Pad 5 / HyperOS, real SAF-provider cancellation, and installer handoff: **NOT TESTED**.
+- No new dependency/permission, root, Device Owner, merge, main write, or paid service.
+- Google Drive LIVE sync: **SYNC FAILED** — no Google Drive/Docs connector is exposed in this runtime; no Drive sync is claimed.

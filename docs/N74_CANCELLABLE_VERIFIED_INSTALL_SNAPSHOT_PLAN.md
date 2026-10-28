@@ -25,3 +25,14 @@ Source inspection shows `ApkCacheCopy.copyWithSha256` already supports cooperati
 5. `:app:testDebugUnitTest :app:lintDebug` pass with zero artifacts; no APK packaging/signing/upload.
 6. Xiaomi Pad 5/HyperOS, real SAF-provider cancellation, and Android installer handoff remain NOT TESTED.
 7. No new permission/dependency, root, Device Owner, merge/main write, or paid service.
+
+
+## Evidence — 2026-10-28
+
+- Production + regression-test source SHA: `647868609d15a748f870695f27a04948ed771646`.
+- **PASS — source/JVM/Lint CI:** [run #40669431153](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40669431153), exact tested SHA; `:app:testDebugUnitTest :app:lintDebug`, **BUILD SUCCESSFUL in 1m 11s**.
+- New regressions cover cancellation during a partial snapshot copy and cancellation exactly at EOF; both require the same `CancellationException` instance and an empty snapshot directory afterward.
+- Workflow artifact query: **0 artifacts**. No APK packaging, signing, or upload.
+- Xiaomi Pad 5 / HyperOS, real SAF-provider cancellation, and Android installer handoff: **NOT TESTED**.
+- No new dependency/permission, root, Device Owner, merge, main write, or paid service.
+- Google Drive LIVE handoff/index: **SYNC FAILED** — this runtime exposes no Google Drive/Docs connector; no Drive read/write/read-back is claimed.

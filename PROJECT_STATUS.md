@@ -282,3 +282,12 @@ Install and exercise the debug build on physical devices. Start with Android 13 
 - **PASS:** source/JVM/lint CI #40661366429, BUILD SUCCESSFUL in 1m 9s; 0 artifacts.
 - APK packaging/build/upload: NOT PERFORMED. Xiaomi Pad 5/HyperOS, SAF provider and Shizuku device tests: NOT TESTED.
 - No root, Device Owner, merge or main write. Final docs-head recheck: pending.
+
+
+## 2026-10-28 N74 — cancellable verified-install snapshot
+
+- The SAF-to-private-cache install copy now observes coroutine cancellation between 64 KiB reads and at EOF. Cancellation propagates unchanged and partial snapshots are deleted before a URI can be handed to Android's installer.
+- Production/test SHA: `647868609d15a748f870695f27a04948ed771646`.
+- **PASS:** [source/JVM/Lint CI #40669431153](https://github.com/amroalhamedi2022-hue/app-commander/actions/runs/40669431153), `:app:testDebugUnitTest :app:lintDebug`, BUILD SUCCESSFUL in 1m 11s; artifacts 0.
+- **NOT TESTED:** real SAF cancellation, Xiaomi Pad 5 / HyperOS, Android installer handoff, Shizuku device flow.
+- No APK packaging/signing/upload, new permission/dependency, root, Device Owner, merge, or main write.
